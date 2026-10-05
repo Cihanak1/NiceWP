@@ -1,0 +1,39 @@
+## Build outputs and intermediates
+[Bb]in/
+[Oo]bj/
+[Aa]rms/
+[Aa]rm64/
+[Xx]64/
+[Xx]86/
+Generated Files/
+
+## Visual Studio
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.userprefs
+*.dbmdl
+*.jfm
+*.pidb
+*.vbruntime
+
+## Test results
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+*.coveragexml
+
+## Logs and diagnostics
+*.log
+
+## OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+## Agent & AI Local Workspace Cache
+.gemini/
+.antigravity/
+.system_generated/
