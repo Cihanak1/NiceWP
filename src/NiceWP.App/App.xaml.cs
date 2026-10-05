@@ -24,7 +24,11 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+#if DEBUG
+        _window = new DesktopTestWindow();
+#else
         _window = new MainWindow();
+#endif
         _window.Activate();
     }
 }
