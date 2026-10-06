@@ -1,0 +1,161 @@
+using NiceWP.Core;
+using Xunit;
+
+namespace NiceWP.Runtime.Tests;
+
+public sealed class ImageWallpaperServiceTests : IDisposable
+{
+    private readonly string first = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".png");
+    private readonly string second = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".jpg");
+    private readonly List<string> events = [];
+    private readonly List<FakeRenderer> renderers = [];
+    private readonly FakeHost host;
+    private readonly ImageWallpaperService service;
+    private WallpaperResult loadResult = new();
+    private TaskCompletionSource<WallpaperResult>? pending;
+
+    public ImageWallpaperServiceTests()
+    {
+        File.WriteAllBytes(first, []);
+        File.WriteAllBytes(second, []);
+        host = new(events);
+        service = new(host, () =>
+        {
+            var renderer = new FakeRenderer(events, loadResult, pending);
+            renderers.Add(renderer);
+            return renderer;
+        });
+    }
+
+    [Fact]
+    public async Task StartReuseReplaceAndStopReleaseInOrder()
+    {
+        Assert.True((await service.StartAsync(first)).Success);
+        Assert.True((await service.StartAsync(first)).Success);
+        Assert.Single(renderers);
+        Assert.True((await service.StartAsync(second)).Success);
+        Assert.Equal(1, renderers[0].DisposeCount);
+        Assert.Equal(new[] { "load", "attach", "show", "load", "detach", "dispose", "attach", "show" }, events);
+        Assert.Equal(second, service.ActivePath);
+        Assert.True(service.Stop().Success);
+        Assert.True(service.Stop().Success);
+        Assert.Equal(1, renderers[1].DisposeCount);
+        Assert.Null(service.ActivePath);
+    }
+
+    [Fact]
+    public async Task InvalidImagePreservesCurrentAndDisposesCandidate()
+    {
+        await service.StartAsync(first);
+        loadResult = new(WallpaperError.InvalidImage, "Corrupt image");
+        Assert.Equal(WallpaperError.InvalidImage, (await service.StartAsync(second)).Error);
+        Assert.Equal(first, service.ActivePath);
+        Assert.Equal(0, renderers[0].DisposeCount);
+        Assert.Equal(1, renderers[1].DisposeCount);
+    }
+
+    [Fact]
+    public async Task StopDuringLoadDisposesCandidateWithoutAttachment()
+    {
+        pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var start = service.StartAsync(first);
+        Assert.Equal(WallpaperError.Busy, (await service.StartAsync(second)).Error);
+        service.Stop();
+        pending.SetResult(new());
+        Assert.Equal(WallpaperError.Stopped, (await start).Error);
+        Assert.Equal(new[] { "load", "dispose" }, events);
+        Assert.Null(service.ActivePath);
+    }
+
+    [Fact]
+    public async Task LostHostStopsWallpaperAndReturnsControlledFailure()
+    {
+        await service.StartAsync(first);
+        host.Valid = false;
+        Assert.Equal(WallpaperError.DesktopHostUnavailable, service.ValidateHost().Error);
+        Assert.Equal(1, renderers[0].DisposeCount);
+        Assert.Null(service.ActivePath);
+    }
+
+    [Fact]
+    public async Task FailedAttachmentCleansRenderer()
+    {
+        host.FailAttach = true;
+        Assert.Equal(WallpaperError.RendererFailed, (await service.StartAsync(first)).Error);
+        Assert.Equal(1, renderers[0].DisposeCount);
+        Assert.Null(service.ActivePath);
+    }
+
+    [Fact]
+    public async Task FailedDetachCanBeRetriedBeforeRendererIsDestroyed()
+    {
+        await service.StartAsync(first);
+        host.FailDetach = true;
+        Assert.Equal(WallpaperError.CleanupFailed, service.Stop().Error);
+        Assert.Equal(0, renderers[0].DisposeCount);
+        host.FailDetach = false;
+        Assert.True(service.Stop().Success);
+        Assert.Equal(1, renderers[0].DisposeCount);
+    }
+
+    [Fact]
+    public async Task FailedCandidateDisposalReturnsErrorAndCanBeRetried()
+    {
+        pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var start = service.StartAsync(first);
+        renderers[0].FailDispose = true;
+        pending.SetResult(new(WallpaperError.InvalidImage));
+        Assert.Equal(WallpaperError.CleanupFailed, (await start).Error);
+        renderers[0].FailDispose = false;
+        Assert.True(service.Stop().Success);
+        Assert.Equal(1, renderers[0].DisposeCount);
+    }
+
+    public void Dispose()
+    {
+        host.FailDetach = false;
+        service.Stop();
+        File.Delete(first);
+        File.Delete(second);
+    }
+
+    private sealed class FakeRenderer(List<string> events, WallpaperResult result, TaskCompletionSource<WallpaperResult>? pending) : IWallpaperRenderer
+    {
+        public nint WindowHandle => 42;
+        public int DisposeCount { get; private set; }
+        public bool FailDispose { get; set; }
+        public Task<WallpaperResult> LoadAsync(string path)
+        {
+            events.Add("load");
+            return pending?.Task ?? Task.FromResult(result);
+        }
+        public void Show() => events.Add("show");
+        public void Dispose()
+        {
+            if (FailDispose) throw new InvalidOperationException("Dispose failed");
+            DisposeCount++;
+            events.Add("dispose");
+        }
+    }
+
+    private sealed class FakeHost(List<string> events) : IDesktopHost
+    {
+        public bool Valid { get; set; } = true;
+        public bool FailAttach { get; set; }
+        public bool FailDetach { get; set; }
+        public Task<DesktopHostResult> ResolveAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new DesktopHostResult(10, DesktopHostError.None));
+        public bool IsValid(nint handle) => Valid;
+        public nint Attach(nint host, nint window)
+        {
+            if (FailAttach) throw new InvalidOperationException("Attach failed");
+            events.Add("attach");
+            return 0;
+        }
+        public void Detach(nint host, nint window, nint previousParent)
+        {
+            if (FailDetach) throw new InvalidOperationException("Detach failed");
+            events.Add("detach");
+        }
+    }
+}

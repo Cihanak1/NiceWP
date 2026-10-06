@@ -1,139 +1,102 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Threading;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using NiceWP.Platform.Windows;
+using NiceWP.Rendering;
 using NiceWP.Runtime;
+using Windows.Storage.Pickers;
 
 namespace NiceWP.App;
 
 public sealed partial class DesktopTestWindow : Window
 {
-    private readonly DesktopHostService desktopHost = new();
-    private readonly CancellationTokenSource lifetime = new();
-    private readonly DispatcherTimer closeTimer = new() { Interval = TimeSpan.FromSeconds(90) };
+    private readonly ImageWallpaperService wallpaper = new(new WindowsDesktopHost(), () => new ImageWallpaperRenderer());
     private readonly TextWriterTraceListener? diagnostics;
-    private bool started;
     private bool closed;
+    private bool selecting;
 
     public DesktopTestWindow()
     {
         InitializeComponent();
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(900, 600));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(640, 260));
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
-        closeTimer.Tick += OnTestCompleted;
+        Activated += OnActivated;
+#if DEBUG
         try
         {
-            var path = Path.Combine(Path.GetTempPath(), $"NiceWP-desktop-test-{Environment.ProcessId}.log");
-            diagnostics = new TextWriterTraceListener(path);
+            diagnostics = new TextWriterTraceListener(Path.Combine(Path.GetTempPath(), $"NiceWP-image-test-{Environment.ProcessId}.log"));
             Trace.Listeners.Add(diagnostics);
             Trace.AutoFlush = true;
-            Trace.WriteLine($"Desktop test started: {DateTimeOffset.Now:O}, process={Environment.ProcessId}");
         }
         catch (Exception exception)
         {
-            StatusText.Text = $"Test log could not be opened: {exception.Message}";
-            started = true;
+            Trace.WriteLine(exception);
+            StatusText.Text = "Diagnostic log could not be opened.";
         }
+#endif
     }
 
-    private async void OnLoaded(object sender, RoutedEventArgs args)
+    private async void OnSelectImage(object sender, RoutedEventArgs args)
     {
-        if (started)
-        {
-            return;
-        }
-
-        started = true;
+        if (selecting || closed) return;
+        selecting = true;
+        SelectImageButton.IsEnabled = false;
         try
         {
-            var window = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            if (window == 0)
-            {
-                throw new InvalidOperationException("WinUI did not provide a valid window handle.");
-            }
-
-            var result = await desktopHost.AttachAsync(window, lifetime.Token);
-            if (closed)
-            {
-                return;
-            }
-
-            Trace.WriteLine($"Host resolve: success={result.Success}, host=0x{result.Handle:X}, error={result.Error}, nativeError={result.NativeError}");
-            if (!result.Success)
-            {
-                StatusText.Text = $"Desktop host unavailable: {result.Error} (Win32: {result.NativeError})";
-                return;
-            }
-
-            closeTimer.Start();
-        }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
-        {
-            Trace.WriteLine("Desktop test stopped during resolution.");
+            var picker = new FileOpenPicker();
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+            picker.FileTypeFilter.Add(".png");
+            picker.FileTypeFilter.Add(".jpg");
+            picker.FileTypeFilter.Add(".jpeg");
+            var file = await picker.PickSingleFileAsync();
+            if (file == null || closed) return;
+            var result = await wallpaper.StartAsync(file.Path);
+            if (closed) return;
+            PathText.Text = wallpaper.ActivePath ?? "No image selected";
+            StatusText.Text = result.Success ? string.Empty : result.Message;
         }
         catch (Exception exception)
         {
-            ReportError(exception);
+            Trace.WriteLine(exception);
+            if (!closed) StatusText.Text = "The image could not be selected or displayed.";
+        }
+        finally
+        {
+            selecting = false;
+            if (!closed) SelectImageButton.IsEnabled = true;
         }
     }
 
-    private bool TryCleanup()
+    private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
-        closeTimer.Stop();
-        lifetime.Cancel();
-        try
+        if (closed || args.WindowActivationState == WindowActivationState.Deactivated) return;
+        var result = wallpaper.ValidateHost();
+        if (!result.Success)
         {
-            desktopHost.Stop();
-            Trace.WriteLine("Runtime cleanup completed; host reference cleared.");
-            return true;
-        }
-        catch (Exception exception)
-        {
-            ReportError(exception);
-            return false;
-        }
-    }
-
-    private void OnTestCompleted(object? sender, object args)
-    {
-        if (TryCleanup())
-        {
-            Close();
+            StatusText.Text = result.Message;
+            PathText.Text = wallpaper.ActivePath ?? "No image selected";
         }
     }
 
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        args.Cancel = !TryCleanup();
+        var result = wallpaper.Stop();
+        args.Cancel = !result.Success;
+        if (!result.Success) StatusText.Text = result.Message;
     }
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
         closed = true;
-        if (TryCleanup())
-        {
-            desktopHost.Dispose();
-        }
-
-        Trace.WriteLine("Desktop test window closed.");
+        var result = wallpaper.Stop();
+        Trace.WriteLine($"Control window closed; cleanup={result.Success}");
         if (diagnostics != null)
         {
             Trace.Listeners.Remove(diagnostics);
             diagnostics.Dispose();
-        }
-
-        lifetime.Dispose();
-    }
-
-    private void ReportError(Exception exception)
-    {
-        Trace.WriteLine(exception);
-        if (!closed)
-        {
-            StatusText.Text = $"Desktop test failed: {exception.Message}";
         }
     }
 }
