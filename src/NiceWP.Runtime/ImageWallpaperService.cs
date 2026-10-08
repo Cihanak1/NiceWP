@@ -4,11 +4,13 @@ using NiceWP.Core;
 namespace NiceWP.Runtime;
 
 /// <summary>Owned by the UI thread. Stop also invalidates any pending start.</summary>
-public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRenderer> createRenderer)
+public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRenderer> createRenderer,
+    Func<IWallpaperRenderer>? createVideoRenderer = null)
 {
     private readonly DesktopHostService desktop = new(host);
     private IWallpaperRenderer? active;
     private IWallpaperRenderer? rejected;
+    private IWallpaperRenderer? pendingVideo;
     private bool starting;
     private long generation;
 
@@ -16,13 +18,16 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
 
     public async Task<WallpaperResult> StartAsync(string? path)
     {
-        if (starting) return new(WallpaperError.Busy, "An image is already loading.");
+        if (starting) return new(WallpaperError.Busy, "A wallpaper is already loading.");
         if (rejected != null)
         {
             var cleanup = Stop();
             if (!cleanup.Success) return cleanup;
         }
-        var validation = ImageWallpaper.Validate(path, out var fullPath);
+        var isVideo = string.Equals(Path.GetExtension(path), ".mp4", StringComparison.OrdinalIgnoreCase);
+        string fullPath;
+        var validation = isVideo && createVideoRenderer != null
+            ? VideoWallpaper.Validate(path, out fullPath) : ImageWallpaper.Validate(path, out fullPath);
         if (!validation.Success) return validation;
         var health = ValidateHost();
         if (!health.Success) return health;
@@ -31,14 +36,18 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
         starting = true;
         var request = generation;
         IWallpaperRenderer? candidate = null;
+        var replacing = false;
         async Task<WallpaperResult> StartCoreAsync()
         {
             try
             {
-                candidate = createRenderer();
+                candidate = isVideo ? createVideoRenderer!() : createRenderer();
+                if (isVideo) pendingVideo = candidate;
                 var loaded = await candidate.LoadAsync(fullPath);
+                pendingVideo = null;
                 if (!loaded.Success) return loaded;
                 if (request != generation) return new(WallpaperError.Stopped, "Wallpaper loading was stopped.");
+                replacing = true;
                 var stopped = Stop();
                 if (!stopped.Success) return stopped;
                 request = generation;
@@ -60,6 +69,8 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
             catch (Exception exception)
             {
                 Trace.WriteLine(exception);
+                if (!replacing)
+                    return new(WallpaperError.RendererFailed, "The wallpaper could not be loaded.");
                 var cleanup = Stop();
                 return cleanup.Success
                     ? new(WallpaperError.RendererFailed, "The wallpaper could not be started.") : cleanup;
@@ -71,6 +82,7 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
             var result = await StartCoreAsync();
             if (candidate != null)
             {
+                pendingVideo = null;
                 rejected = candidate;
                 try
                 {
@@ -111,6 +123,8 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
         generation++;
         try
         {
+            pendingVideo?.Dispose();
+            pendingVideo = null;
             desktop.Stop();
             active?.Dispose();
             active = null;

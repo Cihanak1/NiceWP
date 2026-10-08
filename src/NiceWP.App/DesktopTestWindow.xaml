@@ -3,10 +3,10 @@
     x:Class="NiceWP.App.DesktopTestWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="NiceWP Image Wallpaper">
+    Title="NiceWP Wallpaper Prototype">
     <StackPanel Margin="24" Spacing="12">
-        <Button x:Name="SelectImageButton" Content="Select Image" Click="OnSelectImage" />
-        <TextBlock x:Name="PathText" Text="No image selected" TextWrapping="Wrap" />
+        <Button x:Name="SelectImageButton" Content="Select Image / MP4" Click="OnSelectImage" />
+        <TextBlock x:Name="PathText" Text="No wallpaper selected" TextWrapping="Wrap" />
         <TextBlock x:Name="StatusText" TextWrapping="Wrap" />
     </StackPanel>
 </Window>

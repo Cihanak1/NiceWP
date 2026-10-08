@@ -6,13 +6,14 @@ using Microsoft.UI.Xaml;
 using NiceWP.Platform.Windows;
 using NiceWP.Rendering;
 using NiceWP.Runtime;
-using Windows.Storage.Pickers;
+using Microsoft.Windows.Storage.Pickers;
 
 namespace NiceWP.App;
 
 public sealed partial class DesktopTestWindow : Window
 {
-    private readonly ImageWallpaperService wallpaper = new(new WindowsDesktopHost(), () => new ImageWallpaperRenderer());
+    private readonly ImageWallpaperService wallpaper = new(new WindowsDesktopHost(),
+        () => new ImageWallpaperRenderer(), () => new VideoWallpaperRenderer());
     private readonly TextWriterTraceListener? diagnostics;
     private bool closed;
     private bool selecting;
@@ -24,19 +25,18 @@ public sealed partial class DesktopTestWindow : Window
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
         Activated += OnActivated;
-#if DEBUG
         try
         {
             diagnostics = new TextWriterTraceListener(Path.Combine(Path.GetTempPath(), $"NiceWP-image-test-{Environment.ProcessId}.log"));
             Trace.Listeners.Add(diagnostics);
             Trace.AutoFlush = true;
+            Trace.WriteLine($"NiceWP session started: pid={Environment.ProcessId}");
         }
         catch (Exception exception)
         {
             Trace.WriteLine(exception);
             StatusText.Text = "Diagnostic log could not be opened.";
         }
-#endif
     }
 
     private async void OnSelectImage(object sender, RoutedEventArgs args)
@@ -46,22 +46,22 @@ public sealed partial class DesktopTestWindow : Window
         SelectImageButton.IsEnabled = false;
         try
         {
-            var picker = new FileOpenPicker();
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+            var picker = new FileOpenPicker(AppWindow.Id);
             picker.FileTypeFilter.Add(".png");
             picker.FileTypeFilter.Add(".jpg");
             picker.FileTypeFilter.Add(".jpeg");
+            picker.FileTypeFilter.Add(".mp4");
             var file = await picker.PickSingleFileAsync();
             if (file == null || closed) return;
             var result = await wallpaper.StartAsync(file.Path);
             if (closed) return;
-            PathText.Text = wallpaper.ActivePath ?? "No image selected";
+            PathText.Text = wallpaper.ActivePath ?? "No wallpaper selected";
             StatusText.Text = result.Success ? string.Empty : result.Message;
         }
         catch (Exception exception)
         {
             Trace.WriteLine(exception);
-            if (!closed) StatusText.Text = "The image could not be selected or displayed.";
+            if (!closed) StatusText.Text = "The wallpaper could not be selected or displayed.";
         }
         finally
         {
@@ -77,7 +77,7 @@ public sealed partial class DesktopTestWindow : Window
         if (!result.Success)
         {
             StatusText.Text = result.Message;
-            PathText.Text = wallpaper.ActivePath ?? "No image selected";
+            PathText.Text = wallpaper.ActivePath ?? "No wallpaper selected";
         }
     }
 

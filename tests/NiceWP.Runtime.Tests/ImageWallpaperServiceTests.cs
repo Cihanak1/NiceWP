@@ -7,6 +7,7 @@ public sealed class ImageWallpaperServiceTests : IDisposable
 {
     private readonly string first = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".png");
     private readonly string second = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".jpg");
+    private readonly string video = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".mp4");
     private readonly List<string> events = [];
     private readonly List<FakeRenderer> renderers = [];
     private readonly FakeHost host;
@@ -18,10 +19,16 @@ public sealed class ImageWallpaperServiceTests : IDisposable
     {
         File.WriteAllBytes(first, []);
         File.WriteAllBytes(second, []);
+        File.WriteAllBytes(video, []);
         host = new(events);
         service = new(host, () =>
         {
             var renderer = new FakeRenderer(events, loadResult, pending);
+            renderers.Add(renderer);
+            return renderer;
+        }, () =>
+        {
+            var renderer = new FakeRenderer(events, loadResult, pending, completePendingOnDispose: true);
             renderers.Add(renderer);
             return renderer;
         });
@@ -111,15 +118,75 @@ public sealed class ImageWallpaperServiceTests : IDisposable
         Assert.Equal(1, renderers[0].DisposeCount);
     }
 
+    [Fact]
+    public async Task ImageVideoImageUsesOneAttachmentAndReleasesPreviousRenderer()
+    {
+        Assert.True((await service.StartAsync(first)).Success);
+        Assert.True((await service.StartAsync(video)).Success);
+        Assert.Equal(video, service.ActivePath);
+        Assert.True((await service.StartAsync(second)).Success);
+        Assert.Equal(new[] { "load", "attach", "show", "load", "detach", "dispose", "attach", "show",
+            "load", "detach", "dispose", "attach", "show" }, events);
+        Assert.Equal(1, renderers[0].DisposeCount);
+        Assert.Equal(1, renderers[1].DisposeCount);
+    }
+
+    [Fact]
+    public async Task FailedVideoOpenPreservesCurrentWallpaper()
+    {
+        await service.StartAsync(first);
+        loadResult = new(WallpaperError.RendererFailed, "MediaFailed");
+        Assert.Equal(WallpaperError.RendererFailed, (await service.StartAsync(video)).Error);
+        Assert.Equal(first, service.ActivePath);
+        Assert.Equal(0, renderers[0].DisposeCount);
+        Assert.Equal(1, renderers[1].DisposeCount);
+    }
+
+    [Fact]
+    public async Task StopDuringVideoOpenDisposesPendingRendererAndUnblocksStart()
+    {
+        await service.StartAsync(first);
+        pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var start = service.StartAsync(video);
+        Assert.Equal(first, service.ActivePath);
+        Assert.True(service.Stop().Success);
+        Assert.Equal(WallpaperError.Stopped, (await start.WaitAsync(TimeSpan.FromSeconds(5))).Error);
+        Assert.Equal(1, renderers[1].DisposeCount);
+        Assert.Null(service.ActivePath);
+        Assert.Equal(1, events.Count(value => value == "attach"));
+    }
+
+    [Fact]
+    public async Task VideoToVideoReleasesPreviousVideoAndAttachesNew()
+    {
+        var secondVideo = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".mp4");
+        try
+        {
+            File.WriteAllBytes(secondVideo, []);
+            Assert.True((await service.StartAsync(video)).Success);
+            Assert.Equal(video, service.ActivePath);
+            Assert.True((await service.StartAsync(secondVideo)).Success);
+            Assert.Equal(secondVideo, service.ActivePath);
+            Assert.Equal(new[] { "load", "attach", "show", "load", "detach", "dispose", "attach", "show" }, events);
+            Assert.Equal(1, renderers[0].DisposeCount);
+            Assert.Equal(0, renderers[1].DisposeCount);
+            Assert.True(service.Stop().Success);
+            Assert.Equal(1, renderers[1].DisposeCount);
+        }
+        finally { File.Delete(secondVideo); }
+    }
+
     public void Dispose()
     {
         host.FailDetach = false;
         service.Stop();
         File.Delete(first);
         File.Delete(second);
+        File.Delete(video);
     }
 
-    private sealed class FakeRenderer(List<string> events, WallpaperResult result, TaskCompletionSource<WallpaperResult>? pending) : IWallpaperRenderer
+    private sealed class FakeRenderer(List<string> events, WallpaperResult result,
+        TaskCompletionSource<WallpaperResult>? pending, bool completePendingOnDispose = false) : IWallpaperRenderer
     {
         public nint WindowHandle => 42;
         public int DisposeCount { get; private set; }
@@ -132,9 +199,11 @@ public sealed class ImageWallpaperServiceTests : IDisposable
         public void Show() => events.Add("show");
         public void Dispose()
         {
+            if (DisposeCount != 0) return;
             if (FailDispose) throw new InvalidOperationException("Dispose failed");
             DisposeCount++;
             events.Add("dispose");
+            if (completePendingOnDispose) pending?.TrySetResult(new(WallpaperError.Stopped));
         }
     }
 
