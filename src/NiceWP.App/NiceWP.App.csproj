@@ -25,5 +25,17 @@
     <ProjectReference Include="..\NiceWP.Core\NiceWP.Core.csproj" />
     <ProjectReference Include="..\NiceWP.Runtime\NiceWP.Runtime.csproj" />
     <ProjectReference Include="..\NiceWP.Infrastructure\NiceWP.Infrastructure.csproj" />
+    <ProjectReference Include="..\NiceWP.Runtime.Host\NiceWP.Runtime.Host.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
+
+  <Target Name="CopyRuntimeHostToOutput" AfterTargets="Build">
+    <ItemGroup>
+      <_HostFiles Include="..\NiceWP.Runtime.Host\bin\$(Platform)\$(Configuration)\$(TargetFramework)\NiceWP.Runtime.Host.*" />
+      <_HostFiles Condition="'@(_HostFiles)' == ''" Include="..\NiceWP.Runtime.Host\bin\x64\$(Configuration)\$(TargetFramework)\NiceWP.Runtime.Host.*" />
+      <_HostFiles Condition="'@(_HostFiles)' == ''" Include="..\NiceWP.Runtime.Host\bin\$(Configuration)\$(TargetFramework)\NiceWP.Runtime.Host.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_HostFiles)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

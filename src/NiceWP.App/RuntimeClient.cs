@@ -9,13 +9,27 @@ namespace NiceWP.App;
 public sealed class RuntimeClient
 {
     private readonly RuntimeIpcClient ipcClient;
+    private readonly RuntimeHostLauncher launcher;
 
     public string PipeName => ipcClient.PipeName;
+    public RuntimeHostLauncher Launcher => launcher;
+    public RuntimeIpcClient IpcClient => ipcClient;
 
-    public RuntimeClient(string? pipeName = null)
+    public RuntimeClient(string? pipeName = null, string? customHostExePath = null)
     {
         ipcClient = new RuntimeIpcClient(pipeName);
+        launcher = new RuntimeHostLauncher(ipcClient, customHostExePath);
     }
+
+    /// <summary>
+    /// Ensures that the runtime host process is running. If not already active, launches it in the background
+    /// without a window and waits until the IPC endpoint is responsive.
+    /// </summary>
+    public Task<IpcResponse> EnsureHostRunningAsync(
+        int timeoutMs = IpcConstants.DefaultHostStartupTimeoutMs,
+        int retryIntervalMs = IpcConstants.DefaultHostStartupRetryIntervalMs,
+        CancellationToken cancellationToken = default) =>
+        launcher.EnsureHostRunningAsync(timeoutMs, retryIntervalMs, cancellationToken);
 
     /// <summary>
     /// Sends a Ping request to verify that the runtime host is responsive.

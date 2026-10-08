@@ -7,6 +7,7 @@ using Xunit;
 
 namespace NiceWP.Runtime.Tests;
 
+[Collection("HostProcessTests")]
 public sealed class IpcTests
 {
     private static string CreateUniquePipeName() =>

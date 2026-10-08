@@ -22,6 +22,11 @@ public static class IpcConstants
     public const int DefaultTimeoutMilliseconds = 3000;
     public const int MaxMessageLength = 65536; // 64 KB limit
 
+    public const string HostExecutableName = "NiceWP.Runtime.Host.exe";
+    public const int DefaultHostStartupTimeoutMs = 5000;
+    public const int DefaultHostStartupRetryIntervalMs = 100;
+    public const int DefaultInitialPingTimeoutMs = 300;
+
     public static string GetDefaultPipeName() =>
         $"NiceWP.Runtime.Pipe.{Environment.UserName}";
 }
