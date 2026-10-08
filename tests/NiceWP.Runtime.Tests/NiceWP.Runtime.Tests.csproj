@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\NiceWP.Runtime\NiceWP.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\NiceWP.Runtime.Host\NiceWP.Runtime.Host.csproj" />
+    <ProjectReference Include="..\..\src\NiceWP.Infrastructure\NiceWP.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
