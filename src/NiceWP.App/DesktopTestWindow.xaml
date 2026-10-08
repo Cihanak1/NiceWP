@@ -8,5 +8,6 @@
         <Button x:Name="SelectImageButton" Content="Select Image / MP4" Click="OnSelectImage" />
         <TextBlock x:Name="PathText" Text="No wallpaper" TextWrapping="Wrap" />
         <TextBlock x:Name="StatusText" TextWrapping="Wrap" />
+        <CheckBox x:Name="AutostartCheckBox" Content="Start with Windows" Checked="OnAutostartChecked" Unchecked="OnAutostartUnchecked" />
     </StackPanel>
 </Window>

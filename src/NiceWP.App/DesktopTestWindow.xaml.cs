@@ -4,7 +4,10 @@ using System.IO;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.Storage.Pickers;
+using NiceWP.App.Tray;
+using NiceWP.Infrastructure.Autostart;
 using NiceWP.Infrastructure.Ipc;
+using NiceWP.Infrastructure.Tray;
 
 namespace NiceWP.App;
 
@@ -12,18 +15,48 @@ public sealed partial class DesktopTestWindow : Window
 {
     private readonly RuntimeClient runtimeClient = new();
     private readonly TextWriterTraceListener? diagnostics;
+    private readonly AppTrayIcon trayIcon;
+    private readonly TrayLifecycleController controller;
+    private readonly AutostartManager autostartManager = new();
     private string? activeWallpaperPath;
     private string activeWallpaperType = IpcConstants.WallpaperTypeNone;
     private bool closed;
     private bool selecting;
+    private bool isSyncingAutostart;
 
-    public DesktopTestWindow()
+    public DesktopTestWindow(bool isStartup = false)
     {
         InitializeComponent();
         AppWindow.Resize(new Windows.Graphics.SizeInt32(640, 260));
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
         Activated += OnActivated;
+
+        if (isStartup)
+        {
+            AppWindow.Hide();
+        }
+
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        if (hwnd == IntPtr.Zero)
+        {
+            hwnd = (IntPtr)AppWindow.Id.Value;
+        }
+
+        controller = new TrayLifecycleController(
+            runtimeClient.IpcClient,
+            initialWindowVisible: !isStartup,
+            restoreWindowAction: RestoreAndShowWindow,
+            hideWindowAction: () => AppWindow.Hide(),
+            exitAppAction: PerformAppExit,
+            syncStatusAction: SyncRuntimeStatusAsync);
+
+        trayIcon = new AppTrayIcon(hwnd);
+        trayIcon.OpenRequested += OnTrayOpenRequested;
+        trayIcon.StopWallpaperRequested += OnTrayStopWallpaperRequested;
+        trayIcon.ExitRequested += OnTrayExitRequested;
+        trayIcon.Initialize();
+
         try
         {
             diagnostics = new TextWriterTraceListener(Path.Combine(Path.GetTempPath(), $"NiceWP-image-test-{Environment.ProcessId}.log"));
@@ -37,6 +70,8 @@ public sealed partial class DesktopTestWindow : Window
             StatusText.Text = "Diagnostic log could not be opened.";
         }
 
+        RefreshAutostartState();
+
         _ = SyncRuntimeStatusAsync();
     }
 
@@ -44,12 +79,12 @@ public sealed partial class DesktopTestWindow : Window
     {
         try
         {
-            var ping = await runtimeClient.PingAsync();
+            var ensure = await runtimeClient.EnsureHostRunningAsync();
             if (closed) return;
 
-            if (!ping.Success)
+            if (!ensure.Success)
             {
-                StatusText.Text = ping.Message ?? "Runtime host is unavailable.";
+                StatusText.Text = ensure.Message ?? "Runtime host could not be started.";
                 PathText.Text = "No wallpaper";
                 return;
             }
@@ -61,6 +96,7 @@ public sealed partial class DesktopTestWindow : Window
             {
                 activeWallpaperPath = status.ActivePath;
                 activeWallpaperType = status.WallpaperType;
+                controller.SetActiveWallpaper(activeWallpaperPath, activeWallpaperType);
                 PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
                 StatusText.Text = string.Empty;
             }
@@ -68,6 +104,7 @@ public sealed partial class DesktopTestWindow : Window
             {
                 activeWallpaperPath = null;
                 activeWallpaperType = IpcConstants.WallpaperTypeNone;
+                controller.SetActiveWallpaper(null, IpcConstants.WallpaperTypeNone);
                 PathText.Text = "No wallpaper";
                 StatusText.Text = status.Success ? string.Empty : (status.Message ?? "Failed to query runtime status.");
             }
@@ -122,6 +159,7 @@ public sealed partial class DesktopTestWindow : Window
             {
                 activeWallpaperPath = file.Path;
                 activeWallpaperType = isVideo ? IpcConstants.WallpaperTypeVideo : IpcConstants.WallpaperTypeImage;
+                controller.SetActiveWallpaper(activeWallpaperPath, activeWallpaperType);
                 PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
                 StatusText.Text = string.Empty;
             }
@@ -143,21 +181,141 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
+    private void RefreshAutostartState()
+    {
+        isSyncingAutostart = true;
+        try
+        {
+            AutostartCheckBox.IsChecked = autostartManager.IsEnabled;
+        }
+        finally
+        {
+            isSyncingAutostart = false;
+        }
+    }
+
+    private void OnAutostartChecked(object sender, RoutedEventArgs args)
+    {
+        if (isSyncingAutostart) return;
+
+        var success = autostartManager.Enable();
+        if (!success)
+        {
+            StatusText.Text = "Failed to enable autostart in registry.";
+            RefreshAutostartState();
+        }
+        else
+        {
+            StatusText.Text = string.Empty;
+        }
+    }
+
+    private void OnAutostartUnchecked(object sender, RoutedEventArgs args)
+    {
+        if (isSyncingAutostart) return;
+
+        var success = autostartManager.Disable();
+        if (!success)
+        {
+            StatusText.Text = "Failed to disable autostart in registry.";
+            RefreshAutostartState();
+        }
+        else
+        {
+            StatusText.Text = string.Empty;
+        }
+    }
+
+    private void RestoreAndShowWindow()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            AppWindow.Show(activateWindow: true);
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hwnd == IntPtr.Zero) hwnd = (IntPtr)AppWindow.Id.Value;
+
+            if (TrayInterop.IsIconic(hwnd))
+            {
+                TrayInterop.ShowWindow(hwnd, TrayInterop.SW_RESTORE);
+            }
+            else
+            {
+                TrayInterop.ShowWindow(hwnd, TrayInterop.SW_SHOW);
+            }
+            TrayInterop.SetForegroundWindow(hwnd);
+
+            RefreshAutostartState();
+            _ = SyncRuntimeStatusAsync();
+        });
+    }
+
+    private void PerformAppExit()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            trayIcon.Dispose();
+            App.ReleaseSingleInstance();
+            closed = true;
+            AppWindow.Closing -= OnClosing;
+            Close();
+            Application.Current.Exit();
+            Environment.Exit(0);
+        });
+    }
+
+    private void OnTrayOpenRequested()
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            await controller.RequestOpenWindowAsync();
+        });
+    }
+
+    private void OnTrayStopWallpaperRequested()
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            var result = await controller.RequestStopWallpaperAsync();
+            if (result.Success)
+            {
+                activeWallpaperPath = null;
+                activeWallpaperType = IpcConstants.WallpaperTypeNone;
+                PathText.Text = "No wallpaper";
+                StatusText.Text = string.Empty;
+            }
+            else
+            {
+                StatusText.Text = result.Message ?? "Failed to stop wallpaper.";
+            }
+        });
+    }
+
+    private void OnTrayExitRequested()
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            await controller.RequestExitAsync();
+        });
+    }
+
     private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
         if (closed || args.WindowActivationState == WindowActivationState.Deactivated) return;
+        RefreshAutostartState();
         PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
     }
 
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        // UI does not stop or shut down the wallpaper host when closing.
-        // Wallpaper remains active in the background Runtime Host process.
+        controller.OnWindowCloseRequested(out var cancelClose);
+        args.Cancel = cancelClose;
     }
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
         closed = true;
+        trayIcon.Dispose();
+        App.ReleaseSingleInstance();
         Trace.WriteLine("Control window closed; runtime host continues in background.");
         if (diagnostics != null)
         {
