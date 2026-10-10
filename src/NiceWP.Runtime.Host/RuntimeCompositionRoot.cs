@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using NiceWP.Core;
+using NiceWP.Infrastructure.Settings;
 using NiceWP.Platform.Windows;
 using NiceWP.Rendering;
 
@@ -13,18 +14,21 @@ public sealed class RuntimeCompositionRoot : IDisposable
 {
     public IDesktopHost DesktopHost { get; }
     public ImageWallpaperService WallpaperService { get; }
+    public SettingsService SettingsService { get; }
     public bool IsDisposed => disposed;
     private bool disposed;
 
     public RuntimeCompositionRoot(
         IDesktopHost? desktopHost = null,
         Func<IWallpaperRenderer>? imageRendererFactory = null,
-        Func<IWallpaperRenderer>? videoRendererFactory = null)
+        Func<IWallpaperRenderer>? videoRendererFactory = null,
+        SettingsService? settingsService = null)
     {
         DesktopHost = desktopHost ?? new WindowsDesktopHost();
         var createImg = imageRendererFactory ?? (() => new ImageWallpaperRenderer());
         var createVid = videoRendererFactory ?? (() => new VideoWallpaperRenderer());
         WallpaperService = new ImageWallpaperService(DesktopHost, createImg, createVid);
+        SettingsService = settingsService ?? new SettingsService();
     }
 
     public void Dispose()

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
+using NiceWP.Infrastructure.Settings;
 using NiceWP.Runtime.Host;
 using Xunit;
 
@@ -44,7 +45,11 @@ public sealed class IpcTests
     }
 
     private static RuntimeCompositionRoot CreateTestComposition() =>
-        new(new TestHost(), () => new TestRenderer(), () => new TestRenderer());
+        new(
+            new TestHost(),
+            () => new TestRenderer(),
+            () => new TestRenderer(),
+            new SettingsService(Path.Combine(Path.GetTempPath(), "NiceWP_IpcTests", $"{Guid.NewGuid():N}", "settings.json")));
 
     [Fact]
     public async Task Ping_ReturnsSuccessWithPongMessage()

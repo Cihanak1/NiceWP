@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
+using NiceWP.Infrastructure.Settings;
 
 namespace NiceWP.Runtime.Host;
 
@@ -21,6 +22,7 @@ public sealed class RuntimeHostApp : IDisposable
 
     public bool IsSingleInstance => singleInstanceGuard.IsSingleInstance;
     public RuntimeCompositionRoot Composition => compositionRoot;
+    public SettingsService SettingsService => compositionRoot.SettingsService;
     public IHostDispatcher Dispatcher => dispatcher;
     public RuntimeIpcServer IpcServer => ipcServer;
     public RuntimeWallpaperState CurrentState => currentState;
@@ -171,6 +173,7 @@ public sealed class RuntimeHostApp : IDisposable
             if (result.Success)
             {
                 currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeImage, fullPath);
+                await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeImage, fullPath).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, $"Image wallpaper set: {fullPath}");
             }
 
@@ -197,6 +200,7 @@ public sealed class RuntimeHostApp : IDisposable
             if (result.Success)
             {
                 currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeVideo, fullPath);
+                await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeVideo, fullPath).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, $"Video wallpaper set: {fullPath}");
             }
 
@@ -206,17 +210,42 @@ public sealed class RuntimeHostApp : IDisposable
 
     private async Task<IpcResponse> HandleStopWallpaperAsync(IpcRequest request)
     {
-        return await dispatcher.InvokeAsync(() =>
+        return await dispatcher.InvokeAsync(async () =>
         {
             var result = compositionRoot.WallpaperService.Stop();
             if (result.Success)
             {
                 currentState = RuntimeWallpaperState.Empty;
+                await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeNone, null).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, "Wallpaper stopped.");
             }
 
             return IpcResponse.Fail(request.Id, result.Message ?? "Failed to stop wallpaper.");
         }).ConfigureAwait(false);
+    }
+
+    private async Task PersistWallpaperStateAsync(string wallpaperType, string? fullPath)
+    {
+        try
+        {
+            var currentSettings = await compositionRoot.SettingsService.LoadAsync().ConfigureAwait(false);
+            var updatedSettings = new AppSettings
+            {
+                RestoreLastWallpaper = currentSettings.RestoreLastWallpaper,
+                LastWallpaperType = wallpaperType,
+                LastWallpaperPath = string.IsNullOrWhiteSpace(fullPath) ? null : Path.GetFullPath(fullPath)
+            };
+
+            var saved = await compositionRoot.SettingsService.SaveAsync(updatedSettings).ConfigureAwait(false);
+            if (!saved)
+            {
+                Trace.WriteLine($"Failed to persist active wallpaper state (type={wallpaperType}, path={fullPath}).");
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error persisting active wallpaper state: {ex}");
+        }
     }
 
     public void RequestShutdown()
