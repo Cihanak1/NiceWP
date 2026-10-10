@@ -8,6 +8,10 @@ internal static class DesktopNativeMethods
     internal const string WorkerClass = "WorkerW";
     internal const string DesktopViewClass = "SHELLDLL_DefView";
     internal const uint PrepareWorkerMessage = 0x052C;
+    internal const nuint PrepareWorkerWParam = 0x000D;
+    internal const nint PrepareWorkerLParam = 0x0001;
+    internal const uint SpiGetClientAreaAnimation = 0x1042;
+    internal const uint SpiSetClientAreaAnimation = 0x1043;
     internal const uint MessageTimeoutMilliseconds = 1000;
     internal const uint AbortIfHung = 0x0002;
     internal const uint ErrorOnExit = 0x0020;
@@ -44,6 +48,14 @@ internal static class DesktopNativeMethods
     internal static extern nint SendMessageTimeout(nint window, uint message, nuint wParam,
         nint lParam, uint flags, uint timeout, out nuint result);
 
+    [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SystemParametersInfo(uint action, uint uiParam, ref bool pvParam, uint winIni);
+
+    [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SystemParametersInfo(uint action, uint uiParam, nint pvParam, uint winIni);
+
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern nint SetParent(nint window, nint parent);
 
@@ -53,6 +65,10 @@ internal static class DesktopNativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsWindow(nint window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsWindowVisible(nint window);
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint GetWindowThreadProcessId(nint window, out uint processId);

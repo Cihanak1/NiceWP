@@ -60,6 +60,7 @@ public sealed class WindowsDesktopHost : IDesktopHost
             throw new InvalidOperationException("The original parent must belong to this process.");
         }
 
+        Marshal.SetLastPInvokeError(0);
         var style = GetWindowLongPtr(window, StyleIndex);
         var error = Marshal.GetLastPInvokeError();
         if (style == 0 && error != 0)
@@ -157,10 +158,24 @@ public sealed class WindowsDesktopHost : IDesktopHost
             {
                 preparedExplorer = explorer;
                 preparationFailure = null;
+
+                // Explorer ignores 0x052C when SPI_GETCLIENTAREAANIMATION is disabled in Windows Performance Options.
+                var clientAreaAnimation = true;
+                _ = SystemParametersInfo(SpiGetClientAreaAnimation, 0, ref clientAreaAnimation, 0);
+                if (!clientAreaAnimation)
+                {
+                    _ = SystemParametersInfo(SpiSetClientAreaAnimation, 0, 1, 0);
+                }
+
                 if (SendMessageTimeout(explorer.Handle, PrepareWorkerMessage, 0, 0,
                     AbortIfHung | ErrorOnExit, MessageTimeoutMilliseconds, out _) == 0)
                 {
                     preparationFailure = new(0, DesktopHostError.ShellUnresponsive, Marshal.GetLastPInvokeError());
+                }
+                else if (FindHost(explorer) == 0)
+                {
+                    _ = SendMessageTimeout(explorer.Handle, PrepareWorkerMessage, PrepareWorkerWParam, PrepareWorkerLParam,
+                        AbortIfHung | ErrorOnExit, MessageTimeoutMilliseconds, out _);
                 }
             }
 
@@ -220,9 +235,11 @@ public sealed class WindowsDesktopHost : IDesktopHost
             var candidate = FindWindowEx(0, window, WorkerClass, null);
             while (candidate != 0)
             {
-                if (GetParent(candidate) == 0 && BelongsToExplorer(candidate, explorer.Process)
+                if (IsTopLevelWorker(candidate, explorer.Handle, window)
+                    && BelongsToExplorer(candidate, explorer.Process)
                     && FindWindowEx(candidate, 0, DesktopViewClass, null) == 0)
                 {
+                    Trace.WriteLine($"Desktop host: Progman=0x{explorer.Handle:X}, iconOwner=0x{window:X}, topLevelWorker=0x{candidate:X} behind icon owner.");
                     host = candidate;
                     break;
                 }
@@ -241,6 +258,18 @@ public sealed class WindowsDesktopHost : IDesktopHost
         return host != 0 && IsWindow(host) && FindExplorer() == explorer ? host : 0;
     }
 
+    private static bool IsTopLevelWorker(nint candidate, nint progman, nint iconOwner)
+    {
+        if (!IsWindowVisible(candidate) || (GetWindowLongPtr(candidate, StyleIndex).ToInt64() & ChildStyle) != 0)
+        {
+            return false;
+        }
+
+        // For top-level WS_POPUP windows, Win32 GetParent returns the owner HWND (typically Progman) rather than 0.
+        var parentOrOwner = GetParent(candidate);
+        return parentOrOwner == 0 || parentOrOwner == progman || parentOrOwner == iconOwner;
+    }
+
     private static bool BelongsToExplorer(nint window, uint process) =>
         IsWindow(window) && GetWindowThreadProcessId(window, out var owner) != 0 && owner == process;
 
@@ -255,6 +284,7 @@ public sealed class WindowsDesktopHost : IDesktopHost
 
     private static void SetStyle(nint window, nint style)
     {
+        Marshal.SetLastPInvokeError(0);
         var previous = SetWindowLongPtr(window, StyleIndex, style);
         var error = Marshal.GetLastPInvokeError();
         if (previous == 0 && error != 0)
@@ -287,6 +317,7 @@ public sealed class WindowsDesktopHost : IDesktopHost
 
     private static void ChangeParent(nint window, nint parent)
     {
+        Marshal.SetLastPInvokeError(0);
         var previousParent = SetParent(window, parent);
         var error = Marshal.GetLastPInvokeError();
         // A zero previous parent alone does not indicate failure.

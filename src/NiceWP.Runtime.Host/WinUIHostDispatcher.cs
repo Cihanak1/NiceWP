@@ -8,18 +8,21 @@ namespace NiceWP.Runtime.Host;
 public sealed class WinUIHostDispatcher : IHostDispatcher
 {
     private readonly DispatcherQueue dispatcherQueue;
+    private readonly DispatcherQueueSynchronizationContext synchronizationContext;
 
     public bool HasThreadAccess => dispatcherQueue.HasThreadAccess;
 
     public WinUIHostDispatcher(DispatcherQueue dispatcherQueue)
     {
         this.dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue));
+        synchronizationContext = new DispatcherQueueSynchronizationContext(this.dispatcherQueue);
     }
 
     public async Task<T> InvokeAsync<T>(Func<Task<T>> action)
     {
         if (dispatcherQueue.HasThreadAccess)
         {
+            SynchronizationContext.SetSynchronizationContext(synchronizationContext);
             return await action().ConfigureAwait(false);
         }
 
@@ -28,6 +31,7 @@ public sealed class WinUIHostDispatcher : IHostDispatcher
         {
             try
             {
+                SynchronizationContext.SetSynchronizationContext(synchronizationContext);
                 var result = await action().ConfigureAwait(false);
                 tcs.TrySetResult(result);
             }
@@ -47,6 +51,7 @@ public sealed class WinUIHostDispatcher : IHostDispatcher
     {
         if (dispatcherQueue.HasThreadAccess)
         {
+            SynchronizationContext.SetSynchronizationContext(synchronizationContext);
             return action();
         }
 
@@ -55,6 +60,7 @@ public sealed class WinUIHostDispatcher : IHostDispatcher
         {
             try
             {
+                SynchronizationContext.SetSynchronizationContext(synchronizationContext);
                 var result = action();
                 tcs.TrySetResult(result);
             }
@@ -74,6 +80,7 @@ public sealed class WinUIHostDispatcher : IHostDispatcher
     {
         if (dispatcherQueue.HasThreadAccess)
         {
+            SynchronizationContext.SetSynchronizationContext(synchronizationContext);
             await action().ConfigureAwait(false);
             return;
         }
@@ -83,6 +90,7 @@ public sealed class WinUIHostDispatcher : IHostDispatcher
         {
             try
             {
+                SynchronizationContext.SetSynchronizationContext(synchronizationContext);
                 await action().ConfigureAwait(false);
                 tcs.TrySetResult();
             }
@@ -102,6 +110,7 @@ public sealed class WinUIHostDispatcher : IHostDispatcher
     {
         if (dispatcherQueue.HasThreadAccess)
         {
+            SynchronizationContext.SetSynchronizationContext(synchronizationContext);
             action();
             return;
         }
@@ -111,6 +120,7 @@ public sealed class WinUIHostDispatcher : IHostDispatcher
         {
             try
             {
+                SynchronizationContext.SetSynchronizationContext(synchronizationContext);
                 action();
                 tcs.TrySetResult();
             }

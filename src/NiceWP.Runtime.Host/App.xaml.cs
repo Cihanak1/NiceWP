@@ -18,6 +18,17 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        try
+        {
+            var logPath = Path.Combine(Path.GetTempPath(), $"NiceWP-runtime-host-{Environment.ProcessId}.log");
+            Trace.Listeners.Add(new TextWriterTraceListener(logPath));
+            Trace.AutoFlush = true;
+        }
+        catch
+        {
+            // Ignore diagnostic log setup errors
+        }
+
         var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         var dispatcher = new WinUIHostDispatcher(dispatcherQueue);
 
