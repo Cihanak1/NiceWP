@@ -9,5 +9,20 @@
         <TextBlock x:Name="PathText" Text="No wallpaper" TextWrapping="Wrap" />
         <TextBlock x:Name="StatusText" TextWrapping="Wrap" />
         <CheckBox x:Name="AutostartCheckBox" Content="Start with Windows" Checked="OnAutostartChecked" Unchecked="OnAutostartUnchecked" />
+
+        <Border Height="1" Background="#33808080" Margin="0,4,0,4" />
+
+        <TextBlock Text="Wallpaper Library" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="AddWallpaperButton" Content="Add Wallpaper" Click="OnAddWallpaper" />
+            <Button x:Name="RemoveWallpaperButton" Content="Remove" Click="OnRemoveWallpaper" IsEnabled="False" />
+        </StackPanel>
+        <TextBlock x:Name="LibraryEmptyText" Text="No wallpapers in library" Opacity="0.7" />
+        <ListView
+            x:Name="LibraryListView"
+            SelectionMode="Single"
+            SelectionChanged="OnLibrarySelectionChanged"
+            MaxHeight="200"
+            Visibility="Collapsed" />
     </StackPanel>
 </Window>

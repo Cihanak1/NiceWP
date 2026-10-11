@@ -1,12 +1,16 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.Storage.Pickers;
 using NiceWP.App.Tray;
 using NiceWP.Infrastructure.Autostart;
 using NiceWP.Infrastructure.Ipc;
+using NiceWP.Infrastructure.Library;
 using NiceWP.Infrastructure.Tray;
 
 namespace NiceWP.App;
@@ -18,16 +22,19 @@ public sealed partial class DesktopTestWindow : Window
     private readonly AppTrayIcon trayIcon;
     private readonly TrayLifecycleController controller;
     private readonly AutostartManager autostartManager = new();
+    private readonly WallpaperLibraryController libraryController = new();
     private string? activeWallpaperPath;
     private string activeWallpaperType = IpcConstants.WallpaperTypeNone;
     private bool closed;
     private bool selecting;
+    private bool libraryBusy;
+    private bool isSyncingLibrarySelection;
     private bool isSyncingAutostart;
 
     public DesktopTestWindow(bool isStartup = false)
     {
         InitializeComponent();
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(640, 260));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(640, 480));
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
         Activated += OnActivated;
@@ -72,7 +79,26 @@ public sealed partial class DesktopTestWindow : Window
 
         RefreshAutostartState();
 
+        _ = LoadLibraryAsync();
         _ = SyncRuntimeStatusAsync();
+    }
+
+    public async Task LoadLibraryAsync()
+    {
+        try
+        {
+            await libraryController.LoadAsync();
+            if (closed) return;
+            RenderLibraryItems();
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Error loading wallpaper library: {exception}");
+            if (!closed)
+            {
+                RenderLibraryItems();
+            }
+        }
     }
 
     public async Task SyncRuntimeStatusAsync()
@@ -133,19 +159,25 @@ public sealed partial class DesktopTestWindow : Window
         return isVideo ? $"Active video: {fileName}" : $"Active image: {fileName}";
     }
 
+    private async Task<PickFileResult?> PickWallpaperFileAsync()
+    {
+        var picker = new FileOpenPicker(AppWindow.Id);
+        picker.FileTypeFilter.Add(".png");
+        picker.FileTypeFilter.Add(".jpg");
+        picker.FileTypeFilter.Add(".jpeg");
+        picker.FileTypeFilter.Add(".mp4");
+        return await picker.PickSingleFileAsync();
+    }
+
     private async void OnSelectImage(object sender, RoutedEventArgs args)
     {
-        if (selecting || closed) return;
+        if (selecting || libraryBusy || closed) return;
         selecting = true;
         SelectImageButton.IsEnabled = false;
+        UpdateLibraryActionState();
         try
         {
-            var picker = new FileOpenPicker(AppWindow.Id);
-            picker.FileTypeFilter.Add(".png");
-            picker.FileTypeFilter.Add(".jpg");
-            picker.FileTypeFilter.Add(".jpeg");
-            picker.FileTypeFilter.Add(".mp4");
-            var file = await picker.PickSingleFileAsync();
+            var file = await PickWallpaperFileAsync();
             if (file == null || closed) return;
 
             var isVideo = string.Equals(Path.GetExtension(file.Path), ".mp4", StringComparison.OrdinalIgnoreCase);
@@ -177,8 +209,169 @@ public sealed partial class DesktopTestWindow : Window
         finally
         {
             selecting = false;
-            if (!closed) SelectImageButton.IsEnabled = true;
+            if (!closed)
+            {
+                SelectImageButton.IsEnabled = true;
+                UpdateLibraryActionState();
+            }
         }
+    }
+
+    private async void OnAddWallpaper(object sender, RoutedEventArgs args)
+    {
+        if (libraryBusy || selecting || closed) return;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            var file = await PickWallpaperFileAsync();
+            if (file == null || closed) return;
+
+            var result = await libraryController.AddFileAsync(file.Path);
+            if (closed) return;
+
+            RenderLibraryItems();
+            StatusText.Text = result.Message ?? (result.Success ? string.Empty : "Failed to add wallpaper to library.");
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+            if (!closed)
+            {
+                StatusText.Text = "The wallpaper could not be added to the library.";
+            }
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+            }
+        }
+    }
+
+    private async void OnRemoveWallpaper(object sender, RoutedEventArgs args)
+    {
+        if (libraryBusy || closed) return;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            var result = await libraryController.RemoveSelectedAsync();
+            if (closed) return;
+
+            RenderLibraryItems();
+            StatusText.Text = result.Success
+                ? string.Empty
+                : (result.Message ?? "Failed to remove wallpaper from library.");
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+            if (!closed)
+            {
+                StatusText.Text = "The selected wallpaper could not be removed from the library.";
+            }
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+            }
+        }
+    }
+
+    private void OnLibrarySelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingLibrarySelection || closed) return;
+
+        var selectedId = (LibraryListView.SelectedItem as ListViewItem)?.Tag as string;
+        libraryController.SelectItem(selectedId);
+        UpdateLibraryActionState();
+    }
+
+    private void RenderLibraryItems()
+    {
+        if (closed) return;
+
+        isSyncingLibrarySelection = true;
+        try
+        {
+            var entries = libraryController.Items;
+            var selectedId = libraryController.SelectedItemId;
+
+            LibraryListView.Items.Clear();
+            ListViewItem? itemToSelect = null;
+
+            foreach (var entry in entries)
+            {
+                var rowPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8
+                };
+
+                rowPanel.Children.Add(new TextBlock
+                {
+                    Text = entry.DisplayName,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+
+                rowPanel.Children.Add(new TextBlock
+                {
+                    Text = $"({entry.Type})",
+                    Opacity = 0.75,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+
+                if (entry.IsMissing)
+                {
+                    rowPanel.Children.Add(new TextBlock
+                    {
+                        Text = "Missing",
+                        Opacity = 0.85,
+                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                        VerticalAlignment = VerticalAlignment.Center
+                    });
+                }
+
+                var listViewItem = new ListViewItem
+                {
+                    Tag = entry.Id,
+                    Content = rowPanel
+                };
+                AutomationProperties.SetName(listViewItem, entry.DisplayLabel);
+
+                LibraryListView.Items.Add(listViewItem);
+
+                if (!string.IsNullOrWhiteSpace(selectedId) &&
+                    string.Equals(entry.Id, selectedId, StringComparison.OrdinalIgnoreCase))
+                {
+                    itemToSelect = listViewItem;
+                }
+            }
+
+            LibraryListView.SelectedItem = itemToSelect;
+            var hasItems = entries.Count > 0;
+            LibraryEmptyText.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
+            LibraryListView.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
+        }
+        finally
+        {
+            isSyncingLibrarySelection = false;
+        }
+
+        UpdateLibraryActionState();
+    }
+
+    private void UpdateLibraryActionState()
+    {
+        if (closed) return;
+        AddWallpaperButton.IsEnabled = !libraryBusy && !selecting;
+        RemoveWallpaperButton.IsEnabled = !libraryBusy && libraryController.CanRemoveSelected;
     }
 
     private void RefreshAutostartState()
@@ -245,6 +438,7 @@ public sealed partial class DesktopTestWindow : Window
             TrayInterop.SetForegroundWindow(hwnd);
 
             RefreshAutostartState();
+            _ = LoadLibraryAsync();
             _ = SyncRuntimeStatusAsync();
         });
     }
@@ -302,6 +496,7 @@ public sealed partial class DesktopTestWindow : Window
     {
         if (closed || args.WindowActivationState == WindowActivationState.Deactivated) return;
         RefreshAutostartState();
+        _ = LoadLibraryAsync();
         PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
     }
 
