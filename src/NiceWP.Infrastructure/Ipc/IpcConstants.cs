@@ -10,6 +10,8 @@ public static class IpcConstants
     public const string SetImageCommand = "SetImage";
     public const string SetVideoCommand = "SetVideo";
     public const string StopWallpaperCommand = "StopWallpaper";
+    public const string PauseWallpaperCommand = "PauseWallpaper";
+    public const string ResumeWallpaperCommand = "ResumeWallpaper";
     public const string GetStatusCommand = "GetStatus";
 
     public const string PongMessage = "Pong";
@@ -18,6 +20,10 @@ public static class IpcConstants
     public const string WallpaperTypeNone = "None";
     public const string WallpaperTypeImage = "Image";
     public const string WallpaperTypeVideo = "Video";
+
+    public const string PlaybackStateNone = "None";
+    public const string PlaybackStateRunning = "Running";
+    public const string PlaybackStatePaused = "Paused";
 
     public const int DefaultTimeoutMilliseconds = 3000;
     public const int MaxMessageLength = 65536; // 64 KB limit

@@ -156,10 +156,20 @@ public sealed class RuntimeHostApp : IDisposable
             return await HandleStopWallpaperAsync(request).ConfigureAwait(false);
         }
 
+        if (string.Equals(request.Command, IpcConstants.PauseWallpaperCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HandlePauseWallpaperAsync(request).ConfigureAwait(false);
+        }
+
+        if (string.Equals(request.Command, IpcConstants.ResumeWallpaperCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HandleResumeWallpaperAsync(request).ConfigureAwait(false);
+        }
+
         return IpcResponse.Fail(request.Id, $"Unknown command: '{request.Command}'");
     }
 
-    private async Task<IpcResponse> HandleGetStatusAsync(IpcRequest request)
+    private async Task WaitForPendingRestoreAsync()
     {
         var pendingRestore = restoreTask;
         if (!pendingRestore.IsCompleted)
@@ -170,9 +180,14 @@ public sealed class RuntimeHostApp : IDisposable
             }
             catch (Exception ex)
             {
-                Trace.WriteLine($"Error waiting for startup restore during GetStatus: {ex}");
+                Trace.WriteLine($"Error waiting for startup restore: {ex}");
             }
         }
+    }
+
+    private async Task<IpcResponse> HandleGetStatusAsync(IpcRequest request)
+    {
+        await WaitForPendingRestoreAsync().ConfigureAwait(false);
 
         var state = currentState;
         return IpcResponse.Status(
@@ -180,7 +195,9 @@ public sealed class RuntimeHostApp : IDisposable
             isRunning: true,
             hasActiveWallpaper: state.HasActiveWallpaper,
             wallpaperType: state.Type,
-            activePath: state.Path);
+            activePath: state.Path,
+            playbackState: state.PlaybackState,
+            isPaused: state.IsPaused);
     }
 
     private async Task<IpcResponse> HandleSetImageAsync(IpcRequest request)
@@ -203,7 +220,7 @@ public sealed class RuntimeHostApp : IDisposable
             var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
             if (result.Success)
             {
-                currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeImage, fullPath);
+                currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeImage, fullPath, IpcConstants.PlaybackStateRunning);
                 await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeImage, fullPath).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, $"Image wallpaper set: {fullPath}");
             }
@@ -232,7 +249,7 @@ public sealed class RuntimeHostApp : IDisposable
             var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
             if (result.Success)
             {
-                currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeVideo, fullPath);
+                currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeVideo, fullPath, IpcConstants.PlaybackStateRunning);
                 await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeVideo, fullPath).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, $"Video wallpaper set: {fullPath}");
             }
@@ -256,6 +273,62 @@ public sealed class RuntimeHostApp : IDisposable
             }
 
             return IpcResponse.Fail(request.Id, result.Message ?? "Failed to stop wallpaper.");
+        }).ConfigureAwait(false);
+    }
+
+    private async Task<IpcResponse> HandlePauseWallpaperAsync(IpcRequest request)
+    {
+        await WaitForPendingRestoreAsync().ConfigureAwait(false);
+        Interlocked.Increment(ref commandSequence);
+
+        return await dispatcher.InvokeAsync(() =>
+        {
+            if (!currentState.HasActiveWallpaper)
+            {
+                return IpcResponse.Fail(request.Id, "No active wallpaper to pause.");
+            }
+
+            var result = compositionRoot.WallpaperService.Pause();
+            if (result.Success)
+            {
+                currentState = currentState.AsPaused();
+                return IpcResponse.Ok(request.Id, $"Wallpaper paused: {currentState.Path}");
+            }
+
+            if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
+            {
+                currentState = RuntimeWallpaperState.Empty;
+            }
+
+            return IpcResponse.Fail(request.Id, result.Message ?? "Failed to pause wallpaper.");
+        }).ConfigureAwait(false);
+    }
+
+    private async Task<IpcResponse> HandleResumeWallpaperAsync(IpcRequest request)
+    {
+        await WaitForPendingRestoreAsync().ConfigureAwait(false);
+        Interlocked.Increment(ref commandSequence);
+
+        return await dispatcher.InvokeAsync(() =>
+        {
+            if (!currentState.HasActiveWallpaper)
+            {
+                return IpcResponse.Fail(request.Id, "No active wallpaper to resume.");
+            }
+
+            var result = compositionRoot.WallpaperService.Resume();
+            if (result.Success)
+            {
+                currentState = currentState.AsRunning();
+                return IpcResponse.Ok(request.Id, $"Wallpaper resumed: {currentState.Path}");
+            }
+
+            if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
+            {
+                currentState = RuntimeWallpaperState.Empty;
+            }
+
+            return IpcResponse.Fail(request.Id, result.Message ?? "Failed to resume wallpaper.");
         }).ConfigureAwait(false);
     }
 

@@ -15,6 +15,7 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
     private long generation;
 
     public string? ActivePath { get; private set; }
+    public bool IsPaused { get; private set; }
 
     public async Task<WallpaperResult> StartAsync(string? path)
     {
@@ -31,7 +32,10 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
         if (!validation.Success) return validation;
         var health = ValidateHost();
         if (!health.Success) return health;
-        if (active != null && desktop.Handle != 0 && string.Equals(ActivePath, fullPath, StringComparison.OrdinalIgnoreCase)) return new();
+        if (active != null && desktop.Handle != 0 && string.Equals(ActivePath, fullPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return IsPaused ? Resume() : new();
+        }
 
         starting = true;
         var request = generation;
@@ -63,6 +67,7 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
                 }
                 active!.Show();
                 ActivePath = fullPath;
+                IsPaused = false;
                 Trace.WriteLine($"Wallpaper started: {fullPath}");
                 return new();
             }
@@ -100,6 +105,70 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
         finally { starting = false; }
     }
 
+    public WallpaperResult Pause()
+    {
+        if (active == null || string.IsNullOrWhiteSpace(ActivePath))
+        {
+            return new(WallpaperError.Stopped, "No active wallpaper to pause.");
+        }
+
+        var health = ValidateHost();
+        if (!health.Success)
+        {
+            return health;
+        }
+
+        if (IsPaused)
+        {
+            return new();
+        }
+
+        try
+        {
+            active.Pause();
+            IsPaused = true;
+            Trace.WriteLine($"Wallpaper paused: {ActivePath}");
+            return new();
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+            return new(WallpaperError.RendererFailed, "The wallpaper could not be paused.");
+        }
+    }
+
+    public WallpaperResult Resume()
+    {
+        if (active == null || string.IsNullOrWhiteSpace(ActivePath))
+        {
+            return new(WallpaperError.Stopped, "No active wallpaper to resume.");
+        }
+
+        var health = ValidateHost();
+        if (!health.Success)
+        {
+            return health;
+        }
+
+        if (!IsPaused)
+        {
+            return new();
+        }
+
+        try
+        {
+            active.Resume();
+            IsPaused = false;
+            Trace.WriteLine($"Wallpaper resumed: {ActivePath}");
+            return new();
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+            return new(WallpaperError.RendererFailed, "The wallpaper could not be resumed.");
+        }
+    }
+
     public WallpaperResult ValidateHost()
     {
         if (active == null || desktop.Handle == 0) return new();
@@ -129,6 +198,7 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
             active?.Dispose();
             active = null;
             ActivePath = null;
+            IsPaused = false;
             rejected?.Dispose();
             rejected = null;
             Trace.WriteLine("Wallpaper stopped; desktop detached and renderer released.");

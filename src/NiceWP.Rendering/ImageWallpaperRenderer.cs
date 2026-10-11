@@ -87,6 +87,16 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
 
     public void Show() => appWindow!.Show(false);
 
+    public void Pause()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+    }
+
+    public void Resume()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+    }
+
     public void Dispose()
     {
         if (disposed) return;

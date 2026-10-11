@@ -34,6 +34,12 @@ public sealed class RuntimeIpcClient
     public Task<IpcResponse> StopWallpaperAsync(int timeoutMs = 5000, CancellationToken cancellationToken = default) =>
         SendCommandAsync(IpcConstants.StopWallpaperCommand, timeoutMs, cancellationToken);
 
+    public Task<IpcResponse> PauseWallpaperAsync(int timeoutMs = 5000, CancellationToken cancellationToken = default) =>
+        SendCommandAsync(IpcConstants.PauseWallpaperCommand, timeoutMs, cancellationToken);
+
+    public Task<IpcResponse> ResumeWallpaperAsync(int timeoutMs = 5000, CancellationToken cancellationToken = default) =>
+        SendCommandAsync(IpcConstants.ResumeWallpaperCommand, timeoutMs, cancellationToken);
+
     public Task<IpcResponse> GetStatusAsync(int timeoutMs = IpcConstants.DefaultTimeoutMilliseconds, CancellationToken cancellationToken = default) =>
         SendCommandAsync(IpcConstants.GetStatusCommand, timeoutMs, cancellationToken);
 

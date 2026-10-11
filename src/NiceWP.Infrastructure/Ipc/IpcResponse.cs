@@ -12,6 +12,8 @@ public sealed class IpcResponse
     public bool HasActiveWallpaper { get; set; }
     public string WallpaperType { get; set; } = IpcConstants.WallpaperTypeNone;
     public string? ActivePath { get; set; }
+    public bool IsPaused { get; set; }
+    public string PlaybackState { get; set; } = IpcConstants.PlaybackStateNone;
 
     public static IpcResponse Ok(string requestId, string? message = null) =>
         new()
@@ -37,8 +39,18 @@ public sealed class IpcResponse
         bool hasActiveWallpaper,
         string wallpaperType,
         string? activePath,
-        string? message = null) =>
-        new()
+        string? message = null,
+        string? playbackState = null,
+        bool? isPaused = null)
+    {
+        var resolvedPlaybackState = string.IsNullOrWhiteSpace(playbackState)
+            ? (hasActiveWallpaper
+                ? (isPaused == true ? IpcConstants.PlaybackStatePaused : IpcConstants.PlaybackStateRunning)
+                : IpcConstants.PlaybackStateNone)
+            : playbackState;
+        var resolvedIsPaused = isPaused ?? string.Equals(resolvedPlaybackState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase);
+
+        return new()
         {
             RequestId = requestId,
             Success = true,
@@ -46,6 +58,9 @@ public sealed class IpcResponse
             IsRunning = isRunning,
             HasActiveWallpaper = hasActiveWallpaper,
             WallpaperType = wallpaperType,
-            ActivePath = activePath
+            ActivePath = activePath,
+            IsPaused = resolvedIsPaused,
+            PlaybackState = resolvedPlaybackState
         };
+    }
 }

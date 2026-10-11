@@ -6,4 +6,6 @@ public interface IWallpaperRenderer : IDisposable
     nint WindowHandle { get; }
     Task<WallpaperResult> LoadAsync(string path);
     void Show();
+    void Pause() { }
+    void Resume() { }
 }

@@ -147,6 +147,22 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
         Trace.WriteLine("Video playing: muted=True, looping=True, stretch=UniformToFill.");
     }
 
+    public void Pause()
+    {
+        ObjectDisposedException.ThrowIf(stopped, this);
+        if (playbackFailure is { } failure) throw new InvalidOperationException(failure.Message);
+        player?.Pause();
+        Trace.WriteLine("Video paused.");
+    }
+
+    public void Resume()
+    {
+        ObjectDisposedException.ThrowIf(stopped, this);
+        if (playbackFailure is { } failure) throw new InvalidOperationException(failure.Message);
+        player?.Play();
+        Trace.WriteLine("Video resumed.");
+    }
+
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         if (window != null) window.Closed -= OnWindowClosed;
