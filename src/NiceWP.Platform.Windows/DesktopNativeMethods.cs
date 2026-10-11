@@ -28,6 +28,11 @@ internal static class DesktopNativeMethods
     internal const uint MonitorDefaultToNearest = 0x00000002;
     internal const uint DwmwaExtendedFrameBounds = 9;
     internal const uint DwmwaCloaked = 14;
+    internal const byte AcLineOffline = 0;
+    internal const byte AcLineOnline = 1;
+    internal const byte BatteryFlagNoSystemBattery = 0x80;
+    internal const byte BatteryStatusUnknown = 0xFF;
+    internal const byte SystemStatusBatterySaverOn = 1;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct WindowRect
@@ -45,6 +50,17 @@ internal static class DesktopNativeMethods
         internal WindowRect MonitorBounds;
         internal WindowRect WorkBounds;
         internal uint Flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct SystemPowerStatus
+    {
+        internal byte ACLineStatus;
+        internal byte BatteryFlag;
+        internal byte BatteryLifePercent;
+        internal byte SystemStatusFlag;
+        internal int BatteryLifeTime;
+        internal int BatteryFullLifeTime;
     }
 
     internal delegate bool EnumWindowsCallback(nint window, nint parameter);
@@ -127,4 +143,8 @@ internal static class DesktopNativeMethods
 
     [DllImport("kernel32.dll")]
     internal static extern uint GetCurrentThreadId();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetSystemPowerStatus(out SystemPowerStatus lpSystemPowerStatus);
 }

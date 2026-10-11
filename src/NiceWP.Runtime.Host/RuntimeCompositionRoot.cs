@@ -16,6 +16,7 @@ public sealed class RuntimeCompositionRoot : IDisposable
     public ImageWallpaperService WallpaperService { get; }
     public SettingsService SettingsService { get; }
     public IFullscreenWindowDetector FullscreenDetector { get; }
+    public IPowerStatusProvider PowerStatusProvider { get; }
     public bool IsDisposed => disposed;
     private bool disposed;
 
@@ -24,16 +25,21 @@ public sealed class RuntimeCompositionRoot : IDisposable
         Func<IWallpaperRenderer>? imageRendererFactory = null,
         Func<IWallpaperRenderer>? videoRendererFactory = null,
         SettingsService? settingsService = null,
-        IFullscreenWindowDetector? fullscreenDetector = null)
+        IFullscreenWindowDetector? fullscreenDetector = null,
+        IPowerStatusProvider? powerStatusProvider = null)
     {
         DesktopHost = desktopHost ?? new WindowsDesktopHost();
         var createImg = imageRendererFactory ?? (() => new ImageWallpaperRenderer());
         var createVid = videoRendererFactory ?? (() => new VideoWallpaperRenderer());
         WallpaperService = new ImageWallpaperService(DesktopHost, createImg, createVid);
         SettingsService = settingsService ?? new SettingsService();
-        FullscreenDetector = fullscreenDetector ?? (desktopHost is null or WindowsDesktopHost
+        var isProductionDesktop = desktopHost is null or WindowsDesktopHost;
+        FullscreenDetector = fullscreenDetector ?? (isProductionDesktop
             ? new FullscreenWindowDetector()
             : new InactiveFullscreenWindowDetector());
+        PowerStatusProvider = powerStatusProvider ?? (isProductionDesktop
+            ? new WindowsPowerStatusProvider()
+            : new InactivePowerStatusProvider());
     }
 
     public void Dispose()
@@ -53,5 +59,10 @@ public sealed class RuntimeCompositionRoot : IDisposable
     private sealed class InactiveFullscreenWindowDetector : IFullscreenWindowDetector
     {
         public bool IsFullscreenWindowActive() => false;
+    }
+
+    private sealed class InactivePowerStatusProvider : IPowerStatusProvider
+    {
+        public PowerStatus GetPowerStatus() => PowerStatus.DesktopDefault;
     }
 }
