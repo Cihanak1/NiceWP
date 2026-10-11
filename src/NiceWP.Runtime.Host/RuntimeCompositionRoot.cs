@@ -15,6 +15,7 @@ public sealed class RuntimeCompositionRoot : IDisposable
     public IDesktopHost DesktopHost { get; }
     public ImageWallpaperService WallpaperService { get; }
     public SettingsService SettingsService { get; }
+    public IFullscreenWindowDetector FullscreenDetector { get; }
     public bool IsDisposed => disposed;
     private bool disposed;
 
@@ -22,13 +23,17 @@ public sealed class RuntimeCompositionRoot : IDisposable
         IDesktopHost? desktopHost = null,
         Func<IWallpaperRenderer>? imageRendererFactory = null,
         Func<IWallpaperRenderer>? videoRendererFactory = null,
-        SettingsService? settingsService = null)
+        SettingsService? settingsService = null,
+        IFullscreenWindowDetector? fullscreenDetector = null)
     {
         DesktopHost = desktopHost ?? new WindowsDesktopHost();
         var createImg = imageRendererFactory ?? (() => new ImageWallpaperRenderer());
         var createVid = videoRendererFactory ?? (() => new VideoWallpaperRenderer());
         WallpaperService = new ImageWallpaperService(DesktopHost, createImg, createVid);
         SettingsService = settingsService ?? new SettingsService();
+        FullscreenDetector = fullscreenDetector ?? (desktopHost is null or WindowsDesktopHost
+            ? new FullscreenWindowDetector()
+            : new InactiveFullscreenWindowDetector());
     }
 
     public void Dispose()
@@ -43,5 +48,10 @@ public sealed class RuntimeCompositionRoot : IDisposable
         {
             Trace.WriteLine($"Error during wallpaper service cleanup: {ex}");
         }
+    }
+
+    private sealed class InactiveFullscreenWindowDetector : IFullscreenWindowDetector
+    {
+        public bool IsFullscreenWindowActive() => false;
     }
 }

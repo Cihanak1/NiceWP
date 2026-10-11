@@ -15,11 +15,16 @@ public sealed class RuntimeHostApp : IDisposable
     private readonly SingleInstanceGuard singleInstanceGuard;
     private readonly RuntimeCompositionRoot compositionRoot;
     private readonly IHostDispatcher dispatcher;
+    private readonly IFullscreenWindowDetector fullscreenDetector;
     private readonly RuntimeIpcServer ipcServer;
     private readonly ManualResetEventSlim shutdownEvent = new(false);
     private readonly int restoreWaitTimeoutMs;
+    private readonly int fullscreenPollIntervalMs;
+    private CancellationTokenSource? policyCts;
     private RuntimeWallpaperState currentState = RuntimeWallpaperState.Empty;
     private Task restoreTask = Task.CompletedTask;
+    private Task monitorTask = Task.CompletedTask;
+    private volatile bool isAutoPaused;
     private int commandSequence;
     private bool started;
     private bool disposed;
@@ -28,9 +33,12 @@ public sealed class RuntimeHostApp : IDisposable
     public RuntimeCompositionRoot Composition => compositionRoot;
     public SettingsService SettingsService => compositionRoot.SettingsService;
     public IHostDispatcher Dispatcher => dispatcher;
+    public IFullscreenWindowDetector FullscreenDetector => fullscreenDetector;
     public RuntimeIpcServer IpcServer => ipcServer;
     public RuntimeWallpaperState CurrentState => currentState;
+    public bool IsAutoPaused => isAutoPaused;
     public Task RestoreTask => restoreTask;
+    public Task MonitorTask => monitorTask;
 
     public RuntimeHostApp(
         SingleInstanceGuard? guard = null,
@@ -38,16 +46,22 @@ public sealed class RuntimeHostApp : IDisposable
         RuntimeIpcServer? server = null,
         IHostDispatcher? dispatcher = null,
         string? pipeName = null,
-        int restoreWaitTimeoutMs = IpcConstants.DefaultRestoreWaitTimeoutMs)
+        int restoreWaitTimeoutMs = IpcConstants.DefaultRestoreWaitTimeoutMs,
+        IFullscreenWindowDetector? fullscreenDetector = null,
+        int fullscreenPollIntervalMs = IpcConstants.DefaultFullscreenPollIntervalMs)
     {
         singleInstanceGuard = guard ?? (pipeName != null
             ? new SingleInstanceGuard($@"Local\NiceWP.Runtime.Host.{pipeName.Replace('\\', '.')}")
             : new SingleInstanceGuard());
         compositionRoot = composition ?? new RuntimeCompositionRoot();
         this.dispatcher = dispatcher ?? new CurrentThreadHostDispatcher();
+        this.fullscreenDetector = fullscreenDetector ?? compositionRoot.FullscreenDetector;
         this.restoreWaitTimeoutMs = restoreWaitTimeoutMs > 0
             ? restoreWaitTimeoutMs
             : IpcConstants.DefaultRestoreWaitTimeoutMs;
+        this.fullscreenPollIntervalMs = fullscreenPollIntervalMs > 0
+            ? fullscreenPollIntervalMs
+            : IpcConstants.DefaultFullscreenPollIntervalMs;
         ipcServer = server ?? new RuntimeIpcServer(
             pipeName,
             onShutdownRequested: RequestShutdown,
@@ -68,8 +82,10 @@ public sealed class RuntimeHostApp : IDisposable
         }
 
         started = true;
+        policyCts = new CancellationTokenSource();
         ipcServer.Start();
         restoreTask = RestoreLastWallpaperCoreAsync();
+        monitorTask = MonitorFullscreenPolicyLoopAsync(policyCts.Token);
         Trace.WriteLine($"NiceWP.Runtime.Host started, pid={Environment.ProcessId}");
     }
 
@@ -220,6 +236,7 @@ public sealed class RuntimeHostApp : IDisposable
             var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
             if (result.Success)
             {
+                isAutoPaused = false;
                 currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeImage, fullPath, IpcConstants.PlaybackStateRunning);
                 await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeImage, fullPath).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, $"Image wallpaper set: {fullPath}");
@@ -249,6 +266,7 @@ public sealed class RuntimeHostApp : IDisposable
             var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
             if (result.Success)
             {
+                isAutoPaused = false;
                 currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeVideo, fullPath, IpcConstants.PlaybackStateRunning);
                 await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeVideo, fullPath).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, $"Video wallpaper set: {fullPath}");
@@ -267,6 +285,7 @@ public sealed class RuntimeHostApp : IDisposable
             var result = compositionRoot.WallpaperService.Stop();
             if (result.Success)
             {
+                isAutoPaused = false;
                 currentState = RuntimeWallpaperState.Empty;
                 await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeNone, null).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, "Wallpaper stopped.");
@@ -291,12 +310,14 @@ public sealed class RuntimeHostApp : IDisposable
             var result = compositionRoot.WallpaperService.Pause();
             if (result.Success)
             {
+                isAutoPaused = false;
                 currentState = currentState.AsPaused();
                 return IpcResponse.Ok(request.Id, $"Wallpaper paused: {currentState.Path}");
             }
 
             if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
             {
+                isAutoPaused = false;
                 currentState = RuntimeWallpaperState.Empty;
             }
 
@@ -319,17 +340,116 @@ public sealed class RuntimeHostApp : IDisposable
             var result = compositionRoot.WallpaperService.Resume();
             if (result.Success)
             {
+                isAutoPaused = false;
                 currentState = currentState.AsRunning();
                 return IpcResponse.Ok(request.Id, $"Wallpaper resumed: {currentState.Path}");
             }
 
             if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
             {
+                isAutoPaused = false;
                 currentState = RuntimeWallpaperState.Empty;
             }
 
             return IpcResponse.Fail(request.Id, result.Message ?? "Failed to resume wallpaper.");
         }).ConfigureAwait(false);
+    }
+
+    private async Task MonitorFullscreenPolicyLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && !disposed && !shutdownEvent.IsSet)
+            {
+                await Task.Delay(fullscreenPollIntervalMs, cancellationToken).ConfigureAwait(false);
+                if (cancellationToken.IsCancellationRequested || disposed || shutdownEvent.IsSet)
+                {
+                    break;
+                }
+
+                await EvaluateFullscreenPolicyAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Clean cancellation during host shutdown.
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Unexpected error in fullscreen policy monitor loop: {ex}");
+        }
+    }
+
+    public async Task EvaluateFullscreenPolicyAsync(CancellationToken cancellationToken = default)
+    {
+        if (disposed || shutdownEvent.IsSet || cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var snapshotState = currentState;
+        if (!snapshotState.HasActiveWallpaper)
+        {
+            return;
+        }
+
+        bool isFullscreen;
+        try
+        {
+            isFullscreen = fullscreenDetector.IsFullscreenWindowActive();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error checking fullscreen state: {ex}");
+            return;
+        }
+
+        if (isFullscreen && snapshotState.IsRunning)
+        {
+            await dispatcher.InvokeAsync(() =>
+            {
+                if (disposed || shutdownEvent.IsSet || !currentState.HasActiveWallpaper || !currentState.IsRunning)
+                {
+                    return;
+                }
+
+                var result = compositionRoot.WallpaperService.Pause();
+                if (result.Success)
+                {
+                    currentState = currentState.AsPaused();
+                    isAutoPaused = true;
+                    Trace.WriteLine($"Wallpaper auto-paused for fullscreen application: {currentState.Path}");
+                }
+                else if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
+                {
+                    currentState = RuntimeWallpaperState.Empty;
+                    isAutoPaused = false;
+                }
+            }).ConfigureAwait(false);
+        }
+        else if (!isFullscreen && snapshotState.IsPaused && isAutoPaused)
+        {
+            await dispatcher.InvokeAsync(() =>
+            {
+                if (disposed || shutdownEvent.IsSet || !currentState.HasActiveWallpaper || !currentState.IsPaused || !isAutoPaused)
+                {
+                    return;
+                }
+
+                var result = compositionRoot.WallpaperService.Resume();
+                if (result.Success)
+                {
+                    currentState = currentState.AsRunning();
+                    isAutoPaused = false;
+                    Trace.WriteLine($"Wallpaper auto-resumed after fullscreen application closed: {currentState.Path}");
+                }
+                else if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
+                {
+                    currentState = RuntimeWallpaperState.Empty;
+                    isAutoPaused = false;
+                }
+            }).ConfigureAwait(false);
+        }
     }
 
     private async Task RestoreLastWallpaperCoreAsync()
@@ -398,7 +518,8 @@ public sealed class RuntimeHostApp : IDisposable
                 var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
                 if (result.Success && Volatile.Read(ref commandSequence) == 0 && !shutdownEvent.IsSet && !disposed)
                 {
-                    currentState = new RuntimeWallpaperState(normalizedType, fullPath);
+                    isAutoPaused = false;
+                    currentState = new RuntimeWallpaperState(normalizedType, fullPath, IpcConstants.PlaybackStateRunning);
                     Trace.WriteLine($"Startup wallpaper restored: type={normalizedType}, path={fullPath}");
                 }
                 else if (!result.Success)
@@ -437,11 +558,25 @@ public sealed class RuntimeHostApp : IDisposable
         }
     }
 
+    private void CancelPolicyMonitor()
+    {
+        try
+        {
+            policyCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed.
+        }
+    }
+
     public void RequestShutdown()
     {
         Interlocked.Increment(ref commandSequence);
+        isAutoPaused = false;
         currentState = RuntimeWallpaperState.Empty;
         shutdownEvent.Set();
+        CancelPolicyMonitor();
 
         if (Application.Current != null)
         {
@@ -476,7 +611,18 @@ public sealed class RuntimeHostApp : IDisposable
         if (disposed) return;
         disposed = true;
         Interlocked.Increment(ref commandSequence);
+        isAutoPaused = false;
         shutdownEvent.Set();
+        CancelPolicyMonitor();
+        try
+        {
+            monitorTask.Wait(TimeSpan.FromMilliseconds(500));
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error waiting for fullscreen policy monitor shutdown: {ex}");
+        }
+        policyCts?.Dispose();
         ipcServer.Dispose();
         compositionRoot.Dispose();
         singleInstanceGuard.Dispose();

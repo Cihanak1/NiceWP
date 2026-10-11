@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace NiceWP.Platform.Windows;
 
@@ -7,6 +8,8 @@ internal static class DesktopNativeMethods
     internal const string ProgmanClass = "Progman";
     internal const string WorkerClass = "WorkerW";
     internal const string DesktopViewClass = "SHELLDLL_DefView";
+    internal const string ShellTrayClass = "Shell_TrayWnd";
+    internal const string SecondaryShellTrayClass = "Shell_SecondaryTrayWnd";
     internal const uint PrepareWorkerMessage = 0x052C;
     internal const nuint PrepareWorkerWParam = 0x000D;
     internal const nint PrepareWorkerLParam = 0x0001;
@@ -22,6 +25,9 @@ internal static class DesktopNativeMethods
     internal const uint FrameChanged = 0x0020;
     internal const uint NoActivate = 0x0010;
     internal const uint NoZOrder = 0x0004;
+    internal const uint MonitorDefaultToNearest = 0x00000002;
+    internal const uint DwmwaExtendedFrameBounds = 9;
+    internal const uint DwmwaCloaked = 14;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct WindowRect
@@ -30,6 +36,15 @@ internal static class DesktopNativeMethods
         internal int Top;
         internal int Right;
         internal int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MonitorInfo
+    {
+        internal int Size;
+        internal WindowRect MonitorBounds;
+        internal WindowRect WorkBounds;
+        internal uint Flags;
     }
 
     internal delegate bool EnumWindowsCallback(nint window, nint parameter);
@@ -63,12 +78,22 @@ internal static class DesktopNativeMethods
     internal static extern nint GetParent(nint window);
 
     [DllImport("user32.dll")]
+    internal static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsWindow(nint window);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsWindowVisible(nint window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsIconic(nint window);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassNameW", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern int GetClassName(nint window, StringBuilder className, int maxCount);
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint GetWindowThreadProcessId(nint window, out uint processId);
@@ -83,9 +108,22 @@ internal static class DesktopNativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetWindowRect(nint window, out WindowRect rect);
 
+    [DllImport("user32.dll")]
+    internal static extern nint MonitorFromWindow(nint window, uint flags);
+
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo monitorInfo);
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetWindowPos(nint window, nint after, int x, int y, int width, int height, uint flags);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmGetWindowAttribute(nint window, uint attribute, out WindowRect pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmGetWindowAttribute(nint window, uint attribute, out int pvAttribute, int cbAttribute);
 
     [DllImport("kernel32.dll")]
     internal static extern uint GetCurrentThreadId();
