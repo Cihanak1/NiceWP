@@ -22,7 +22,7 @@ public sealed partial class DesktopTestWindow : Window
     private readonly AppTrayIcon trayIcon;
     private readonly TrayLifecycleController controller;
     private readonly AutostartManager autostartManager = new();
-    private readonly WallpaperLibraryController libraryController = new();
+    private readonly WallpaperLibraryController libraryController;
     private string? activeWallpaperPath;
     private string activeWallpaperType = IpcConstants.WallpaperTypeNone;
     private bool closed;
@@ -49,6 +49,10 @@ public sealed partial class DesktopTestWindow : Window
         {
             hwnd = (IntPtr)AppWindow.Id.Value;
         }
+
+        libraryController = new WallpaperLibraryController(
+            ipcClient: runtimeClient.IpcClient,
+            hostLauncher: runtimeClient.Launcher);
 
         controller = new TrayLifecycleController(
             runtimeClient.IpcClient,
@@ -251,6 +255,52 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
+    private async void OnApplyWallpaper(object sender, RoutedEventArgs args)
+    {
+        if (libraryBusy || selecting || closed) return;
+        libraryBusy = true;
+        SelectImageButton.IsEnabled = false;
+        UpdateLibraryActionState();
+        try
+        {
+            var result = await libraryController.ApplySelectedAsync();
+            if (closed) return;
+
+            RenderLibraryItems();
+
+            if (result.Success)
+            {
+                activeWallpaperPath = result.ActiveWallpaperPath;
+                activeWallpaperType = result.ActiveWallpaperType;
+                controller.SetActiveWallpaper(activeWallpaperPath, activeWallpaperType);
+                PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
+                StatusText.Text = string.Empty;
+            }
+            else
+            {
+                PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
+                StatusText.Text = result.Message ?? "Failed to apply wallpaper.";
+            }
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+            if (!closed)
+            {
+                StatusText.Text = "The selected wallpaper could not be applied.";
+            }
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                SelectImageButton.IsEnabled = !selecting;
+                UpdateLibraryActionState();
+            }
+        }
+    }
+
     private async void OnRemoveWallpaper(object sender, RoutedEventArgs args)
     {
         if (libraryBusy || closed) return;
@@ -371,7 +421,8 @@ public sealed partial class DesktopTestWindow : Window
     {
         if (closed) return;
         AddWallpaperButton.IsEnabled = !libraryBusy && !selecting;
-        RemoveWallpaperButton.IsEnabled = !libraryBusy && libraryController.CanRemoveSelected;
+        ApplyWallpaperButton.IsEnabled = !libraryBusy && !selecting && libraryController.CanApplySelected;
+        RemoveWallpaperButton.IsEnabled = !libraryBusy && !selecting && libraryController.CanRemoveSelected;
     }
 
     private void RefreshAutostartState()

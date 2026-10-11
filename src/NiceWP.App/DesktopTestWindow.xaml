@@ -15,6 +15,7 @@
         <TextBlock Text="Wallpaper Library" FontWeight="SemiBold" />
         <StackPanel Orientation="Horizontal" Spacing="8">
             <Button x:Name="AddWallpaperButton" Content="Add Wallpaper" Click="OnAddWallpaper" />
+            <Button x:Name="ApplyWallpaperButton" Content="Apply" Click="OnApplyWallpaper" IsEnabled="False" />
             <Button x:Name="RemoveWallpaperButton" Content="Remove" Click="OnRemoveWallpaper" IsEnabled="False" />
         </StackPanel>
         <TextBlock x:Name="LibraryEmptyText" Text="No wallpapers in library" Opacity="0.7" />
