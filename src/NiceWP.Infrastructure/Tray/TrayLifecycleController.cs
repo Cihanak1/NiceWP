@@ -101,8 +101,8 @@ public sealed class TrayLifecycleController
     }
 
     /// <summary>
-    /// Performs a graceful application exit: stops any active wallpaper, sends Shutdown to the runtime host,
-    /// and invokes the app exit callback.
+    /// Performs a graceful application exit: sends Shutdown to the runtime host (which cleans up any active
+    /// wallpaper without clearing persisted settings) and invokes the app exit callback.
     /// </summary>
     public async Task RequestExitAsync(int stopTimeoutMs = 1500, int shutdownTimeoutMs = 2000)
     {
@@ -111,19 +111,6 @@ public sealed class TrayLifecycleController
 
         try
         {
-            if (!string.IsNullOrEmpty(ActiveWallpaperPath) &&
-                !string.Equals(ActiveWallpaperType, IpcConstants.WallpaperTypeNone, StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    await _ipcClient.StopWallpaperAsync(stopTimeoutMs);
-                }
-                catch (Exception ex)
-                {
-                    Trace.WriteLine($"Failed to stop wallpaper during exit: {ex}");
-                }
-            }
-
             try
             {
                 await _ipcClient.ShutdownAsync(shutdownTimeoutMs);

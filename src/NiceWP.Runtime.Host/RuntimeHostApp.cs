@@ -385,6 +385,17 @@ public sealed class RuntimeHostApp : IDisposable
                 Application.Current?.Exit();
             });
         }
+        else
+        {
+            try
+            {
+                dispatcher.InvokeAsync(() => compositionRoot.WallpaperService.Stop()).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Error stopping wallpaper: {ex}");
+            }
+        }
     }
 
     public void Dispose()

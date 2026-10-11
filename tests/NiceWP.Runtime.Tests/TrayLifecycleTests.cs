@@ -1,6 +1,9 @@
+using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
+using NiceWP.Infrastructure.Settings;
 using NiceWP.Infrastructure.SingleInstance;
 using NiceWP.Infrastructure.Tray;
+using NiceWP.Runtime.Host;
 using Xunit;
 
 namespace NiceWP.Runtime.Tests;
@@ -10,6 +13,24 @@ public sealed class TrayLifecycleTests
 {
     private static string CreateUniquePipeName() =>
         $@"NiceWP.Test.TrayPipe.{Guid.NewGuid():N}";
+
+    private sealed class TestDesktopHost : IDesktopHost
+    {
+        public Task<DesktopHostResult> ResolveAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new DesktopHostResult(10, DesktopHostError.None));
+        public bool IsValid(nint handle) => handle != 0;
+        public nint Attach(nint host, nint window) => 0;
+        public void Detach(nint host, nint window, nint previousParent) { }
+    }
+
+    private sealed class TrackingRenderer : IWallpaperRenderer
+    {
+        public nint WindowHandle => 42;
+        public int DisposeCount { get; private set; }
+        public Task<WallpaperResult> LoadAsync(string path) => Task.FromResult(new WallpaperResult());
+        public void Show() { }
+        public void Dispose() => DisposeCount++;
+    }
 
     [Fact]
     public void WindowClose_CancelsCloseAndHidesWindow_DoesNotExitApp()
@@ -125,7 +146,7 @@ public sealed class TrayLifecycleTests
     }
 
     [Fact]
-    public async Task Exit_StopsActiveWallpaper_SendsShutdownToRuntime_AndExitsApp()
+    public async Task Exit_DoesNotSendStopWallpaper_SendsShutdownToRuntime_AndExitsApp()
     {
         var pipeName = CreateUniquePipeName();
         var stopWallpaperCalled = false;
@@ -156,7 +177,7 @@ public sealed class TrayLifecycleTests
         await controller.RequestExitAsync(stopTimeoutMs: 2000, shutdownTimeoutMs: 2000);
 
         Assert.True(controller.IsExited);
-        Assert.True(stopWallpaperCalled, "Active wallpaper must be stopped prior to exit.");
+        Assert.False(stopWallpaperCalled, "Exit NiceWP must NOT send StopWallpaper IPC command so persisted settings remain intact.");
 
         var shutdownCompleted = await Task.WhenAny(shutdownTcs.Task, Task.Delay(3000));
         Assert.Same(shutdownTcs.Task, shutdownCompleted);
@@ -166,6 +187,265 @@ public sealed class TrayLifecycleTests
         // Subsequent close requests must not be canceled now that app is exiting
         controller.OnWindowCloseRequested(out var cancelClose);
         Assert.False(cancelClose);
+    }
+
+    [Fact]
+    public async Task StopWallpaper_PersistsNoneStateInSettings()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"NiceWP_TrayStop_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var imagePath = Path.Combine(tempDir, "wall.png");
+            await File.WriteAllBytesAsync(imagePath, [1, 2, 3]);
+
+            var settingsPath = Path.Combine(tempDir, "settings.json");
+            var settingsService = new SettingsService(settingsPath);
+            var pipeName = CreateUniquePipeName();
+
+            using var composition = new RuntimeCompositionRoot(
+                new TestDesktopHost(),
+                () => new TrackingRenderer(),
+                () => new TrackingRenderer(),
+                settingsService);
+            using var hostApp = new RuntimeHostApp(composition: composition, pipeName: pipeName);
+            hostApp.Start();
+            await hostApp.RestoreTask;
+
+            var client = new RuntimeIpcClient(pipeName);
+            var setResult = await client.SetImageAsync(imagePath);
+            Assert.True(setResult.Success);
+
+            var controller = new TrayLifecycleController(client);
+            controller.SetActiveWallpaper(imagePath, IpcConstants.WallpaperTypeImage);
+
+            var stopResult = await controller.RequestStopWallpaperAsync(timeoutMs: 3000);
+            Assert.True(stopResult.Success);
+
+            var persisted = await settingsService.LoadAsync();
+            Assert.Equal(IpcConstants.WallpaperTypeNone, persisted.LastWallpaperType);
+            Assert.Null(persisted.LastWallpaperPath);
+            Assert.Null(hostApp.Composition.WallpaperService.ActivePath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Exit_WithActiveImageWallpaper_PreservesPersistedImage_CleansUpRuntime_AndRestoresOnNextStart()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"NiceWP_TrayExitImg_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var imagePath = Path.Combine(tempDir, "persisted_exit.png");
+            await File.WriteAllBytesAsync(imagePath, [1, 2, 3]);
+
+            var settingsPath = Path.Combine(tempDir, "settings.json");
+            var settingsService = new SettingsService(settingsPath);
+            var pipeName1 = CreateUniquePipeName();
+
+            TrackingRenderer? activeRenderer = null;
+            using (var composition1 = new RuntimeCompositionRoot(
+                new TestDesktopHost(),
+                () => activeRenderer = new TrackingRenderer(),
+                () => new TrackingRenderer(),
+                settingsService))
+            using (var host1 = new RuntimeHostApp(composition: composition1, pipeName: pipeName1))
+            {
+                var runTask = Task.Run(() => host1.Run());
+                var client1 = new RuntimeIpcClient(pipeName1);
+
+                for (var i = 0; i < 20; i++)
+                {
+                    if ((await client1.PingAsync(250)).Success) break;
+                    await Task.Delay(50);
+                }
+
+                var setResponse = await client1.SetImageAsync(imagePath);
+                Assert.True(setResponse.Success);
+                Assert.NotNull(activeRenderer);
+                Assert.Equal(0, activeRenderer!.DisposeCount);
+
+                var exitCalled = false;
+                var controller = new TrayLifecycleController(
+                    client1,
+                    exitAppAction: () => exitCalled = true);
+                controller.SetActiveWallpaper(imagePath, IpcConstants.WallpaperTypeImage);
+
+                // Tray -> Exit NiceWP
+                await controller.RequestExitAsync(stopTimeoutMs: 1500, shutdownTimeoutMs: 2000);
+                Assert.True(exitCalled);
+
+                var exitCode = await runTask;
+                Assert.Equal(0, exitCode);
+
+                // Runtime cleanup must have been performed during shutdown
+                Assert.Null(host1.Composition.WallpaperService.ActivePath);
+                Assert.Equal(1, activeRenderer.DisposeCount);
+            }
+
+            // Persisted settings must still hold the image path
+            var persisted = await settingsService.LoadAsync();
+            Assert.True(persisted.RestoreLastWallpaper);
+            Assert.Equal(IpcConstants.WallpaperTypeImage, persisted.LastWallpaperType);
+            Assert.Equal(Path.GetFullPath(imagePath), persisted.LastWallpaperPath);
+
+            // Restarting Runtime Host must automatically restore the image
+            var pipeName2 = CreateUniquePipeName();
+            using var composition2 = new RuntimeCompositionRoot(
+                new TestDesktopHost(),
+                () => new TrackingRenderer(),
+                () => new TrackingRenderer(),
+                settingsService);
+            using var host2 = new RuntimeHostApp(composition: composition2, pipeName: pipeName2);
+            host2.Start();
+
+            var client2 = new RuntimeIpcClient(pipeName2);
+            var status = await client2.GetStatusAsync(timeoutMs: 3000);
+            Assert.True(status.Success);
+            Assert.True(status.HasActiveWallpaper);
+            Assert.Equal(IpcConstants.WallpaperTypeImage, status.WallpaperType);
+            Assert.Equal(Path.GetFullPath(imagePath), status.ActivePath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Exit_WithActiveVideoWallpaper_PreservesPersistedVideo_CleansUpRuntime_AndRestoresOnNextStart()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"NiceWP_TrayExitVid_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var videoPath = Path.Combine(tempDir, "persisted_exit.mp4");
+            await File.WriteAllBytesAsync(videoPath, [1, 2, 3, 4]);
+
+            var settingsPath = Path.Combine(tempDir, "settings.json");
+            var settingsService = new SettingsService(settingsPath);
+            var pipeName1 = CreateUniquePipeName();
+
+            TrackingRenderer? activeVideoRenderer = null;
+            using (var composition1 = new RuntimeCompositionRoot(
+                new TestDesktopHost(),
+                () => new TrackingRenderer(),
+                () => activeVideoRenderer = new TrackingRenderer(),
+                settingsService))
+            using (var host1 = new RuntimeHostApp(composition: composition1, pipeName: pipeName1))
+            {
+                var runTask = Task.Run(() => host1.Run());
+                var client1 = new RuntimeIpcClient(pipeName1);
+
+                for (var i = 0; i < 20; i++)
+                {
+                    if ((await client1.PingAsync(250)).Success) break;
+                    await Task.Delay(50);
+                }
+
+                var setResponse = await client1.SetVideoAsync(videoPath);
+                Assert.True(setResponse.Success);
+                Assert.NotNull(activeVideoRenderer);
+                Assert.Equal(0, activeVideoRenderer!.DisposeCount);
+
+                var exitCalled = false;
+                var controller = new TrayLifecycleController(
+                    client1,
+                    exitAppAction: () => exitCalled = true);
+                controller.SetActiveWallpaper(videoPath, IpcConstants.WallpaperTypeVideo);
+
+                // Tray -> Exit NiceWP
+                await controller.RequestExitAsync(stopTimeoutMs: 1500, shutdownTimeoutMs: 2000);
+                Assert.True(exitCalled);
+
+                var exitCode = await runTask;
+                Assert.Equal(0, exitCode);
+
+                // Runtime cleanup must have been performed during shutdown
+                Assert.Null(host1.Composition.WallpaperService.ActivePath);
+                Assert.Equal(1, activeVideoRenderer.DisposeCount);
+            }
+
+            // Persisted settings must still hold the video path
+            var persisted = await settingsService.LoadAsync();
+            Assert.True(persisted.RestoreLastWallpaper);
+            Assert.Equal(IpcConstants.WallpaperTypeVideo, persisted.LastWallpaperType);
+            Assert.Equal(Path.GetFullPath(videoPath), persisted.LastWallpaperPath);
+
+            // Restarting Runtime Host must automatically restore the video
+            var pipeName2 = CreateUniquePipeName();
+            using var composition2 = new RuntimeCompositionRoot(
+                new TestDesktopHost(),
+                () => new TrackingRenderer(),
+                () => new TrackingRenderer(),
+                settingsService);
+            using var host2 = new RuntimeHostApp(composition: composition2, pipeName: pipeName2);
+            host2.Start();
+
+            var client2 = new RuntimeIpcClient(pipeName2);
+            var status = await client2.GetStatusAsync(timeoutMs: 3000);
+            Assert.True(status.Success);
+            Assert.True(status.HasActiveWallpaper);
+            Assert.Equal(IpcConstants.WallpaperTypeVideo, status.WallpaperType);
+            Assert.Equal(Path.GetFullPath(videoPath), status.ActivePath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ShutdownIpc_DoesNotModifySettingsFile()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"NiceWP_ShutdownSettings_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var imagePath = Path.Combine(tempDir, "keep_on_shutdown.jpg");
+            await File.WriteAllBytesAsync(imagePath, [1, 2, 3]);
+
+            var settingsPath = Path.Combine(tempDir, "settings.json");
+            var settingsService = new SettingsService(settingsPath);
+            var pipeName = CreateUniquePipeName();
+
+            using var composition = new RuntimeCompositionRoot(
+                new TestDesktopHost(),
+                () => new TrackingRenderer(),
+                () => new TrackingRenderer(),
+                settingsService);
+            using var host = new RuntimeHostApp(composition: composition, pipeName: pipeName);
+            var runTask = Task.Run(() => host.Run());
+
+            var client = new RuntimeIpcClient(pipeName);
+            for (var i = 0; i < 20; i++)
+            {
+                if ((await client.PingAsync(250)).Success) break;
+                await Task.Delay(50);
+            }
+
+            Assert.True((await client.SetImageAsync(imagePath)).Success);
+
+            var fixedTimestamp = new DateTime(2025, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(settingsPath, fixedTimestamp);
+
+            var shutdownResp = await client.ShutdownAsync(timeoutMs: 3000);
+            Assert.True(shutdownResp.Success);
+            await runTask;
+
+            Assert.Equal(fixedTimestamp, File.GetLastWriteTimeUtc(settingsPath));
+            var persisted = await settingsService.LoadAsync();
+            Assert.Equal(IpcConstants.WallpaperTypeImage, persisted.LastWallpaperType);
+            Assert.Equal(Path.GetFullPath(imagePath), persisted.LastWallpaperPath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
     }
 
     [Fact]
@@ -220,38 +500,64 @@ public sealed class TrayLifecycleTests
             return;
         }
 
-        var client = new RuntimeIpcClient();
-        var launcher = new RuntimeHostLauncher(client, hostExe);
+        var defaultSettingsPath = SettingsService.GetDefaultSettingsPath();
+        var hadExistingSettings = File.Exists(defaultSettingsPath);
+        var existingSettingsBytes = hadExistingSettings ? await File.ReadAllBytesAsync(defaultSettingsPath) : null;
 
-        var launchResult = await launcher.EnsureHostRunningAsync(timeoutMs: 6000, retryIntervalMs: 100);
-        Assert.True(launchResult.Success, $"Host failed to start: {launchResult.Message}");
+        try
+        {
+            var client = new RuntimeIpcClient();
+            var launcher = new RuntimeHostLauncher(client, hostExe);
 
-        var exitAppCalled = false;
-        var controller = new TrayLifecycleController(
-            client,
-            exitAppAction: () => exitAppCalled = true);
+            var launchResult = await launcher.EnsureHostRunningAsync(timeoutMs: 6000, retryIntervalMs: 100);
+            Assert.True(launchResult.Success, $"Host failed to start: {launchResult.Message}");
 
-        // 1. Simulate tray Stop Wallpaper
-        var stopResult = await controller.RequestStopWallpaperAsync(timeoutMs: 2000);
-        Assert.True(stopResult.Success);
-        Assert.Null(controller.ActiveWallpaperPath);
-        Assert.Equal(IpcConstants.WallpaperTypeNone, controller.ActiveWallpaperType);
-        Assert.False(controller.IsExited);
+            var exitAppCalled = false;
+            var controller = new TrayLifecycleController(
+                client,
+                exitAppAction: () => exitAppCalled = true);
 
-        // Host must STILL be running!
-        var ping = await client.PingAsync(timeoutMs: 1000);
-        Assert.True(ping.Success, "Runtime host must remain running after Stop Wallpaper.");
+            // 1. Simulate tray Stop Wallpaper
+            var stopResult = await controller.RequestStopWallpaperAsync(timeoutMs: 2000);
+            Assert.True(stopResult.Success);
+            Assert.Null(controller.ActiveWallpaperPath);
+            Assert.Equal(IpcConstants.WallpaperTypeNone, controller.ActiveWallpaperType);
+            Assert.False(controller.IsExited);
 
-        // 2. Simulate tray Exit
-        await controller.RequestExitAsync(stopTimeoutMs: 1000, shutdownTimeoutMs: 2000);
-        Assert.True(controller.IsExited);
-        Assert.True(exitAppCalled);
+            // Host must STILL be running!
+            var ping = await client.PingAsync(timeoutMs: 1000);
+            Assert.True(ping.Success, "Runtime host must remain running after Stop Wallpaper.");
 
-        // Allow Host to exit
-        await Task.Delay(300);
+            // 2. Simulate tray Exit
+            await controller.RequestExitAsync(stopTimeoutMs: 1000, shutdownTimeoutMs: 2000);
+            Assert.True(controller.IsExited);
+            Assert.True(exitAppCalled);
 
-        // Host must now be shut down!
-        var pingAfterExit = await client.PingAsync(timeoutMs: 500);
-        Assert.False(pingAfterExit.Success, "Runtime host must be shut down after tray Exit.");
+            // Allow Host to exit
+            await Task.Delay(300);
+
+            // Host must now be shut down!
+            var pingAfterExit = await client.PingAsync(timeoutMs: 500);
+            Assert.False(pingAfterExit.Success, "Runtime host must be shut down after tray Exit.");
+        }
+        finally
+        {
+            try
+            {
+                if (hadExistingSettings && existingSettingsBytes != null)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(defaultSettingsPath)!);
+                    await File.WriteAllBytesAsync(defaultSettingsPath, existingSettingsBytes);
+                }
+                else if (!hadExistingSettings && File.Exists(defaultSettingsPath))
+                {
+                    File.Delete(defaultSettingsPath);
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
     }
 }
