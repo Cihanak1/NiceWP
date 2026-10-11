@@ -17,7 +17,11 @@ public sealed class RuntimeHostApp : IDisposable
     private readonly IHostDispatcher dispatcher;
     private readonly RuntimeIpcServer ipcServer;
     private readonly ManualResetEventSlim shutdownEvent = new(false);
+    private readonly int restoreWaitTimeoutMs;
     private RuntimeWallpaperState currentState = RuntimeWallpaperState.Empty;
+    private Task restoreTask = Task.CompletedTask;
+    private int commandSequence;
+    private bool started;
     private bool disposed;
 
     public bool IsSingleInstance => singleInstanceGuard.IsSingleInstance;
@@ -26,19 +30,24 @@ public sealed class RuntimeHostApp : IDisposable
     public IHostDispatcher Dispatcher => dispatcher;
     public RuntimeIpcServer IpcServer => ipcServer;
     public RuntimeWallpaperState CurrentState => currentState;
+    public Task RestoreTask => restoreTask;
 
     public RuntimeHostApp(
         SingleInstanceGuard? guard = null,
         RuntimeCompositionRoot? composition = null,
         RuntimeIpcServer? server = null,
         IHostDispatcher? dispatcher = null,
-        string? pipeName = null)
+        string? pipeName = null,
+        int restoreWaitTimeoutMs = IpcConstants.DefaultRestoreWaitTimeoutMs)
     {
         singleInstanceGuard = guard ?? (pipeName != null
             ? new SingleInstanceGuard($@"Local\NiceWP.Runtime.Host.{pipeName.Replace('\\', '.')}")
             : new SingleInstanceGuard());
         compositionRoot = composition ?? new RuntimeCompositionRoot();
         this.dispatcher = dispatcher ?? new CurrentThreadHostDispatcher();
+        this.restoreWaitTimeoutMs = restoreWaitTimeoutMs > 0
+            ? restoreWaitTimeoutMs
+            : IpcConstants.DefaultRestoreWaitTimeoutMs;
         ipcServer = server ?? new RuntimeIpcServer(
             pipeName,
             onShutdownRequested: RequestShutdown,
@@ -53,7 +62,14 @@ public sealed class RuntimeHostApp : IDisposable
             return;
         }
 
+        if (started)
+        {
+            return;
+        }
+
+        started = true;
         ipcServer.Start();
+        restoreTask = RestoreLastWallpaperCoreAsync();
         Trace.WriteLine($"NiceWP.Runtime.Host started, pid={Environment.ProcessId}");
     }
 
@@ -122,7 +138,7 @@ public sealed class RuntimeHostApp : IDisposable
 
         if (string.Equals(request.Command, IpcConstants.GetStatusCommand, StringComparison.OrdinalIgnoreCase))
         {
-            return HandleGetStatus(request);
+            return await HandleGetStatusAsync(request).ConfigureAwait(false);
         }
 
         if (string.Equals(request.Command, IpcConstants.SetImageCommand, StringComparison.OrdinalIgnoreCase))
@@ -143,8 +159,21 @@ public sealed class RuntimeHostApp : IDisposable
         return IpcResponse.Fail(request.Id, $"Unknown command: '{request.Command}'");
     }
 
-    private IpcResponse HandleGetStatus(IpcRequest request)
+    private async Task<IpcResponse> HandleGetStatusAsync(IpcRequest request)
     {
+        var pendingRestore = restoreTask;
+        if (!pendingRestore.IsCompleted)
+        {
+            try
+            {
+                await Task.WhenAny(pendingRestore, Task.Delay(restoreWaitTimeoutMs)).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Error waiting for startup restore during GetStatus: {ex}");
+            }
+        }
+
         var state = currentState;
         return IpcResponse.Status(
             requestId: request.Id,
@@ -166,6 +195,8 @@ public sealed class RuntimeHostApp : IDisposable
         {
             return IpcResponse.Fail(request.Id, validation.Message ?? "Invalid image path.");
         }
+
+        Interlocked.Increment(ref commandSequence);
 
         return await dispatcher.InvokeAsync(async () =>
         {
@@ -194,6 +225,8 @@ public sealed class RuntimeHostApp : IDisposable
             return IpcResponse.Fail(request.Id, validation.Message ?? "Invalid video path.");
         }
 
+        Interlocked.Increment(ref commandSequence);
+
         return await dispatcher.InvokeAsync(async () =>
         {
             var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
@@ -210,6 +243,8 @@ public sealed class RuntimeHostApp : IDisposable
 
     private async Task<IpcResponse> HandleStopWallpaperAsync(IpcRequest request)
     {
+        Interlocked.Increment(ref commandSequence);
+
         return await dispatcher.InvokeAsync(async () =>
         {
             var result = compositionRoot.WallpaperService.Stop();
@@ -222,6 +257,87 @@ public sealed class RuntimeHostApp : IDisposable
 
             return IpcResponse.Fail(request.Id, result.Message ?? "Failed to stop wallpaper.");
         }).ConfigureAwait(false);
+    }
+
+    private async Task RestoreLastWallpaperCoreAsync()
+    {
+        try
+        {
+            if (disposed || shutdownEvent.IsSet || Volatile.Read(ref commandSequence) != 0)
+            {
+                return;
+            }
+
+            var settings = await compositionRoot.SettingsService.LoadAsync().ConfigureAwait(false);
+            if (!settings.RestoreLastWallpaper)
+            {
+                Trace.WriteLine("Startup wallpaper restore skipped: RestoreLastWallpaper is disabled.");
+                return;
+            }
+
+            if (string.Equals(settings.LastWallpaperType, IpcConstants.WallpaperTypeNone, StringComparison.OrdinalIgnoreCase) ||
+                string.IsNullOrWhiteSpace(settings.LastWallpaperPath))
+            {
+                Trace.WriteLine("Startup wallpaper restore skipped: no persisted wallpaper.");
+                return;
+            }
+
+            string fullPath;
+            string normalizedType;
+            if (string.Equals(settings.LastWallpaperType, IpcConstants.WallpaperTypeImage, StringComparison.OrdinalIgnoreCase))
+            {
+                var validation = ImageWallpaper.Validate(settings.LastWallpaperPath, out fullPath);
+                if (!validation.Success)
+                {
+                    Trace.WriteLine($"Startup image wallpaper restore skipped: {validation.Message} (path='{settings.LastWallpaperPath}')");
+                    return;
+                }
+                normalizedType = IpcConstants.WallpaperTypeImage;
+            }
+            else if (string.Equals(settings.LastWallpaperType, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase))
+            {
+                var validation = VideoWallpaper.Validate(settings.LastWallpaperPath, out fullPath);
+                if (!validation.Success)
+                {
+                    Trace.WriteLine($"Startup video wallpaper restore skipped: {validation.Message} (path='{settings.LastWallpaperPath}')");
+                    return;
+                }
+                normalizedType = IpcConstants.WallpaperTypeVideo;
+            }
+            else
+            {
+                Trace.WriteLine($"Startup wallpaper restore skipped: unsupported wallpaper type '{settings.LastWallpaperType}'.");
+                return;
+            }
+
+            if (disposed || shutdownEvent.IsSet || Volatile.Read(ref commandSequence) != 0)
+            {
+                return;
+            }
+
+            await dispatcher.InvokeAsync(async () =>
+            {
+                if (disposed || shutdownEvent.IsSet || Volatile.Read(ref commandSequence) != 0)
+                {
+                    return;
+                }
+
+                var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
+                if (result.Success && Volatile.Read(ref commandSequence) == 0 && !shutdownEvent.IsSet && !disposed)
+                {
+                    currentState = new RuntimeWallpaperState(normalizedType, fullPath);
+                    Trace.WriteLine($"Startup wallpaper restored: type={normalizedType}, path={fullPath}");
+                }
+                else if (!result.Success)
+                {
+                    Trace.WriteLine($"Startup wallpaper restore failed: {result.Error} - {result.Message}");
+                }
+            }).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Unexpected error during startup wallpaper restore: {ex}");
+        }
     }
 
     private async Task PersistWallpaperStateAsync(string wallpaperType, string? fullPath)
@@ -250,6 +366,7 @@ public sealed class RuntimeHostApp : IDisposable
 
     public void RequestShutdown()
     {
+        Interlocked.Increment(ref commandSequence);
         currentState = RuntimeWallpaperState.Empty;
         shutdownEvent.Set();
 
@@ -274,6 +391,7 @@ public sealed class RuntimeHostApp : IDisposable
     {
         if (disposed) return;
         disposed = true;
+        Interlocked.Increment(ref commandSequence);
         shutdownEvent.Set();
         ipcServer.Dispose();
         compositionRoot.Dispose();
