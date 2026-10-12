@@ -31,7 +31,7 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
             ? VideoWallpaper.Validate(path, out fullPath) : ImageWallpaper.Validate(path, out fullPath);
         if (!validation.Success) return validation;
         var health = ValidateHost();
-        if (!health.Success) return health;
+        if (!health.Success && health.Error != WallpaperError.DesktopHostUnavailable) return health;
         if (active != null && desktop.Handle != 0 && string.Equals(ActivePath, fullPath, StringComparison.OrdinalIgnoreCase))
         {
             return IsPaused ? Resume() : new();

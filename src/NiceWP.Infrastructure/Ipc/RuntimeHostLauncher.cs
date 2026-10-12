@@ -10,6 +10,7 @@ public sealed class RuntimeHostLauncher
 {
     private readonly RuntimeIpcClient ipcClient;
     private readonly string? customHostExecutablePath;
+    private readonly SemaphoreSlim ensureGate = new(1, 1);
 
     public RuntimeIpcClient IpcClient => ipcClient;
     public string? CustomHostExecutablePath => customHostExecutablePath;
@@ -150,6 +151,30 @@ public sealed class RuntimeHostLauncher
         int timeoutMs = IpcConstants.DefaultHostStartupTimeoutMs,
         int retryIntervalMs = IpcConstants.DefaultHostStartupRetryIntervalMs,
         CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await ensureGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return IpcResponse.Fail(string.Empty, "Host startup check was cancelled.");
+        }
+
+        try
+        {
+            return await EnsureHostRunningCoreAsync(timeoutMs, retryIntervalMs, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ensureGate.Release();
+        }
+    }
+
+    private async Task<IpcResponse> EnsureHostRunningCoreAsync(
+        int timeoutMs,
+        int retryIntervalMs,
+        CancellationToken cancellationToken)
     {
         // 1. Initial quick check: Host might already be active
         var initialPing = await ipcClient.PingAsync(

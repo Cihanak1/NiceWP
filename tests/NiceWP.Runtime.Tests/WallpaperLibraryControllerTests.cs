@@ -800,4 +800,33 @@ public sealed class WallpaperLibraryControllerTests : IDisposable
             WallpaperError.InvalidPath,
             "System.ArgumentException: Invalid path\n   at System.IO.Path.GetFullPath(String path)"));
     }
+
+    [Fact]
+    public async Task ApplySelectedAsync_WhenIpcTimesOutWhileHostDown_UnlocksStateAndSucceedsOnceHostStarts()
+    {
+        var pipeName = CreateUniquePipeName();
+        var ipcClient = new RuntimeIpcClient(pipeName);
+        var applyController = new WallpaperLibraryController(
+            service,
+            ipcClient,
+            ensureHostRunningAsync: _ => Task.FromResult(IpcResponse.Ok(string.Empty)));
+
+        var imagePath = CreateTempFile("ipc_timeout_then_recover.png");
+        await applyController.AddFileAsync(imagePath);
+
+        // 1. Host is not running -> SetImageAsync times out on pipe connection
+        var timeoutResult = await applyController.ApplySelectedAsync();
+        Assert.False(timeoutResult.Success);
+        Assert.False(applyController.IsBusy);
+        Assert.True(applyController.CanApplySelected);
+        Assert.True(applyController.CanRemoveSelected);
+
+        // 2. Host starts -> next Apply succeeds and updates active state
+        using var host = CreateStartedHost(pipeName);
+        var recoveredResult = await applyController.ApplySelectedAsync();
+        Assert.True(recoveredResult.Success);
+        Assert.False(applyController.IsBusy);
+        Assert.Equal(Path.GetFullPath(imagePath), host.CurrentState.Path);
+        Assert.Equal(Path.GetFullPath(imagePath), recoveredResult.ActiveWallpaperPath);
+    }
 }

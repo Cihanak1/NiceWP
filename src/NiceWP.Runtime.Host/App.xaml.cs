@@ -36,6 +36,7 @@ public partial class App : Application
         if (!hostApp.IsSingleInstance)
         {
             Trace.WriteLine("NiceWP.Runtime.Host is already running. Exiting.");
+            hostApp.Dispose();
             Exit();
             return;
         }

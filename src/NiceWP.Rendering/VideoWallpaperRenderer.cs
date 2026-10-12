@@ -100,7 +100,17 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
         }
         finally
         {
-            if (!disposed) lifetime.CancelAfter(Timeout.InfiniteTimeSpan);
+            if (!stopped && !disposed)
+            {
+                try
+                {
+                    lifetime.CancelAfter(Timeout.InfiniteTimeSpan);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Renderer was disposed concurrently during cancellation.
+                }
+            }
         }
     }
 

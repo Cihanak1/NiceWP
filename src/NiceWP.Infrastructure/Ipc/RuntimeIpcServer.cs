@@ -134,20 +134,47 @@ public sealed class RuntimeIpcServer : IDisposable
             {
                 var oversizedResponse = IpcResponse.Fail(string.Empty, "Message exceeds allowed length.");
                 var oversizedJson = JsonSerializer.Serialize(oversizedResponse);
-                await writer.WriteLineAsync(oversizedJson.AsMemory(), cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await writer.WriteLineAsync(oversizedJson.AsMemory(), cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+                {
+                    break;
+                }
                 continue;
             }
 
             var (response, shouldShutdown) = await ProcessMessageAsync(line).ConfigureAwait(false);
             var responseJson = JsonSerializer.Serialize(response);
-            await writer.WriteLineAsync(responseJson.AsMemory(), cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await writer.WriteLineAsync(responseJson.AsMemory(), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+            {
+                if (!shouldShutdown)
+                {
+                    break;
+                }
+            }
 
             if (shouldShutdown)
             {
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(50).ConfigureAwait(false);
-                    onShutdownRequested?.Invoke();
+                    try
+                    {
+                        await Task.Delay(50).ConfigureAwait(false);
+                        if (!disposed)
+                        {
+                            onShutdownRequested?.Invoke();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace.WriteLine($"Error invoking IPC shutdown callback: {ex}");
+                    }
                 });
                 break;
             }

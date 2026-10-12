@@ -33,10 +33,13 @@ public sealed class RuntimeHostApp : IDisposable
     private volatile bool isFullscreenPaused;
     private volatile bool isPowerPaused;
     private int commandSequence;
+    private int shutdownRequested;
+    private int wallpaperStoppedOnShutdown;
     private bool started;
     private bool disposed;
 
     public bool IsSingleInstance => singleInstanceGuard.IsSingleInstance;
+    public bool IsShuttingDown => disposed || Volatile.Read(ref shutdownRequested) != 0;
     public RuntimeCompositionRoot Composition => compositionRoot;
     public SettingsService SettingsService => compositionRoot.SettingsService;
     public IHostDispatcher Dispatcher => dispatcher;
@@ -95,7 +98,7 @@ public sealed class RuntimeHostApp : IDisposable
             return;
         }
 
-        if (started)
+        if (started || IsShuttingDown)
         {
             return;
         }
@@ -141,16 +144,7 @@ public sealed class RuntimeHostApp : IDisposable
         {
             shutdownEvent.Wait();
             Trace.WriteLine("NiceWP.Runtime.Host shutdown signaled.");
-
-            try
-            {
-                dispatcher.InvokeAsync(() => compositionRoot.WallpaperService.Stop()).GetAwaiter().GetResult();
-            }
-            catch (Exception exception)
-            {
-                Trace.WriteLine($"Error stopping wallpaper during shutdown: {exception}");
-            }
-
+            StopWallpaperOnceForShutdown();
             return 0;
         }
         catch (Exception exception)
@@ -221,14 +215,43 @@ public sealed class RuntimeHostApp : IDisposable
         }
     }
 
+    private async Task CancelPendingRestoreAsync()
+    {
+        var pendingRestore = restoreTask;
+        if (pendingRestore.IsCompleted)
+        {
+            return;
+        }
+
+        try
+        {
+            await dispatcher.InvokeAsync(() =>
+            {
+                if (!currentState.HasActiveWallpaper)
+                {
+                    compositionRoot.WallpaperService.Stop();
+                }
+            }).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error cancelling pending startup restore: {ex}");
+        }
+
+        await WaitForPendingRestoreAsync().ConfigureAwait(false);
+    }
+
     private async Task<IpcResponse> HandleGetStatusAsync(IpcRequest request)
     {
-        await WaitForPendingRestoreAsync().ConfigureAwait(false);
+        if (!IsShuttingDown)
+        {
+            await WaitForPendingRestoreAsync().ConfigureAwait(false);
+        }
 
         var state = currentState;
         return IpcResponse.Status(
             requestId: request.Id,
-            isRunning: true,
+            isRunning: !IsShuttingDown,
             hasActiveWallpaper: state.HasActiveWallpaper,
             wallpaperType: state.Type,
             activePath: state.Path,
@@ -238,6 +261,11 @@ public sealed class RuntimeHostApp : IDisposable
 
     private async Task<IpcResponse> HandleSetImageAsync(IpcRequest request)
     {
+        if (IsShuttingDown)
+        {
+            return IpcResponse.Fail(request.Id, "Runtime host is shutting down.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.Path))
         {
             return IpcResponse.Fail(request.Id, "Image path cannot be empty.");
@@ -249,17 +277,26 @@ public sealed class RuntimeHostApp : IDisposable
             return IpcResponse.Fail(request.Id, validation.Message ?? "Invalid image path.");
         }
 
-        Interlocked.Increment(ref commandSequence);
+        var seq = Interlocked.Increment(ref commandSequence);
+        await CancelPendingRestoreAsync().ConfigureAwait(false);
 
         return await dispatcher.InvokeAsync(async () =>
         {
+            if (IsShuttingDown)
+            {
+                return IpcResponse.Fail(request.Id, "Runtime host is shutting down.");
+            }
+
             var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
             if (result.Success)
             {
-                ClearPauseReasons();
-                currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeImage, fullPath, IpcConstants.PlaybackStateRunning);
-                NotifyPolicyStateChanged();
-                await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeImage, fullPath).ConfigureAwait(false);
+                if (Volatile.Read(ref commandSequence) == seq && !IsShuttingDown)
+                {
+                    ClearPauseReasons();
+                    currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeImage, fullPath, IpcConstants.PlaybackStateRunning);
+                    NotifyPolicyStateChanged();
+                    await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeImage, fullPath).ConfigureAwait(false);
+                }
                 return IpcResponse.Ok(request.Id, $"Image wallpaper set: {fullPath}");
             }
 
@@ -269,6 +306,11 @@ public sealed class RuntimeHostApp : IDisposable
 
     private async Task<IpcResponse> HandleSetVideoAsync(IpcRequest request)
     {
+        if (IsShuttingDown)
+        {
+            return IpcResponse.Fail(request.Id, "Runtime host is shutting down.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.Path))
         {
             return IpcResponse.Fail(request.Id, "Video path cannot be empty.");
@@ -280,17 +322,26 @@ public sealed class RuntimeHostApp : IDisposable
             return IpcResponse.Fail(request.Id, validation.Message ?? "Invalid video path.");
         }
 
-        Interlocked.Increment(ref commandSequence);
+        var seq = Interlocked.Increment(ref commandSequence);
+        await CancelPendingRestoreAsync().ConfigureAwait(false);
 
         return await dispatcher.InvokeAsync(async () =>
         {
+            if (IsShuttingDown)
+            {
+                return IpcResponse.Fail(request.Id, "Runtime host is shutting down.");
+            }
+
             var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
             if (result.Success)
             {
-                ClearPauseReasons();
-                currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeVideo, fullPath, IpcConstants.PlaybackStateRunning);
-                NotifyPolicyStateChanged();
-                await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeVideo, fullPath).ConfigureAwait(false);
+                if (Volatile.Read(ref commandSequence) == seq && !IsShuttingDown)
+                {
+                    ClearPauseReasons();
+                    currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeVideo, fullPath, IpcConstants.PlaybackStateRunning);
+                    NotifyPolicyStateChanged();
+                    await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeVideo, fullPath).ConfigureAwait(false);
+                }
                 return IpcResponse.Ok(request.Id, $"Video wallpaper set: {fullPath}");
             }
 
@@ -300,31 +351,47 @@ public sealed class RuntimeHostApp : IDisposable
 
     private async Task<IpcResponse> HandleStopWallpaperAsync(IpcRequest request)
     {
-        Interlocked.Increment(ref commandSequence);
+        if (IsShuttingDown)
+        {
+            return IpcResponse.Ok(request.Id, "Wallpaper stopped.");
+        }
 
-        return await dispatcher.InvokeAsync(async () =>
+        var seq = Interlocked.Increment(ref commandSequence);
+
+        var response = await dispatcher.InvokeAsync(async () =>
         {
             var result = compositionRoot.WallpaperService.Stop();
             if (result.Success)
             {
                 ClearPauseReasons();
                 currentState = RuntimeWallpaperState.Empty;
-                await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeNone, null).ConfigureAwait(false);
+                if (Volatile.Read(ref commandSequence) == seq && !IsShuttingDown)
+                {
+                    await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeNone, null).ConfigureAwait(false);
+                }
                 return IpcResponse.Ok(request.Id, "Wallpaper stopped.");
             }
 
             return IpcResponse.Fail(request.Id, result.Message ?? "Failed to stop wallpaper.");
         }).ConfigureAwait(false);
+
+        await WaitForPendingRestoreAsync().ConfigureAwait(false);
+        return response;
     }
 
     private async Task<IpcResponse> HandlePauseWallpaperAsync(IpcRequest request)
     {
+        if (IsShuttingDown)
+        {
+            return IpcResponse.Fail(request.Id, "Runtime host is shutting down.");
+        }
+
         await WaitForPendingRestoreAsync().ConfigureAwait(false);
         Interlocked.Increment(ref commandSequence);
 
         return await dispatcher.InvokeAsync(() =>
         {
-            if (!currentState.HasActiveWallpaper)
+            if (IsShuttingDown || !currentState.HasActiveWallpaper)
             {
                 return IpcResponse.Fail(request.Id, "No active wallpaper to pause.");
             }
@@ -351,12 +418,17 @@ public sealed class RuntimeHostApp : IDisposable
 
     private async Task<IpcResponse> HandleResumeWallpaperAsync(IpcRequest request)
     {
+        if (IsShuttingDown)
+        {
+            return IpcResponse.Fail(request.Id, "Runtime host is shutting down.");
+        }
+
         await WaitForPendingRestoreAsync().ConfigureAwait(false);
         Interlocked.Increment(ref commandSequence);
 
         return await dispatcher.InvokeAsync(() =>
         {
-            if (!currentState.HasActiveWallpaper)
+            if (IsShuttingDown || !currentState.HasActiveWallpaper)
             {
                 return IpcResponse.Fail(request.Id, "No active wallpaper to resume.");
             }
@@ -596,7 +668,7 @@ public sealed class RuntimeHostApp : IDisposable
     {
         try
         {
-            if (disposed || shutdownEvent.IsSet || Volatile.Read(ref commandSequence) != 0)
+            if (IsShuttingDown || Volatile.Read(ref commandSequence) != 0)
             {
                 return;
             }
@@ -643,27 +715,32 @@ public sealed class RuntimeHostApp : IDisposable
                 return;
             }
 
-            if (disposed || shutdownEvent.IsSet || Volatile.Read(ref commandSequence) != 0)
+            if (IsShuttingDown || Volatile.Read(ref commandSequence) != 0)
             {
                 return;
             }
 
             await dispatcher.InvokeAsync(async () =>
             {
-                if (disposed || shutdownEvent.IsSet || Volatile.Read(ref commandSequence) != 0)
+                if (IsShuttingDown || Volatile.Read(ref commandSequence) != 0)
                 {
                     return;
                 }
 
                 var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
-                if (result.Success && Volatile.Read(ref commandSequence) == 0 && !shutdownEvent.IsSet && !disposed)
+                if (result.Success && Volatile.Read(ref commandSequence) == 0 && !IsShuttingDown)
                 {
                     ClearPauseReasons();
                     currentState = new RuntimeWallpaperState(normalizedType, fullPath, IpcConstants.PlaybackStateRunning);
                     NotifyPolicyStateChanged();
                     Trace.WriteLine($"Startup wallpaper restored: type={normalizedType}, path={fullPath}");
                 }
-                else if (!result.Success)
+                else if (result.Success)
+                {
+                    compositionRoot.WallpaperService.Stop();
+                    Trace.WriteLine("Startup wallpaper restore completed after user command or shutdown; stopped restored wallpaper.");
+                }
+                else
                 {
                     Trace.WriteLine($"Startup wallpaper restore failed: {result.Error} - {result.Message}");
                 }
@@ -677,6 +754,11 @@ public sealed class RuntimeHostApp : IDisposable
 
     private async Task PersistWallpaperStateAsync(string wallpaperType, string? fullPath)
     {
+        if (IsShuttingDown)
+        {
+            return;
+        }
+
         try
         {
             var currentSettings = await compositionRoot.SettingsService.LoadAsync().ConfigureAwait(false);
@@ -712,50 +794,93 @@ public sealed class RuntimeHostApp : IDisposable
         }
     }
 
+    private void TrySetShutdownEvent()
+    {
+        try
+        {
+            shutdownEvent.Set();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed.
+        }
+    }
+
+    private void StopWallpaperOnceForShutdown()
+    {
+        if (Interlocked.Exchange(ref wallpaperStoppedOnShutdown, 1) != 0)
+        {
+            return;
+        }
+
+        if (compositionRoot.IsDisposed)
+        {
+            return;
+        }
+
+        try
+        {
+            if (Application.Current != null)
+            {
+                _ = dispatcher.InvokeAsync(() =>
+                {
+                    try
+                    {
+                        if (!compositionRoot.IsDisposed)
+                        {
+                            compositionRoot.WallpaperService.Stop();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace.WriteLine($"Error stopping wallpaper: {ex}");
+                    }
+                    Application.Current?.Exit();
+                });
+            }
+            else
+            {
+                dispatcher.InvokeAsync(() =>
+                {
+                    if (!compositionRoot.IsDisposed)
+                    {
+                        compositionRoot.WallpaperService.Stop();
+                    }
+                }).GetAwaiter().GetResult();
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error stopping wallpaper: {ex}");
+        }
+    }
+
     public void RequestShutdown()
     {
+        if (Interlocked.Exchange(ref shutdownRequested, 1) != 0)
+        {
+            return;
+        }
+
         Interlocked.Increment(ref commandSequence);
         ClearPauseReasons();
         currentState = RuntimeWallpaperState.Empty;
-        shutdownEvent.Set();
         CancelPolicyMonitor();
-
-        if (Application.Current != null)
-        {
-            _ = dispatcher.InvokeAsync(() =>
-            {
-                try
-                {
-                    compositionRoot.WallpaperService.Stop();
-                }
-                catch (Exception ex)
-                {
-                    Trace.WriteLine($"Error stopping wallpaper: {ex}");
-                }
-                Application.Current?.Exit();
-            });
-        }
-        else
-        {
-            try
-            {
-                dispatcher.InvokeAsync(() => compositionRoot.WallpaperService.Stop()).GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine($"Error stopping wallpaper: {ex}");
-            }
-        }
+        StopWallpaperOnceForShutdown();
+        TrySetShutdownEvent();
     }
 
     public void Dispose()
     {
         if (disposed) return;
         disposed = true;
+        Interlocked.Exchange(ref shutdownRequested, 1);
         Interlocked.Increment(ref commandSequence);
         ClearPauseReasons();
-        shutdownEvent.Set();
+        currentState = RuntimeWallpaperState.Empty;
         CancelPolicyMonitor();
+        StopWallpaperOnceForShutdown();
+        TrySetShutdownEvent();
         try
         {
             Task.WaitAll([monitorTask, powerMonitorTask], TimeSpan.FromMilliseconds(500));

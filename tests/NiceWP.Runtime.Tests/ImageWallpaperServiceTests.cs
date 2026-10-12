@@ -85,6 +85,26 @@ public sealed class ImageWallpaperServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task StaleHostHandleDuringActiveWallpaper_NextStartReResolvesAndAttachesNewHandle()
+    {
+        Assert.True((await service.StartAsync(first)).Success);
+        Assert.Equal(1, host.ResolveCount);
+        Assert.Equal(10, host.LastAttachedHost);
+
+        // Simulate Explorer restart: handle 10 becomes invalid, new WorkerW handle is 20
+        host.InvalidHandles.Add(10);
+        host.NextHandle = 20;
+
+        var restartResult = await service.StartAsync(second);
+        Assert.True(restartResult.Success);
+        Assert.Equal(second, service.ActivePath);
+        Assert.Equal(2, host.ResolveCount);
+        Assert.Equal(20, host.LastAttachedHost);
+        Assert.Equal(1, renderers[0].DisposeCount);
+        Assert.Equal(0, renderers[1].DisposeCount);
+    }
+
+    [Fact]
     public async Task FailedAttachmentCleansRenderer()
     {
         host.FailAttach = true;
@@ -212,12 +232,20 @@ public sealed class ImageWallpaperServiceTests : IDisposable
         public bool Valid { get; set; } = true;
         public bool FailAttach { get; set; }
         public bool FailDetach { get; set; }
-        public Task<DesktopHostResult> ResolveAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new DesktopHostResult(10, DesktopHostError.None));
-        public bool IsValid(nint handle) => Valid;
+        public nint NextHandle { get; set; } = 10;
+        public int ResolveCount { get; private set; }
+        public nint LastAttachedHost { get; private set; }
+        public HashSet<nint> InvalidHandles { get; } = [];
+        public Task<DesktopHostResult> ResolveAsync(CancellationToken cancellationToken = default)
+        {
+            ResolveCount++;
+            return Task.FromResult(new DesktopHostResult(NextHandle, DesktopHostError.None));
+        }
+        public bool IsValid(nint handle) => Valid && !InvalidHandles.Contains(handle);
         public nint Attach(nint host, nint window)
         {
             if (FailAttach) throw new InvalidOperationException("Attach failed");
+            LastAttachedHost = host;
             events.Add("attach");
             return 0;
         }

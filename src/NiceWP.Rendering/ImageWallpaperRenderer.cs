@@ -93,6 +93,7 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
         catch (Exception exception)
         {
             Trace.WriteLine(exception);
+            Dispose();
             return new(WallpaperError.RendererFailed, "The wallpaper window could not be created.");
         }
     }
