@@ -39,12 +39,14 @@ public sealed partial class DesktopTestWindow : Window
     private bool closed;
     private bool selecting;
     private bool libraryBusy;
+    private int libraryLoads;
     private bool isSyncingAutostart;
     private bool isSyncingAppSettings;
 
     public DesktopTestWindow(bool isStartup = false)
     {
         InitializeComponent();
+        StatusText.RegisterPropertyChangedCallback(TextBlock.TextProperty, (_, _) => UpdateFeedbackVisuals());
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1060, 720));
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
@@ -132,6 +134,8 @@ public sealed partial class DesktopTestWindow : Window
 
     public async Task LoadLibraryAsync()
     {
+        libraryLoads++;
+        UpdateFeedbackVisuals();
         try
         {
             await libraryController.LoadAsync();
@@ -146,6 +150,11 @@ public sealed partial class DesktopTestWindow : Window
                 StatusText.Text = "Failed to load library.";
                 RenderLibraryItems();
             }
+        }
+        finally
+        {
+            libraryLoads--;
+            if (!closed) UpdateFeedbackVisuals();
         }
     }
 
@@ -216,7 +225,7 @@ public sealed partial class DesktopTestWindow : Window
     {
         if (string.IsNullOrWhiteSpace(path) || string.Equals(wallpaperType, IpcConstants.WallpaperTypeNone, StringComparison.OrdinalIgnoreCase))
         {
-            return "No wallpaper";
+            return "No wallpaper active";
         }
 
         return Path.GetFileName(path);
@@ -656,7 +665,7 @@ public sealed partial class DesktopTestWindow : Window
             if (currentEntry.IsMissing)
             {
                 badge.Visibility = Visibility.Visible;
-                badgeText.Text = "Missing";
+                badgeText.Text = isActive ? "Active · Missing" : "Missing";
             }
             else if (isActive)
             {
@@ -872,9 +881,29 @@ public sealed partial class DesktopTestWindow : Window
         UpdateLibraryActionState();
     }
 
+    private void UpdateFeedbackVisuals()
+    {
+        if (closed) return;
+        if (libraryController == null)
+        {
+            FeedbackArea.Visibility = string.IsNullOrWhiteSpace(StatusText.Text) ? Visibility.Collapsed : Visibility.Visible;
+            return;
+        }
+        var busy = libraryLoads > 0 || IsInteractionBusy;
+        BusyIndicator.IsActive = busy;
+        BusyIndicator.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        BusyText.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        BusyText.Text = libraryLoads > 0 && !IsInteractionBusy ? "Loading library…" : "Working…";
+        FeedbackArea.Visibility = busy || !string.IsNullOrWhiteSpace(StatusText.Text)
+            ? Visibility.Visible : Visibility.Collapsed;
+        LibraryEmptyText.Visibility = libraryLoads == 0 && libraryController.Items.Count == 0
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void UpdateLibraryActionState()
     {
         if (closed) return;
+        UpdateFeedbackVisuals();
         var isIdle = !IsInteractionBusy;
         var hasWallpaper = !string.IsNullOrWhiteSpace(activeWallpaperPath);
 
@@ -922,6 +951,8 @@ public sealed partial class DesktopTestWindow : Window
             ? activeWallpaperPath!
             : "Select a wallpaper from the Library or choose a file below.";
         ActiveMissingWarningText.Visibility = isMissingOnDisk ? Visibility.Visible : Visibility.Collapsed;
+        ActiveEmptyState.Visibility = hasWallpaper ? Visibility.Collapsed : Visibility.Visible;
+        ActiveDetailsPanel.Visibility = hasWallpaper ? Visibility.Visible : Visibility.Collapsed;
 
         WallpaperTypeText.Text = hasWallpaper ? activeWallpaperType : "None";
 

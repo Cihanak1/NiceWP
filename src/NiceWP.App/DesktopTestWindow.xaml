@@ -15,7 +15,7 @@
         SelectionChanged="OnNavigationChanged"
         Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <NavigationView.PaneHeader>
-            <StackPanel Margin="16,14,16,18" Spacing="2">
+            <StackPanel Margin="16,16,16,24" Spacing="4">
                 <TextBlock Text="NiceWP" FontSize="20" FontWeight="SemiBold" />
                 <TextBlock
                     Text="Wallpaper Manager"
@@ -29,7 +29,7 @@
             <NavigationViewItem x:Name="SettingsNavigationItem" Content="Settings" Tag="Settings" Icon="Setting" />
         </NavigationView.MenuItems>
 
-        <Grid Margin="24,18,24,16" RowSpacing="12">
+        <Grid Margin="24,16,24,16" RowSpacing="12">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
@@ -47,11 +47,11 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <StackPanel Spacing="4" VerticalAlignment="Center">
                         <TextBlock Text="Library" Style="{ThemeResource TitleTextBlockStyle}" />
                         <TextBlock
                             x:Name="LibraryCountText"
-                            Text="0 wallpapers in collection"
+                            Text="Your wallpaper collection"
                             FontSize="13"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
@@ -65,30 +65,26 @@
                 </Grid>
 
                 <Border
-                    x:Name="LibraryEmptyText"
+                    x:Name="LibraryEmptyText" Visibility="Collapsed"
                     Grid.Row="1"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
                     Padding="32"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Top"
                     Margin="0,8,0,0">
-                    <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="420">
+                    <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="420">
                         <SymbolIcon
                             Symbol="Pictures"
                             HorizontalAlignment="Center"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock
-                            Text="Your wallpapers, in one place"
+                            Text="No wallpapers in library"
                             FontSize="16"
                             FontWeight="SemiBold"
                             HorizontalAlignment="Center"
                             TextAlignment="Center"
                             TextWrapping="Wrap" />
                         <TextBlock
-                            Text="Add a local PNG, JPG, or MP4 file to build your wallpaper library and switch backgrounds anytime."
+                            Text="Use Add Wallpaper to add an image or MP4."
                             HorizontalAlignment="Center"
                             TextAlignment="Center"
                             TextWrapping="Wrap"
@@ -130,8 +126,8 @@
                                 Loaded="OnCardBorderLoaded"
                                 DataContextChanged="OnCardBorderDataContextChanged"
                                 ToolTipService.ToolTip="{Binding ToolTipText}">
-                                <StackPanel Spacing="10" Padding="12">
-                                    <Grid Height="124" CornerRadius="6" Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
+                                <StackPanel Spacing="12" Padding="12">
+                                    <Grid Height="124" CornerRadius="4" Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
                                         <SymbolIcon
                                             x:Name="CardPlaceholderIcon"
                                             Symbol="Pictures"
@@ -145,10 +141,10 @@
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Top"
                                             Margin="8"
-                                            Padding="8,3"
+                                            Padding="8,4"
                                             CornerRadius="4"
                                             Visibility="Collapsed"
-                                            Background="{ThemeResource SystemFillColorCautionBackgroundBrush}">
+                                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
                                             <TextBlock
                                                 x:Name="CardStateBadgeText"
                                                 Text="Missing"
@@ -157,11 +153,11 @@
                                         </Border>
                                     </Grid>
 
-                                    <StackPanel Spacing="3">
+                                    <StackPanel Spacing="4">
                                         <TextBlock
                                             Text="{Binding DisplayName}"
                                             FontWeight="SemiBold"
-                                            MaxLines="1"
+                                            TextWrapping="Wrap" MinHeight="40" MaxLines="2"
                                             TextTrimming="CharacterEllipsis"
                                             ToolTipService.ToolTip="{Binding ToolTipText}" />
                                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -169,11 +165,6 @@
                                                 Text="{Binding Type}"
                                                 FontSize="12"
                                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                            <TextBlock
-                                                Text="{Binding StatusText}"
-                                                FontSize="12"
-                                                FontWeight="SemiBold"
-                                                Foreground="{ThemeResource SystemFillColorCautionBrush}" />
                                         </StackPanel>
                                     </StackPanel>
 
@@ -183,7 +174,7 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <Button
-                                            x:Name="CardApplyButton"
+                                            x:Name="CardApplyButton" Style="{StaticResource AccentButtonStyle}"
                                             Content="Apply"
                                             HorizontalAlignment="Stretch"
                                             IsEnabled="{Binding CanApply}"
@@ -209,21 +200,26 @@
             <!-- ACTIVE WALLPAPER PAGE -->
             <ScrollViewer x:Name="ActivePage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="16" MaxWidth="720" HorizontalAlignment="Left">
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="4">
                         <TextBlock Text="Active Wallpaper" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
                         <TextBlock
-                            Text="Inspect and control the wallpaper currently rendered by the background runtime host."
+                            Text="Your current desktop wallpaper."
                             FontSize="13"
                             TextWrapping="Wrap"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
 
-                    <Border
+                    <StackPanel x:Name="ActiveEmptyState" Spacing="8" Margin="0,16,0,8">
+                        <TextBlock Text="No wallpaper active" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="Apply a wallpaper from Library or choose a file below." TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <Border x:Name="ActiveDetailsPanel" Visibility="Collapsed"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Padding="18">
+                        Padding="16">
                         <StackPanel Spacing="16">
                             <Grid ColumnSpacing="16">
                                 <Grid.ColumnDefinitions>
@@ -232,9 +228,9 @@
                                 </Grid.ColumnDefinitions>
 
                                 <Grid
-                                    Width="148"
+                                    Width="112"
                                     Height="92"
-                                    CornerRadius="6"
+                                    CornerRadius="4"
                                     Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
                                     <SymbolIcon
                                         x:Name="ActivePlaceholderIcon"
@@ -249,7 +245,7 @@
                                 <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                     <TextBlock
                                         x:Name="PathText"
-                                        Text="No wallpaper"
+                                        Text="No wallpaper active"
                                         FontSize="18"
                                         FontWeight="SemiBold"
                                         TextTrimming="CharacterEllipsis"
@@ -258,15 +254,15 @@
                                         x:Name="ActiveFullPathText"
                                         Text="Select a wallpaper from the Library or choose a file below."
                                         FontSize="12"
-                                        TextWrapping="Wrap"
+                                        TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock
                                         x:Name="ActiveMissingWarningText"
-                                        Text="Warning: The active wallpaper file could not be found on disk."
+                                        Text="The wallpaper file is missing." TextWrapping="Wrap"
                                         FontSize="12"
                                         FontWeight="SemiBold"
                                         Visibility="Collapsed"
-                                        Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                             </Grid>
 
@@ -274,7 +270,7 @@
 
                             <Grid ColumnSpacing="24" RowSpacing="8">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" MinWidth="120" />
+                                    <ColumnDefinition Width="Auto" MinWidth="64" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
@@ -285,7 +281,7 @@
                                 <TextBlock
                                     Grid.Row="0"
                                     Grid.Column="0"
-                                    Text="Wallpaper Type"
+                                    Text="Type"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock
                                     x:Name="WallpaperTypeText"
@@ -297,7 +293,7 @@
                                 <TextBlock
                                     Grid.Row="1"
                                     Grid.Column="0"
-                                    Text="Runtime Status"
+                                    Text="Status"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock
                                     x:Name="PlaybackStatusText"
@@ -309,10 +305,10 @@
                         </StackPanel>
                     </Border>
 
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                    <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="152" ItemHeight="48">
                         <Button
                             x:Name="SelectImageButton"
-                            Content="Choose File..."
+                            Content="Choose File…"
                             Click="OnSelectImage"
                             Style="{StaticResource AccentButtonStyle}" />
                         <Button
@@ -322,24 +318,24 @@
                             IsEnabled="False" />
                         <Button
                             x:Name="StopActiveWallpaperButton"
-                            Content="Stop Wallpaper"
+                            Content="Stop"
                             Click="OnStopActiveWallpaper"
                             IsEnabled="False" />
                         <Button
                             x:Name="RefreshActiveStatusButton"
                             Content="Refresh"
                             Click="OnRefreshStatus" />
-                    </StackPanel>
+                    </VariableSizedWrapGrid>
                 </StackPanel>
             </ScrollViewer>
 
             <!-- SETTINGS PAGE -->
             <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="16" MaxWidth="720" HorizontalAlignment="Left">
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="4">
                         <TextBlock Text="Settings" Style="{ThemeResource TitleTextBlockStyle}" />
                         <TextBlock
-                            Text="Configure appearance, Windows startup behavior, and wallpaper session restore."
+                            Text="Appearance and startup preferences."
                             FontSize="13"
                             TextWrapping="Wrap"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -351,11 +347,11 @@
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Padding="18">
-                        <StackPanel Spacing="10">
+                        Padding="16">
+                        <StackPanel Spacing="12">
                             <TextBlock Text="Appearance" FontSize="15" FontWeight="SemiBold" />
                             <TextBlock
-                                Text="Select the color theme applied across all NiceWP screens."
+                                Text="Use light, dark, or your Windows theme."
                                 FontSize="12"
                                 TextWrapping="Wrap"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -377,17 +373,17 @@
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Padding="18">
+                        Padding="16">
                         <StackPanel Spacing="12">
                             <TextBlock Text="Startup &amp; Session Restore" FontSize="15" FontWeight="SemiBold" />
                             <CheckBox
                                 x:Name="AutostartCheckBox"
-                                Content="Start with Windows (launch minimized to system tray)"
+                                Content="Start with Windows"
                                 Checked="OnAutostartChecked"
                                 Unchecked="OnAutostartUnchecked" />
                             <CheckBox
                                 x:Name="RestoreLastWallpaperCheckBox"
-                                Content="Restore last active wallpaper when runtime starts"
+                                Content="Restore last wallpaper"
                                 Checked="OnRestoreLastWallpaperChanged"
                                 Unchecked="OnRestoreLastWallpaperChanged" />
                         </StackPanel>
@@ -399,11 +395,11 @@
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Padding="18">
+                        Padding="16">
                         <StackPanel Spacing="8">
                             <TextBlock Text="System Tray &amp; Local Storage" FontSize="15" FontWeight="SemiBold" />
                             <TextBlock
-                                Text="Closing this window hides NiceWP to the system tray while your wallpaper continues running with minimal resource usage."
+                                Text="NiceWP stays in the system tray when you close this window. Your wallpaper keeps running."
                                 FontSize="12"
                                 TextWrapping="Wrap"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -422,13 +418,25 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <TextBlock
-                x:Name="StatusText"
-                Grid.Row="1"
-                TextWrapping="Wrap"
-                MaxHeight="72"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                AutomationProperties.LiveSetting="Polite" />
+            <Border x:Name="FeedbackArea" Grid.Row="1" Visibility="Collapsed"
+                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ProgressRing x:Name="BusyIndicator" Width="16" Height="16" MinWidth="16" MinHeight="16"
+                                  IsActive="False" Visibility="Collapsed" VerticalAlignment="Center" AutomationProperties.Name="Working" />
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock x:Name="BusyText" Text="Working…" Visibility="Collapsed" FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+                        <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <TextBlock x:Name="StatusText" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+                        </ScrollViewer>
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Grid>
     </NavigationView>
 </Window>
