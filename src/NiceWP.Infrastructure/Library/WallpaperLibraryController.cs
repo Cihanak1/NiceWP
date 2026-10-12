@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
 
@@ -17,6 +18,8 @@ public sealed record WallpaperLibraryEntryView(
     public string StatusText => IsMissing ? "Missing" : string.Empty;
 
     public bool CanApply => !IsMissing && WallpaperLibraryController.IsSupportedWallpaperType(Type);
+
+    public bool CanRemove => true;
 
     public bool IsImage => string.Equals(Type, IpcConstants.WallpaperTypeImage, StringComparison.OrdinalIgnoreCase);
 
@@ -83,6 +86,7 @@ public sealed class WallpaperLibraryController
     private readonly List<WallpaperLibraryEntryView> items = [];
     private readonly RuntimeIpcClient ipcClient;
     private readonly Func<CancellationToken, Task<IpcResponse>> ensureHostRunningAsync;
+    private int busyFlag;
 
     public WallpaperLibraryService Service { get; }
 
@@ -92,16 +96,16 @@ public sealed class WallpaperLibraryController
 
     public string? SelectedItemId { get; private set; }
 
+    public bool IsBusy => Volatile.Read(ref busyFlag) != 0;
+
     public WallpaperLibraryEntryView? SelectedItem =>
         string.IsNullOrWhiteSpace(SelectedItemId)
             ? null
             : items.FirstOrDefault(item => string.Equals(item.Id, SelectedItemId, StringComparison.OrdinalIgnoreCase));
 
-    public bool CanRemoveSelected => SelectedItem != null;
+    public bool CanRemoveSelected => !IsBusy && SelectedItem is { CanRemove: true };
 
-    public bool CanApplySelected =>
-        SelectedItem is { IsMissing: false } selected &&
-        IsSupportedWallpaperType(selected.Type);
+    public bool CanApplySelected => !IsBusy && SelectedItem is { CanApply: true };
 
     public WallpaperLibraryController(
         WallpaperLibraryService? service = null,
@@ -125,6 +129,22 @@ public sealed class WallpaperLibraryController
     /// Safe to call multiple times; never throws on missing or corrupt library.json.
     /// </summary>
     public async Task<IReadOnlyList<WallpaperLibraryEntryView>> LoadAsync(CancellationToken cancellationToken = default)
+    {
+        var acquired = Interlocked.CompareExchange(ref busyFlag, 1, 0) == 0;
+        try
+        {
+            return await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (acquired)
+            {
+                Interlocked.Exchange(ref busyFlag, 0);
+            }
+        }
+    }
+
+    private async Task<IReadOnlyList<WallpaperLibraryEntryView>> LoadCoreAsync(CancellationToken cancellationToken = default)
     {
         var library = await Service.LoadAsync(cancellationToken).ConfigureAwait(false);
         RebuildItems(library);
@@ -152,31 +172,63 @@ public sealed class WallpaperLibraryController
     /// </summary>
     public async Task<WallpaperLibraryActionResult> AddFileAsync(string? path, CancellationToken cancellationToken = default)
     {
-        var addResult = await Service.AddAsync(path, cancellationToken).ConfigureAwait(false);
-        if (!addResult.Success || addResult.Item == null)
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
         {
             return new WallpaperLibraryActionResult(
                 Success: false,
-                Message: addResult.Message ?? "Failed to add wallpaper to library.",
+                Message: MapUserStatusMessage(WallpaperError.Busy),
                 Entry: null,
                 AlreadyExisted: false,
-                Error: addResult.Error == WallpaperError.None ? WallpaperError.InvalidPath : addResult.Error);
+                Error: WallpaperError.Busy);
         }
 
-        await LoadAsync(cancellationToken).ConfigureAwait(false);
-        SelectItem(addResult.Item.Id);
+        try
+        {
+            var addResult = await Service.AddAsync(path, cancellationToken).ConfigureAwait(false);
+            if (!addResult.Success || addResult.Item == null)
+            {
+                var error = addResult.Error == WallpaperError.None ? WallpaperError.InvalidPath : addResult.Error;
+                return new WallpaperLibraryActionResult(
+                    Success: false,
+                    Message: MapUserStatusMessage(error, addResult.Message),
+                    Entry: null,
+                    AlreadyExisted: false,
+                    Error: error);
+            }
 
-        var entry = SelectedItem ?? WallpaperLibraryEntryView.FromItem(addResult.Item);
-        var message = addResult.AlreadyExisted
-            ? $"Wallpaper is already in library: {entry.DisplayName}"
-            : $"Added to library: {entry.DisplayName}";
+            await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            SelectItem(addResult.Item.Id);
 
-        return new WallpaperLibraryActionResult(
-            Success: true,
-            Message: message,
-            Entry: entry,
-            AlreadyExisted: addResult.AlreadyExisted,
-            Error: WallpaperError.None);
+            var entry = SelectedItem ?? WallpaperLibraryEntryView.FromItem(addResult.Item);
+            var message = addResult.AlreadyExisted
+                ? $"Wallpaper is already in library: {entry.DisplayName}"
+                : $"Added to library: {entry.DisplayName}";
+
+            return new WallpaperLibraryActionResult(
+                Success: true,
+                Message: message,
+                Entry: entry,
+                AlreadyExisted: addResult.AlreadyExisted,
+                Error: WallpaperError.None);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to add wallpaper to library: {ex}");
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Failed to load library.",
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.RendererFailed);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
     }
 
     /// <summary>
@@ -190,35 +242,64 @@ public sealed class WallpaperLibraryController
     /// </summary>
     public async Task<WallpaperLibraryActionResult> RemoveByIdAsync(string? id, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
         {
             return new WallpaperLibraryActionResult(
                 Success: false,
-                Message: "Select a wallpaper in the library to remove.",
-                Error: WallpaperError.InvalidPath);
+                Message: MapUserStatusMessage(WallpaperError.Busy),
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.Busy);
         }
 
-        var trimmedId = id.Trim();
-        var removed = await Service.RemoveAsync(trimmedId, cancellationToken).ConfigureAwait(false);
-        if (string.Equals(SelectedItemId, trimmedId, StringComparison.OrdinalIgnoreCase))
+        try
         {
-            SelectedItemId = null;
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return new WallpaperLibraryActionResult(
+                    Success: false,
+                    Message: "Select a wallpaper in the library to remove.",
+                    Error: WallpaperError.InvalidPath);
+            }
+
+            var trimmedId = id.Trim();
+            var removed = await Service.RemoveAsync(trimmedId, cancellationToken).ConfigureAwait(false);
+            if (string.Equals(SelectedItemId, trimmedId, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectedItemId = null;
+            }
+
+            await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!removed)
+            {
+                return new WallpaperLibraryActionResult(
+                    Success: false,
+                    Message: "File not found.",
+                    Error: WallpaperError.FileNotFound);
+            }
+
+            return new WallpaperLibraryActionResult(
+                Success: true,
+                Message: string.Empty,
+                Error: WallpaperError.None);
         }
-
-        await LoadAsync(cancellationToken).ConfigureAwait(false);
-
-        if (!removed)
+        catch (OperationCanceledException)
         {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to remove wallpaper from library: {ex}");
             return new WallpaperLibraryActionResult(
                 Success: false,
-                Message: "Selected wallpaper was not found in the library.",
-                Error: WallpaperError.FileNotFound);
+                Message: "Failed to load library.",
+                Error: WallpaperError.RendererFailed);
         }
-
-        return new WallpaperLibraryActionResult(
-            Success: true,
-            Message: string.Empty,
-            Error: WallpaperError.None);
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
     }
 
     /// <summary>
@@ -232,44 +313,72 @@ public sealed class WallpaperLibraryController
     /// </summary>
     public async Task<WallpaperLibraryApplyResult> ApplyByIdAsync(string? id, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
         {
             return new WallpaperLibraryApplyResult(
                 Success: false,
-                Message: "Select a wallpaper in the library to apply.",
-                Error: WallpaperError.InvalidPath);
+                Message: MapUserStatusMessage(WallpaperError.Busy),
+                Entry: null,
+                Error: WallpaperError.Busy);
         }
 
-        var trimmedId = id.Trim();
-        var item = await Service.FindByIdAsync(trimmedId, cancellationToken).ConfigureAwait(false);
-        if (item == null)
+        try
         {
-            var projected = items.FirstOrDefault(entry =>
-                string.Equals(entry.Id, trimmedId, StringComparison.OrdinalIgnoreCase));
-            if (projected == null)
+            if (string.IsNullOrWhiteSpace(id))
             {
-                if (string.Equals(SelectedItemId, trimmedId, StringComparison.OrdinalIgnoreCase))
-                {
-                    SelectedItemId = null;
-                }
-
                 return new WallpaperLibraryApplyResult(
                     Success: false,
-                    Message: "Selected wallpaper was not found in the library.",
-                    Error: WallpaperError.FileNotFound);
+                    Message: "Select a wallpaper in the library to apply.",
+                    Error: WallpaperError.InvalidPath);
             }
 
-            item = new WallpaperLibraryItem
+            var trimmedId = id.Trim();
+            var item = await Service.FindByIdAsync(trimmedId, cancellationToken).ConfigureAwait(false);
+            if (item == null)
             {
-                Id = projected.Id,
-                DisplayName = projected.DisplayName,
-                Type = projected.Type,
-                FilePath = projected.FilePath,
-                AddedAtUtc = projected.AddedAtUtc
-            };
-        }
+                var projected = items.FirstOrDefault(entry =>
+                    string.Equals(entry.Id, trimmedId, StringComparison.OrdinalIgnoreCase));
+                if (projected == null)
+                {
+                    if (string.Equals(SelectedItemId, trimmedId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        SelectedItemId = null;
+                    }
 
-        return await ApplyItemAsync(item, cancellationToken).ConfigureAwait(false);
+                    return new WallpaperLibraryApplyResult(
+                        Success: false,
+                        Message: "File not found.",
+                        Error: WallpaperError.FileNotFound);
+                }
+
+                item = new WallpaperLibraryItem
+                {
+                    Id = projected.Id,
+                    DisplayName = projected.DisplayName,
+                    Type = projected.Type,
+                    FilePath = projected.FilePath,
+                    AddedAtUtc = projected.AddedAtUtc
+                };
+            }
+
+            return await ApplyItemCoreAsync(item, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to apply wallpaper by ID: {ex}");
+            return new WallpaperLibraryApplyResult(
+                Success: false,
+                Message: "Failed to apply wallpaper.",
+                Error: WallpaperError.RendererFailed);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
     }
 
     /// <summary>
@@ -277,6 +386,41 @@ public sealed class WallpaperLibraryController
     /// Never modifies library.json or settings.json directly.
     /// </summary>
     public async Task<WallpaperLibraryApplyResult> ApplyItemAsync(
+        WallpaperLibraryItem? item,
+        CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
+        {
+            return new WallpaperLibraryApplyResult(
+                Success: false,
+                Message: MapUserStatusMessage(WallpaperError.Busy),
+                Entry: null,
+                Error: WallpaperError.Busy);
+        }
+
+        try
+        {
+            return await ApplyItemCoreAsync(item, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to apply wallpaper item: {ex}");
+            return new WallpaperLibraryApplyResult(
+                Success: false,
+                Message: "Failed to apply wallpaper.",
+                Error: WallpaperError.RendererFailed);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
+    }
+
+    private async Task<WallpaperLibraryApplyResult> ApplyItemCoreAsync(
         WallpaperLibraryItem? item,
         CancellationToken cancellationToken = default)
     {
@@ -299,7 +443,7 @@ public sealed class WallpaperLibraryController
         {
             return new WallpaperLibraryApplyResult(
                 Success: false,
-                Message: $"Unsupported wallpaper type: '{item.Type}'.",
+                Message: "Unsupported wallpaper.",
                 Entry: entryView,
                 Error: WallpaperError.UnsupportedFormat);
         }
@@ -324,34 +468,100 @@ public sealed class WallpaperLibraryController
 
             return new WallpaperLibraryApplyResult(
                 Success: false,
-                Message: validation.Error == WallpaperError.FileNotFound
-                    ? "File not found."
-                    : (validation.Message ?? "Invalid wallpaper file."),
+                Message: MapUserStatusMessage(validation.Error, validation.Message),
                 Entry: refreshedView,
                 Error: validation.Error);
         }
 
-        var ensureResponse = await ensureHostRunningAsync(cancellationToken).ConfigureAwait(false);
-        if (!ensureResponse.Success)
+        IpcResponse ensureResponse;
+        try
         {
+            ensureResponse = await ensureHostRunningAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to ensure runtime host is running: {ex}");
             return new WallpaperLibraryApplyResult(
                 Success: false,
-                Message: ensureResponse.Message ?? "Runtime host could not be started.",
+                Message: "Runtime unavailable.",
                 Entry: entryView,
                 Error: WallpaperError.DesktopHostUnavailable);
         }
 
-        var applyResponse = isVideo
-            ? await ipcClient.SetVideoAsync(fullPath, cancellationToken: cancellationToken).ConfigureAwait(false)
-            : await ipcClient.SetImageAsync(fullPath, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-        if (!applyResponse.Success)
+        if (!ensureResponse.Success)
         {
             return new WallpaperLibraryApplyResult(
                 Success: false,
-                Message: applyResponse.Message ?? "Failed to apply wallpaper.",
+                Message: "Runtime unavailable.",
                 Entry: entryView,
-                Error: WallpaperError.RendererFailed);
+                Error: WallpaperError.DesktopHostUnavailable);
+        }
+
+        if (!File.Exists(fullPath))
+        {
+            var missingView = new WallpaperLibraryEntryView(
+                Id: entryView.Id,
+                DisplayName: entryView.DisplayName,
+                Type: entryView.Type,
+                FilePath: entryView.FilePath,
+                AddedAtUtc: entryView.AddedAtUtc,
+                IsMissing: true);
+            RefreshProjectedEntry(missingView);
+
+            return new WallpaperLibraryApplyResult(
+                Success: false,
+                Message: "File not found.",
+                Entry: missingView,
+                Error: WallpaperError.FileNotFound);
+        }
+
+        IpcResponse applyResponse;
+        try
+        {
+            applyResponse = isVideo
+                ? await ipcClient.SetVideoAsync(fullPath, cancellationToken: cancellationToken).ConfigureAwait(false)
+                : await ipcClient.SetImageAsync(fullPath, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to send wallpaper command to runtime host: {ex}");
+            return new WallpaperLibraryApplyResult(
+                Success: false,
+                Message: "Runtime unavailable.",
+                Entry: entryView,
+                Error: WallpaperError.DesktopHostUnavailable);
+        }
+
+        if (!applyResponse.Success)
+        {
+            var failureError = MapApplyFailureError(applyResponse.Message);
+            var failureEntry = entryView;
+            if (failureError == WallpaperError.FileNotFound || !File.Exists(fullPath))
+            {
+                failureError = WallpaperError.FileNotFound;
+                failureEntry = new WallpaperLibraryEntryView(
+                    Id: entryView.Id,
+                    DisplayName: entryView.DisplayName,
+                    Type: entryView.Type,
+                    FilePath: entryView.FilePath,
+                    AddedAtUtc: entryView.AddedAtUtc,
+                    IsMissing: true);
+                RefreshProjectedEntry(failureEntry);
+            }
+
+            return new WallpaperLibraryApplyResult(
+                Success: false,
+                Message: MapUserStatusMessage(failureError, applyResponse.Message),
+                Entry: failureEntry,
+                Error: failureError);
         }
 
         var expectedType = isVideo ? IpcConstants.WallpaperTypeVideo : IpcConstants.WallpaperTypeImage;
@@ -360,17 +570,28 @@ public sealed class WallpaperLibraryController
         var playbackState = IpcConstants.PlaybackStateRunning;
         var isPaused = false;
 
-        var statusResponse = await ipcClient.GetStatusAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (statusResponse.Success && statusResponse.HasActiveWallpaper && !string.IsNullOrWhiteSpace(statusResponse.ActivePath))
+        try
         {
-            activeType = string.IsNullOrWhiteSpace(statusResponse.WallpaperType)
-                ? expectedType
-                : statusResponse.WallpaperType;
-            activePath = statusResponse.ActivePath;
-            playbackState = string.IsNullOrWhiteSpace(statusResponse.PlaybackState)
-                ? IpcConstants.PlaybackStateRunning
-                : statusResponse.PlaybackState;
-            isPaused = statusResponse.IsPaused;
+            var statusResponse = await ipcClient.GetStatusAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (statusResponse.Success && statusResponse.HasActiveWallpaper && !string.IsNullOrWhiteSpace(statusResponse.ActivePath))
+            {
+                activeType = string.IsNullOrWhiteSpace(statusResponse.WallpaperType)
+                    ? expectedType
+                    : statusResponse.WallpaperType;
+                activePath = statusResponse.ActivePath;
+                playbackState = string.IsNullOrWhiteSpace(statusResponse.PlaybackState)
+                    ? IpcConstants.PlaybackStateRunning
+                    : statusResponse.PlaybackState;
+                isPaused = statusResponse.IsPaused;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to query status after applying wallpaper: {ex}");
         }
 
         return new WallpaperLibraryApplyResult(
@@ -382,6 +603,79 @@ public sealed class WallpaperLibraryController
             ActiveWallpaperPath: activePath,
             PlaybackState: playbackState,
             IsPaused: isPaused);
+    }
+
+    public static string MapUserStatusMessage(WallpaperError error, string? rawMessage = null)
+    {
+        if (error == WallpaperError.None && !string.IsNullOrWhiteSpace(rawMessage))
+        {
+            error = MapApplyFailureError(rawMessage);
+        }
+
+        return error switch
+        {
+            WallpaperError.DesktopHostUnavailable => "Runtime unavailable.",
+            WallpaperError.FileNotFound => "File not found.",
+            WallpaperError.UnsupportedFormat => "Unsupported wallpaper.",
+            WallpaperError.RendererFailed => "Failed to apply wallpaper.",
+            WallpaperError.Busy => "Wallpaper operation in progress.",
+            WallpaperError.InvalidPath => !string.IsNullOrWhiteSpace(rawMessage) && !LooksLikeTechnicalException(rawMessage)
+                ? rawMessage
+                : "Select a valid wallpaper file.",
+            _ => "Failed to apply wallpaper."
+        };
+    }
+
+    public static string MapIpcFailureStatusMessage(string? rawMessage, string fallbackMessage = "Runtime unavailable.")
+    {
+        if (string.IsNullOrWhiteSpace(rawMessage))
+        {
+            return fallbackMessage;
+        }
+
+        var mappedError = MapApplyFailureError(rawMessage);
+        return mappedError switch
+        {
+            WallpaperError.DesktopHostUnavailable => "Runtime unavailable.",
+            WallpaperError.FileNotFound => "File not found.",
+            WallpaperError.UnsupportedFormat => "Unsupported wallpaper.",
+            _ => fallbackMessage
+        };
+    }
+
+    private static bool LooksLikeTechnicalException(string message) =>
+        message.Contains("Exception", StringComparison.Ordinal) ||
+        message.Contains("   at ", StringComparison.Ordinal) ||
+        message.Contains("StackTrace", StringComparison.OrdinalIgnoreCase);
+
+    private static WallpaperError MapApplyFailureError(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return WallpaperError.RendererFailed;
+        }
+
+        if (message.Contains("unavailable", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("could not be started", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("failed to start", StringComparison.OrdinalIgnoreCase) ||
+            (message.Contains("executable", StringComparison.OrdinalIgnoreCase) &&
+             message.Contains("not found", StringComparison.OrdinalIgnoreCase)))
+        {
+            return WallpaperError.DesktopHostUnavailable;
+        }
+
+        if (message.Contains("not found", StringComparison.OrdinalIgnoreCase))
+        {
+            return WallpaperError.FileNotFound;
+        }
+
+        if (message.Contains("unsupported", StringComparison.OrdinalIgnoreCase))
+        {
+            return WallpaperError.UnsupportedFormat;
+        }
+
+        return WallpaperError.RendererFailed;
     }
 
     private void RefreshProjectedEntry(WallpaperLibraryEntryView updatedEntry)

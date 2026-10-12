@@ -183,6 +183,7 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <Button
+                                            x:Name="CardApplyButton"
                                             Content="Apply"
                                             HorizontalAlignment="Stretch"
                                             IsEnabled="{Binding CanApply}"
@@ -190,6 +191,7 @@
                                             Loaded="OnApplyButtonLoaded"
                                             DataContextChanged="OnApplyButtonDataContextChanged" />
                                         <Button
+                                            x:Name="CardRemoveButton"
                                             Grid.Column="1"
                                             Content="Remove"
                                             HorizontalAlignment="Stretch"

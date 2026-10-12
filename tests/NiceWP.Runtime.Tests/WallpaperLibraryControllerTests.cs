@@ -592,4 +592,212 @@ public sealed class WallpaperLibraryControllerTests : IDisposable
         Assert.Equal(WallpaperError.FileNotFound, applyByIdResult.Error);
         Assert.False(ensureCalled);
     }
+
+    [Fact]
+    public async Task ApplySelectedAsync_WhenAlreadyBusy_BlocksDuplicateApplyAndAdd_AndRestoresStateInFinally()
+    {
+        var pipeName = CreateUniquePipeName();
+        using var host = CreateStartedHost(pipeName);
+        var ipcClient = new RuntimeIpcClient(pipeName);
+
+        var ensureEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ensureGate = new TaskCompletionSource<IpcResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ensureCallCount = 0;
+
+        var applyController = new WallpaperLibraryController(
+            service,
+            ipcClient,
+            ensureHostRunningAsync: _ =>
+            {
+                Interlocked.Increment(ref ensureCallCount);
+                ensureEntered.TrySetResult();
+                return ensureGate.Task;
+            });
+
+        var imagePath = CreateTempFile("busy_test.png");
+        var secondImagePath = CreateTempFile("busy_second.png");
+        await applyController.AddFileAsync(imagePath);
+
+        Assert.False(applyController.IsBusy);
+        Assert.True(applyController.CanApplySelected);
+        Assert.True(applyController.CanRemoveSelected);
+
+        // Start first Apply which pauses at ensureHostRunningAsync
+        var firstApplyTask = applyController.ApplySelectedAsync();
+        await ensureEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // While busy, actions must be locked and duplicate Apply / Add / Remove must be rejected with WallpaperError.Busy
+        Assert.True(applyController.IsBusy);
+        Assert.False(applyController.CanApplySelected);
+        Assert.False(applyController.CanRemoveSelected);
+
+        var duplicateApplyResult = await applyController.ApplySelectedAsync();
+        Assert.False(duplicateApplyResult.Success);
+        Assert.Equal(WallpaperError.Busy, duplicateApplyResult.Error);
+        Assert.Equal(1, Volatile.Read(ref ensureCallCount));
+
+        var duplicateAddResult = await applyController.AddFileAsync(secondImagePath);
+        Assert.False(duplicateAddResult.Success);
+        Assert.Equal(WallpaperError.Busy, duplicateAddResult.Error);
+        Assert.Single(applyController.Items);
+
+        var duplicateRemoveResult = await applyController.RemoveSelectedAsync();
+        Assert.False(duplicateRemoveResult.Success);
+        Assert.Equal(WallpaperError.Busy, duplicateRemoveResult.Error);
+        Assert.Single(applyController.Items);
+
+        // Release the gate and verify the first Apply finishes and unlocks state cleanly
+        ensureGate.SetResult(IpcResponse.Ok(string.Empty));
+        var firstApplyResult = await firstApplyTask;
+
+        Assert.True(firstApplyResult.Success);
+        Assert.False(applyController.IsBusy);
+        Assert.True(applyController.CanApplySelected);
+        Assert.True(applyController.CanRemoveSelected);
+
+        // Subsequent Add now succeeds after busy state unlocked
+        var addAfterUnlock = await applyController.AddFileAsync(secondImagePath);
+        Assert.True(addAfterUnlock.Success);
+        Assert.Equal(2, applyController.Items.Count);
+    }
+
+    [Fact]
+    public async Task ApplySelectedAsync_WhenRuntimeUnavailableOrThrows_UnlocksStateCleanly_HidesTechnicalErrors_AndAllowsRetry()
+    {
+        var pipeName = CreateUniquePipeName();
+        using var host = CreateStartedHost(pipeName);
+        var ipcClient = new RuntimeIpcClient(pipeName);
+
+        var mode = 0; // 0 = fail response, 1 = throw exception, 2 = succeed
+        var applyController = new WallpaperLibraryController(
+            service,
+            ipcClient,
+            ensureHostRunningAsync: _ =>
+            {
+                return mode switch
+                {
+                    0 => Task.FromResult(IpcResponse.Fail("System.ComponentModel.Win32Exception: Technical details at stack")),
+                    1 => Task.FromException<IpcResponse>(new InvalidOperationException("Simulated host launch exception")),
+                    _ => Task.FromResult(IpcResponse.Ok(string.Empty))
+                };
+            });
+
+        var imagePath = CreateTempFile("retry_after_offline.png");
+        await applyController.AddFileAsync(imagePath);
+
+        // 1. Host returns failure
+        var failResult = await applyController.ApplySelectedAsync();
+        Assert.False(failResult.Success);
+        Assert.Equal(WallpaperError.DesktopHostUnavailable, failResult.Error);
+        Assert.Equal("Runtime unavailable.", failResult.Message);
+        Assert.False(applyController.IsBusy);
+        Assert.True(applyController.CanApplySelected);
+        Assert.True(applyController.CanRemoveSelected);
+
+        // 2. Host launcher throws exception
+        mode = 1;
+        var throwResult = await applyController.ApplySelectedAsync();
+        Assert.False(throwResult.Success);
+        Assert.Equal(WallpaperError.DesktopHostUnavailable, throwResult.Error);
+        Assert.Equal("Runtime unavailable.", throwResult.Message);
+        Assert.False(applyController.IsBusy);
+        Assert.True(applyController.CanApplySelected);
+        Assert.True(applyController.CanRemoveSelected);
+
+        // 3. Host becomes available -> retry succeeds
+        mode = 2;
+        var retryResult = await applyController.ApplySelectedAsync();
+        Assert.True(retryResult.Success);
+        Assert.Equal(WallpaperError.None, retryResult.Error);
+        Assert.False(applyController.IsBusy);
+        Assert.True(applyController.CanApplySelected);
+        Assert.True(applyController.CanRemoveSelected);
+    }
+
+    [Fact]
+    public async Task ApplySelectedAsync_WhenFileDeletedDuringHostStartupRace_MarksItemMissing_DisablesApply_KeepsRemoveEnabled_AndPreservesActiveWallpaper()
+    {
+        var pipeName = CreateUniquePipeName();
+        using var host = CreateStartedHost(pipeName);
+        var ipcClient = new RuntimeIpcClient(pipeName);
+
+        var activeImage = CreateTempFile("active_before_race.png");
+        var setActive = await ipcClient.SetImageAsync(activeImage);
+        Assert.True(setActive.Success);
+
+        var raceImage = CreateTempFile("deleted_during_ensure.png");
+        var applyController = new WallpaperLibraryController(
+            service,
+            ipcClient,
+            ensureHostRunningAsync: _ =>
+            {
+                if (File.Exists(raceImage))
+                {
+                    File.Delete(raceImage);
+                }
+                return Task.FromResult(IpcResponse.Ok(string.Empty));
+            });
+
+        var added = await applyController.AddFileAsync(raceImage);
+        Assert.True(added.Success);
+        Assert.False(applyController.Items[0].IsMissing);
+        Assert.True(applyController.Items[0].CanApply);
+        Assert.True(applyController.Items[0].CanRemove);
+        Assert.True(applyController.CanApplySelected);
+        Assert.True(applyController.CanRemoveSelected);
+
+        var applyResult = await applyController.ApplySelectedAsync();
+
+        Assert.False(applyResult.Success);
+        Assert.Equal(WallpaperError.FileNotFound, applyResult.Error);
+        Assert.Equal("File not found.", applyResult.Message);
+        Assert.False(applyController.IsBusy);
+
+        // Active wallpaper on Runtime Host must be untouched
+        Assert.True(host.CurrentState.HasActiveWallpaper);
+        Assert.Equal(Path.GetFullPath(activeImage), host.CurrentState.Path);
+
+        // Library item must remain in library, marked Missing, with Apply disabled and Remove enabled
+        Assert.Single(applyController.Items);
+        Assert.True(applyController.Items[0].IsMissing);
+        Assert.False(applyController.Items[0].CanApply);
+        Assert.True(applyController.Items[0].CanRemove);
+        Assert.False(applyController.CanApplySelected);
+        Assert.True(applyController.CanRemoveSelected);
+    }
+
+    [Fact]
+    public async Task WallpaperThumbnailService_WhenExtractorFailsOrThrows_ReturnsNullSafely_AndLeavesSourceFileIntact()
+    {
+        var cacheDir = Path.Combine(tempDirectory, "thumbs_fail_test");
+        var videoPath = CreateTempFile("corrupt_or_locked.mp4");
+
+        var throwingService = new WallpaperThumbnailService(
+            cacheDir,
+            (_, _, _) => throw new InvalidOperationException("Simulated MediaFoundation failure"));
+
+        var nullFromThrow = await throwingService.GetOrCreateVideoThumbnailAsync(videoPath);
+        Assert.Null(nullFromThrow);
+        Assert.True(File.Exists(videoPath));
+
+        var failingService = new WallpaperThumbnailService(
+            cacheDir,
+            (_, _, _) => Task.FromResult(false));
+
+        var nullFromFalse = await failingService.GetOrCreateVideoThumbnailAsync(videoPath);
+        Assert.Null(nullFromFalse);
+        Assert.True(File.Exists(videoPath));
+    }
+
+    [Fact]
+    public void MapUserStatusMessage_MapsErrorsToConciseMessagesWithoutTechnicalDetails()
+    {
+        Assert.Equal("Runtime unavailable.", WallpaperLibraryController.MapUserStatusMessage(WallpaperError.DesktopHostUnavailable));
+        Assert.Equal("File not found.", WallpaperLibraryController.MapUserStatusMessage(WallpaperError.FileNotFound));
+        Assert.Equal("Unsupported wallpaper.", WallpaperLibraryController.MapUserStatusMessage(WallpaperError.UnsupportedFormat));
+        Assert.Equal("Failed to apply wallpaper.", WallpaperLibraryController.MapUserStatusMessage(WallpaperError.RendererFailed));
+        Assert.Equal("Select a valid wallpaper file.", WallpaperLibraryController.MapUserStatusMessage(
+            WallpaperError.InvalidPath,
+            "System.ArgumentException: Invalid path\n   at System.IO.Path.GetFullPath(String path)"));
+    }
 }

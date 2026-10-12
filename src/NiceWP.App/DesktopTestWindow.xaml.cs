@@ -11,6 +11,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.Windows.Storage.Pickers;
 using NiceWP.App.Tray;
+using NiceWP.Core;
 using NiceWP.Infrastructure.Autostart;
 using NiceWP.Infrastructure.Ipc;
 using NiceWP.Infrastructure.Library;
@@ -127,6 +128,8 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
+    private bool IsInteractionBusy => libraryBusy || selecting || libraryController.IsBusy;
+
     public async Task LoadLibraryAsync()
     {
         try
@@ -140,6 +143,7 @@ public sealed partial class DesktopTestWindow : Window
             Trace.WriteLine($"Error loading wallpaper library: {exception}");
             if (!closed)
             {
+                StatusText.Text = "Failed to load library.";
                 RenderLibraryItems();
             }
         }
@@ -154,7 +158,7 @@ public sealed partial class DesktopTestWindow : Window
 
             if (!ensure.Success)
             {
-                StatusText.Text = ensure.Message ?? "Runtime host could not be started.";
+                StatusText.Text = "Runtime unavailable.";
                 UpdateActiveDetails(statusKnown: false);
                 return;
             }
@@ -188,7 +192,7 @@ public sealed partial class DesktopTestWindow : Window
                 UpdateActiveDetails(statusKnown: status.Success);
                 if (!status.Success)
                 {
-                    StatusText.Text = status.Message ?? "Failed to query runtime status.";
+                    StatusText.Text = "Runtime unavailable.";
                 }
 
                 if (hadWallpaper)
@@ -202,7 +206,7 @@ public sealed partial class DesktopTestWindow : Window
             Trace.WriteLine($"Error synchronizing runtime status: {exception}");
             if (!closed)
             {
-                StatusText.Text = "Failed to synchronize status with runtime host.";
+                StatusText.Text = "Runtime unavailable.";
                 UpdateActiveDetails(statusKnown: false);
             }
         }
@@ -230,7 +234,7 @@ public sealed partial class DesktopTestWindow : Window
 
     private async void OnSelectImage(object sender, RoutedEventArgs args)
     {
-        if (selecting || libraryBusy || closed) return;
+        if (IsInteractionBusy || closed) return;
         selecting = true;
         UpdateLibraryActionState();
         try
@@ -238,45 +242,52 @@ public sealed partial class DesktopTestWindow : Window
             var file = await PickWallpaperFileAsync();
             if (file == null || closed) return;
 
-            StatusText.Text = $"Applying wallpaper: {Path.GetFileName(file.Path)}...";
+            var validation = WallpaperLibraryService.ValidateWallpaperFile(file.Path, out var validatedPath, out var wallpaperType);
+            if (!validation.Success)
+            {
+                StatusText.Text = WallpaperLibraryController.MapUserStatusMessage(validation.Error, validation.Message);
+                return;
+            }
+
+            StatusText.Text = $"Applying wallpaper: {Path.GetFileName(validatedPath)}...";
 
             var ensure = await runtimeClient.EnsureHostRunningAsync();
             if (closed) return;
             if (!ensure.Success)
             {
-                StatusText.Text = ensure.Message ?? "Runtime host could not be started.";
+                StatusText.Text = "Runtime unavailable.";
                 UpdateActiveDetails(statusKnown: false);
                 return;
             }
 
-            var isVideo = string.Equals(Path.GetExtension(file.Path), ".mp4", StringComparison.OrdinalIgnoreCase);
+            var isVideo = string.Equals(wallpaperType, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
             var result = isVideo
-                ? await runtimeClient.SetVideoAsync(file.Path)
-                : await runtimeClient.SetImageAsync(file.Path);
+                ? await runtimeClient.SetVideoAsync(validatedPath)
+                : await runtimeClient.SetImageAsync(validatedPath);
 
             if (closed) return;
 
             if (result.Success)
             {
-                activeWallpaperPath = Path.GetFullPath(file.Path);
+                activeWallpaperPath = validatedPath;
                 activeWallpaperType = isVideo ? IpcConstants.WallpaperTypeVideo : IpcConstants.WallpaperTypeImage;
                 activeWallpaperPaused = false;
                 activePlaybackState = IpcConstants.PlaybackStateRunning;
                 controller.SetActiveWallpaper(activeWallpaperPath, activeWallpaperType);
                 await SyncRuntimeStatusAsync();
                 RenderLibraryItems();
-                StatusText.Text = $"Applied wallpaper: {Path.GetFileName(file.Path)}";
+                StatusText.Text = $"Applied wallpaper: {Path.GetFileName(validatedPath)}";
             }
             else
             {
-                StatusText.Text = result.Message ?? "Failed to set wallpaper.";
+                StatusText.Text = WallpaperLibraryController.MapIpcFailureStatusMessage(result.Message, "Failed to apply wallpaper.");
                 UpdateActiveDetails(activeWallpaperPaused, activePlaybackState);
             }
         }
         catch (Exception exception)
         {
             Trace.WriteLine(exception);
-            if (!closed) StatusText.Text = "The wallpaper could not be selected or sent to runtime host.";
+            if (!closed) StatusText.Text = "Failed to apply wallpaper.";
         }
         finally
         {
@@ -290,7 +301,7 @@ public sealed partial class DesktopTestWindow : Window
 
     private async void OnAddWallpaper(object sender, RoutedEventArgs args)
     {
-        if (libraryBusy || selecting || closed) return;
+        if (IsInteractionBusy || closed) return;
         libraryBusy = true;
         UpdateLibraryActionState();
         try
@@ -302,14 +313,16 @@ public sealed partial class DesktopTestWindow : Window
             if (closed) return;
 
             RenderLibraryItems();
-            StatusText.Text = result.Message ?? (result.Success ? string.Empty : "Failed to add wallpaper to library.");
+            StatusText.Text = result.Success
+                ? (result.Message ?? string.Empty)
+                : WallpaperLibraryController.MapUserStatusMessage(result.Error, result.Message);
         }
         catch (Exception exception)
         {
             Trace.WriteLine(exception);
             if (!closed)
             {
-                StatusText.Text = "The wallpaper could not be added to the library.";
+                StatusText.Text = "Failed to load library.";
             }
         }
         finally
@@ -324,7 +337,7 @@ public sealed partial class DesktopTestWindow : Window
 
     private async void OnApplyWallpaper(object sender, RoutedEventArgs args)
     {
-        if (libraryBusy || selecting || closed) return;
+        if (IsInteractionBusy || closed) return;
         if (sender is FrameworkElement { DataContext: WallpaperLibraryEntryView entry })
         {
             libraryController.SelectItem(entry.Id);
@@ -357,8 +370,11 @@ public sealed partial class DesktopTestWindow : Window
             else
             {
                 RenderLibraryItems();
-                UpdateActiveDetails(activeWallpaperPaused, activePlaybackState);
-                StatusText.Text = result.Message ?? "Failed to apply wallpaper.";
+                UpdateActiveDetails(
+                    activeWallpaperPaused,
+                    activePlaybackState,
+                    statusKnown: result.Error != WallpaperError.DesktopHostUnavailable);
+                StatusText.Text = WallpaperLibraryController.MapUserStatusMessage(result.Error, result.Message);
             }
         }
         catch (Exception exception)
@@ -366,7 +382,7 @@ public sealed partial class DesktopTestWindow : Window
             Trace.WriteLine(exception);
             if (!closed)
             {
-                StatusText.Text = "The selected wallpaper could not be applied.";
+                StatusText.Text = "Failed to apply wallpaper.";
             }
         }
         finally
@@ -381,7 +397,7 @@ public sealed partial class DesktopTestWindow : Window
 
     private async void OnRemoveWallpaper(object sender, RoutedEventArgs args)
     {
-        if (libraryBusy || selecting || closed) return;
+        if (IsInteractionBusy || closed) return;
         string? removedName = null;
         if (sender is FrameworkElement { DataContext: WallpaperLibraryEntryView entry })
         {
@@ -399,14 +415,14 @@ public sealed partial class DesktopTestWindow : Window
             RenderLibraryItems();
             StatusText.Text = result.Success
                 ? (string.IsNullOrWhiteSpace(removedName) ? "Removed from library." : $"Removed from library: {removedName}")
-                : (result.Message ?? "Failed to remove wallpaper from library.");
+                : WallpaperLibraryController.MapUserStatusMessage(result.Error, result.Message);
         }
         catch (Exception exception)
         {
             Trace.WriteLine(exception);
             if (!closed)
             {
-                StatusText.Text = "The selected wallpaper could not be removed from the library.";
+                StatusText.Text = "Failed to load library.";
             }
         }
         finally
@@ -421,7 +437,7 @@ public sealed partial class DesktopTestWindow : Window
 
     private async void OnPauseResumeWallpaper(object sender, RoutedEventArgs args)
     {
-        if (libraryBusy || selecting || closed || string.IsNullOrWhiteSpace(activeWallpaperPath)) return;
+        if (IsInteractionBusy || closed || string.IsNullOrWhiteSpace(activeWallpaperPath)) return;
         libraryBusy = true;
         UpdateLibraryActionState();
         try
@@ -430,7 +446,7 @@ public sealed partial class DesktopTestWindow : Window
             if (closed) return;
             if (!ensure.Success)
             {
-                StatusText.Text = ensure.Message ?? "Runtime host could not be started.";
+                StatusText.Text = "Runtime unavailable.";
                 UpdateActiveDetails(statusKnown: false);
                 return;
             }
@@ -451,7 +467,7 @@ public sealed partial class DesktopTestWindow : Window
             }
             else
             {
-                StatusText.Text = response.Message ?? "Failed to change wallpaper playback state.";
+                StatusText.Text = WallpaperLibraryController.MapIpcFailureStatusMessage(response.Message, "Runtime unavailable.");
             }
         }
         catch (Exception exception)
@@ -459,7 +475,7 @@ public sealed partial class DesktopTestWindow : Window
             Trace.WriteLine(exception);
             if (!closed)
             {
-                StatusText.Text = "Could not pause or resume wallpaper.";
+                StatusText.Text = "Runtime unavailable.";
             }
         }
         finally
@@ -474,11 +490,20 @@ public sealed partial class DesktopTestWindow : Window
 
     private async void OnStopActiveWallpaper(object sender, RoutedEventArgs args)
     {
-        if (libraryBusy || selecting || closed) return;
+        if (IsInteractionBusy || closed) return;
         libraryBusy = true;
         UpdateLibraryActionState();
         try
         {
+            var ensure = await runtimeClient.EnsureHostRunningAsync();
+            if (closed) return;
+            if (!ensure.Success)
+            {
+                StatusText.Text = "Runtime unavailable.";
+                UpdateActiveDetails(statusKnown: false);
+                return;
+            }
+
             var result = await controller.RequestStopWallpaperAsync();
             if (closed) return;
 
@@ -494,7 +519,7 @@ public sealed partial class DesktopTestWindow : Window
             }
             else
             {
-                StatusText.Text = result.Message ?? "Failed to stop wallpaper.";
+                StatusText.Text = WallpaperLibraryController.MapIpcFailureStatusMessage(result.Message, "Runtime unavailable.");
             }
         }
         catch (Exception exception)
@@ -502,7 +527,7 @@ public sealed partial class DesktopTestWindow : Window
             Trace.WriteLine(exception);
             if (!closed)
             {
-                StatusText.Text = "Could not stop active wallpaper.";
+                StatusText.Text = "Runtime unavailable.";
             }
         }
         finally
@@ -517,7 +542,7 @@ public sealed partial class DesktopTestWindow : Window
 
     private async void OnRefreshStatus(object sender, RoutedEventArgs args)
     {
-        if (libraryBusy || selecting || closed) return;
+        if (IsInteractionBusy || closed) return;
         libraryBusy = true;
         UpdateLibraryActionState();
         try
@@ -619,13 +644,16 @@ public sealed partial class DesktopTestWindow : Window
 
     private void UpdateCardStateVisuals(Border cardBorder, WallpaperLibraryEntryView entry)
     {
+        var currentEntry = libraryController.Items.FirstOrDefault(item =>
+            string.Equals(item.Id, entry.Id, StringComparison.OrdinalIgnoreCase)) ?? entry;
+
         var isActive = !string.IsNullOrWhiteSpace(activeWallpaperPath) &&
-            string.Equals(entry.FilePath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase);
+            string.Equals(currentEntry.FilePath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase);
 
         if (cardBorder.FindName("CardStateBadge") is Border badge &&
             cardBorder.FindName("CardStateBadgeText") is TextBlock badgeText)
         {
-            if (entry.IsMissing)
+            if (currentEntry.IsMissing)
             {
                 badge.Visibility = Visibility.Visible;
                 badgeText.Text = "Missing";
@@ -639,6 +667,17 @@ public sealed partial class DesktopTestWindow : Window
             {
                 badge.Visibility = Visibility.Collapsed;
             }
+        }
+
+        var isIdle = !IsInteractionBusy;
+        if (cardBorder.FindName("CardApplyButton") is Button applyButton)
+        {
+            applyButton.IsEnabled = currentEntry.CanApply && isIdle;
+        }
+
+        if (cardBorder.FindName("CardRemoveButton") is Button removeButton)
+        {
+            removeButton.IsEnabled = currentEntry.CanRemove && isIdle;
         }
     }
 
@@ -655,8 +694,11 @@ public sealed partial class DesktopTestWindow : Window
             return;
         }
 
-        button.IsEnabled = entry.CanApply && !libraryBusy && !selecting;
-        AutomationProperties.SetName(button, $"Apply {entry.DisplayName}");
+        var currentEntry = libraryController.Items.FirstOrDefault(item =>
+            string.Equals(item.Id, entry.Id, StringComparison.OrdinalIgnoreCase)) ?? entry;
+
+        button.IsEnabled = currentEntry.CanApply && !IsInteractionBusy;
+        AutomationProperties.SetName(button, $"Apply {currentEntry.DisplayName}");
     }
 
     private void OnRemoveButtonLoaded(object sender, RoutedEventArgs args) =>
@@ -672,8 +714,11 @@ public sealed partial class DesktopTestWindow : Window
             return;
         }
 
-        button.IsEnabled = !libraryBusy && !selecting;
-        AutomationProperties.SetName(button, $"Remove {entry.DisplayName}");
+        var currentEntry = libraryController.Items.FirstOrDefault(item =>
+            string.Equals(item.Id, entry.Id, StringComparison.OrdinalIgnoreCase)) ?? entry;
+
+        button.IsEnabled = currentEntry.CanRemove && !IsInteractionBusy;
+        AutomationProperties.SetName(button, $"Remove {currentEntry.DisplayName}");
     }
 
     private async Task LoadWallpaperPreviewAsync(Image targetImage, string? filePath, bool isVideo)
@@ -830,7 +875,7 @@ public sealed partial class DesktopTestWindow : Window
     private void UpdateLibraryActionState()
     {
         if (closed) return;
-        var isIdle = !libraryBusy && !selecting;
+        var isIdle = !IsInteractionBusy;
         var hasWallpaper = !string.IsNullOrWhiteSpace(activeWallpaperPath);
 
         AddWallpaperButton.IsEnabled = isIdle;
@@ -839,6 +884,25 @@ public sealed partial class DesktopTestWindow : Window
         PauseResumeWallpaperButton.IsEnabled = isIdle && hasWallpaper;
         StopActiveWallpaperButton.IsEnabled = isIdle && hasWallpaper;
         RefreshActiveStatusButton.IsEnabled = isIdle;
+
+        foreach (var cardBorder in realizedCardBorders)
+        {
+            if (cardBorder.DataContext is WallpaperLibraryEntryView boundEntry)
+            {
+                var currentEntry = libraryController.Items.FirstOrDefault(item =>
+                    string.Equals(item.Id, boundEntry.Id, StringComparison.OrdinalIgnoreCase)) ?? boundEntry;
+
+                if (cardBorder.FindName("CardApplyButton") is Button applyButton)
+                {
+                    applyButton.IsEnabled = currentEntry.CanApply && isIdle;
+                }
+
+                if (cardBorder.FindName("CardRemoveButton") is Button removeButton)
+                {
+                    removeButton.IsEnabled = currentEntry.CanRemove && isIdle;
+                }
+            }
+        }
     }
 
     private void UpdateActiveDetails(bool isPaused = false, string? playbackState = null, bool statusKnown = true)
@@ -1063,20 +1127,53 @@ public sealed partial class DesktopTestWindow : Window
     {
         DispatcherQueue.TryEnqueue(async () =>
         {
-            var result = await controller.RequestStopWallpaperAsync();
-            if (result.Success)
+            if (IsInteractionBusy || closed) return;
+            libraryBusy = true;
+            UpdateLibraryActionState();
+            try
             {
-                activeWallpaperPath = null;
-                activeWallpaperType = IpcConstants.WallpaperTypeNone;
-                activeWallpaperPaused = false;
-                activePlaybackState = IpcConstants.PlaybackStateNone;
-                UpdateActiveDetails();
-                RenderLibraryItems();
-                StatusText.Text = string.Empty;
+                var ensure = await runtimeClient.EnsureHostRunningAsync();
+                if (closed) return;
+                if (!ensure.Success)
+                {
+                    StatusText.Text = "Runtime unavailable.";
+                    UpdateActiveDetails(statusKnown: false);
+                    return;
+                }
+
+                var result = await controller.RequestStopWallpaperAsync();
+                if (closed) return;
+
+                if (result.Success)
+                {
+                    activeWallpaperPath = null;
+                    activeWallpaperType = IpcConstants.WallpaperTypeNone;
+                    activeWallpaperPaused = false;
+                    activePlaybackState = IpcConstants.PlaybackStateNone;
+                    UpdateActiveDetails();
+                    RenderLibraryItems();
+                    StatusText.Text = "Wallpaper stopped.";
+                }
+                else
+                {
+                    StatusText.Text = WallpaperLibraryController.MapIpcFailureStatusMessage(result.Message, "Runtime unavailable.");
+                }
             }
-            else
+            catch (Exception exception)
             {
-                StatusText.Text = result.Message ?? "Failed to stop wallpaper.";
+                Trace.WriteLine(exception);
+                if (!closed)
+                {
+                    StatusText.Text = "Runtime unavailable.";
+                }
+            }
+            finally
+            {
+                libraryBusy = false;
+                if (!closed)
+                {
+                    UpdateLibraryActionState();
+                }
             }
         });
     }
