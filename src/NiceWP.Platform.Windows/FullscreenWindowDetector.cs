@@ -60,21 +60,29 @@ public sealed class FullscreenWindowDetector : IFullscreenWindowDetector
     ];
 
     private readonly Func<ForegroundWindowSnapshot> snapshotProvider;
+    private readonly Func<uint, string?> processNameLookup;
     private readonly int boundsTolerancePixels;
+    private uint lastProcessId;
+    private string? lastProcessName;
 
-    public FullscreenWindowDetector(int boundsTolerancePixels = DefaultBoundsTolerancePixels)
+    public FullscreenWindowDetector(
+        int boundsTolerancePixels = DefaultBoundsTolerancePixels,
+        Func<uint, string?>? processNameLookup = null)
     {
         this.boundsTolerancePixels = Math.Max(0, boundsTolerancePixels);
+        this.processNameLookup = processNameLookup ?? TryGetProcessName;
         snapshotProvider = () => CaptureForegroundSnapshot(this.boundsTolerancePixels);
     }
 
     public FullscreenWindowDetector(
         Func<ForegroundWindowSnapshot> snapshotProvider,
-        int boundsTolerancePixels = DefaultBoundsTolerancePixels)
+        int boundsTolerancePixels = DefaultBoundsTolerancePixels,
+        Func<uint, string?>? processNameLookup = null)
     {
         ArgumentNullException.ThrowIfNull(snapshotProvider);
         this.snapshotProvider = snapshotProvider;
         this.boundsTolerancePixels = Math.Max(0, boundsTolerancePixels);
+        this.processNameLookup = processNameLookup ?? TryGetProcessName;
     }
 
     public bool IsFullscreenWindowActive()
@@ -89,6 +97,28 @@ public sealed class FullscreenWindowDetector : IFullscreenWindowDetector
             Trace.WriteLine($"Error evaluating fullscreen foreground window: {ex}");
             return false;
         }
+    }
+
+    public string? ResolveProcessName(uint processId)
+    {
+        if (processId == 0)
+        {
+            return null;
+        }
+
+        if (processId == lastProcessId && lastProcessName != null)
+        {
+            return lastProcessName;
+        }
+
+        var resolved = processNameLookup(processId);
+        if (!string.IsNullOrEmpty(resolved))
+        {
+            lastProcessId = processId;
+            lastProcessName = resolved;
+        }
+
+        return resolved;
     }
 
     public static bool Evaluate(
@@ -182,7 +212,7 @@ public sealed class FullscreenWindowDetector : IFullscreenWindowDetector
         return false;
     }
 
-    private static ForegroundWindowSnapshot CaptureForegroundSnapshot(int tolerancePixels)
+    private ForegroundWindowSnapshot CaptureForegroundSnapshot(int tolerancePixels)
     {
         var handle = GetForegroundWindow();
         if (handle == 0 || !IsWindow(handle))
@@ -192,41 +222,89 @@ public sealed class FullscreenWindowDetector : IFullscreenWindowDetector
 
         var isVisible = IsWindowVisible(handle);
         var isMinimized = IsIconic(handle);
-        var isCloaked = IsWindowCloaked(handle);
-        var className = GetWindowClassName(handle);
-        var hasWindowBounds = TryGetWindowBounds(handle, out var windowBounds);
-        var hasMonitorBounds = TryGetMonitorBounds(handle, out var monitorBounds);
+        if (!isVisible || isMinimized)
+        {
+            return new ForegroundWindowSnapshot(
+                Handle: handle,
+                IsValidWindow: true,
+                IsVisible: isVisible,
+                IsMinimized: isMinimized,
+                IsCloaked: false,
+                ClassName: string.Empty,
+                ProcessId: 0,
+                CurrentProcessId: 0,
+                ProcessName: null,
+                HasWindowBounds: false,
+                WindowBounds: default,
+                HasMonitorBounds: false,
+                MonitorBounds: default);
+        }
 
+        var hasWindowBounds = TryGetWindowBounds(handle, out var windowBounds);
+        ScreenBounds monitorBounds = default;
+        var hasMonitorBounds = hasWindowBounds && TryGetMonitorBounds(handle, out monitorBounds);
+        if (!hasWindowBounds || !hasMonitorBounds || !CoversMonitor(windowBounds, monitorBounds, tolerancePixels))
+        {
+            return new ForegroundWindowSnapshot(
+                Handle: handle,
+                IsValidWindow: true,
+                IsVisible: true,
+                IsMinimized: false,
+                IsCloaked: false,
+                ClassName: string.Empty,
+                ProcessId: 0,
+                CurrentProcessId: 0,
+                ProcessName: null,
+                HasWindowBounds: hasWindowBounds,
+                WindowBounds: windowBounds,
+                HasMonitorBounds: hasMonitorBounds,
+                MonitorBounds: monitorBounds);
+        }
+
+        var isCloaked = IsWindowCloaked(handle);
+        if (isCloaked)
+        {
+            return new ForegroundWindowSnapshot(
+                Handle: handle,
+                IsValidWindow: true,
+                IsVisible: true,
+                IsMinimized: false,
+                IsCloaked: true,
+                ClassName: string.Empty,
+                ProcessId: 0,
+                CurrentProcessId: 0,
+                ProcessName: null,
+                HasWindowBounds: true,
+                WindowBounds: windowBounds,
+                HasMonitorBounds: true,
+                MonitorBounds: monitorBounds);
+        }
+
+        var className = GetWindowClassName(handle);
         GetWindowThreadProcessId(handle, out var processId);
         var currentProcessId = (uint)Environment.ProcessId;
 
         string? processName = null;
-        if (isVisible &&
-            !isMinimized &&
-            !isCloaked &&
-            !IsExcludedClassName(className) &&
+        if (!IsExcludedClassName(className) &&
             processId != 0 &&
-            processId != currentProcessId &&
-            hasWindowBounds &&
-            hasMonitorBounds &&
-            CoversMonitor(windowBounds, monitorBounds, tolerancePixels))
+            processId != currentProcessId)
         {
-            processName = TryGetProcessName(processId);
+            processName = ResolveProcessName(processId);
         }
 
         return new ForegroundWindowSnapshot(
             Handle: handle,
             IsValidWindow: true,
-            IsVisible: isVisible,
-            IsMinimized: isMinimized,
-            IsCloaked: isCloaked,
+            IsVisible: true,
+            IsMinimized: false,
+            IsCloaked: false,
             ClassName: className,
             ProcessId: processId,
             CurrentProcessId: currentProcessId,
             ProcessName: processName,
-            HasWindowBounds: hasWindowBounds,
+            HasWindowBounds: true,
             WindowBounds: windowBounds,
-            HasMonitorBounds: hasMonitorBounds,
+            HasMonitorBounds: true,
             MonitorBounds: monitorBounds);
     }
 

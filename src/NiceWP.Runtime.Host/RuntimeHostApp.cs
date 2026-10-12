@@ -23,6 +23,8 @@ public sealed class RuntimeHostApp : IDisposable
     private readonly int fullscreenPollIntervalMs;
     private readonly int powerPollIntervalMs;
     private CancellationTokenSource? policyCts;
+    private volatile TaskCompletionSource<bool> policyWakeSignal =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
     private RuntimeWallpaperState currentState = RuntimeWallpaperState.Empty;
     private Task restoreTask = Task.CompletedTask;
     private Task monitorTask = Task.CompletedTask;
@@ -256,6 +258,7 @@ public sealed class RuntimeHostApp : IDisposable
             {
                 ClearPauseReasons();
                 currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeImage, fullPath, IpcConstants.PlaybackStateRunning);
+                NotifyPolicyStateChanged();
                 await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeImage, fullPath).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, $"Image wallpaper set: {fullPath}");
             }
@@ -286,6 +289,7 @@ public sealed class RuntimeHostApp : IDisposable
             {
                 ClearPauseReasons();
                 currentState = new RuntimeWallpaperState(IpcConstants.WallpaperTypeVideo, fullPath, IpcConstants.PlaybackStateRunning);
+                NotifyPolicyStateChanged();
                 await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeVideo, fullPath).ConfigureAwait(false);
                 return IpcResponse.Ok(request.Id, $"Video wallpaper set: {fullPath}");
             }
@@ -362,6 +366,7 @@ public sealed class RuntimeHostApp : IDisposable
             {
                 ClearPauseReasons();
                 currentState = currentState.AsRunning();
+                NotifyPolicyStateChanged();
                 return IpcResponse.Ok(request.Id, $"Wallpaper resumed: {currentState.Path}");
             }
 
@@ -382,12 +387,46 @@ public sealed class RuntimeHostApp : IDisposable
         isPowerPaused = false;
     }
 
+    private void NotifyPolicyStateChanged()
+    {
+        var previous = Interlocked.Exchange(
+            ref policyWakeSignal,
+            new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
+        previous.TrySetResult(true);
+    }
+
+    private async Task<bool> WaitForPolicyEvaluationEligibleAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested && !disposed && !shutdownEvent.IsSet)
+        {
+            if (currentState.HasActiveWallpaper && !isManualPaused)
+            {
+                return true;
+            }
+
+            var signal = policyWakeSignal.Task;
+            if (currentState.HasActiveWallpaper && !isManualPaused)
+            {
+                return true;
+            }
+
+            await signal.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return false;
+    }
+
     private async Task MonitorFullscreenPolicyLoopAsync(CancellationToken cancellationToken)
     {
         try
         {
             while (!cancellationToken.IsCancellationRequested && !disposed && !shutdownEvent.IsSet)
             {
+                if (!await WaitForPolicyEvaluationEligibleAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    break;
+                }
+
                 await Task.Delay(fullscreenPollIntervalMs, cancellationToken).ConfigureAwait(false);
                 if (cancellationToken.IsCancellationRequested || disposed || shutdownEvent.IsSet)
                 {
@@ -413,6 +452,11 @@ public sealed class RuntimeHostApp : IDisposable
         {
             while (!cancellationToken.IsCancellationRequested && !disposed && !shutdownEvent.IsSet)
             {
+                if (!await WaitForPolicyEvaluationEligibleAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    break;
+                }
+
                 await Task.Delay(powerPollIntervalMs, cancellationToken).ConfigureAwait(false);
                 if (cancellationToken.IsCancellationRequested || disposed || shutdownEvent.IsSet)
                 {
@@ -616,6 +660,7 @@ public sealed class RuntimeHostApp : IDisposable
                 {
                     ClearPauseReasons();
                     currentState = new RuntimeWallpaperState(normalizedType, fullPath, IpcConstants.PlaybackStateRunning);
+                    NotifyPolicyStateChanged();
                     Trace.WriteLine($"Startup wallpaper restored: type={normalizedType}, path={fullPath}");
                 }
                 else if (!result.Success)

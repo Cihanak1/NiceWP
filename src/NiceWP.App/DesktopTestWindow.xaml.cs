@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -28,6 +29,8 @@ public sealed partial class DesktopTestWindow : Window
     private readonly SettingsService settingsService = new();
     private readonly WallpaperThumbnailService thumbnailService = new();
     private readonly WallpaperLibraryController libraryController;
+    private readonly HashSet<Border> realizedCardBorders = [];
+    private readonly List<(string Id, string FilePath, string Type, string DisplayName, bool IsMissing)> renderedLibrarySnapshot = [];
     private string? activeWallpaperPath;
     private string activeWallpaperType = IpcConstants.WallpaperTypeNone;
     private bool activeWallpaperPaused;
@@ -568,8 +571,25 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
-    private void OnCardBorderLoaded(object sender, RoutedEventArgs args) =>
-        ConfigureCardVisuals(sender as Border);
+    private void OnCardBorderLoaded(object sender, RoutedEventArgs args)
+    {
+        if (sender is Border cardBorder)
+        {
+            cardBorder.Unloaded -= OnCardBorderUnloaded;
+            cardBorder.Unloaded += OnCardBorderUnloaded;
+            realizedCardBorders.Add(cardBorder);
+            ConfigureCardVisuals(cardBorder);
+        }
+    }
+
+    private void OnCardBorderUnloaded(object sender, RoutedEventArgs args)
+    {
+        if (sender is Border cardBorder)
+        {
+            cardBorder.Unloaded -= OnCardBorderUnloaded;
+            realizedCardBorders.Remove(cardBorder);
+        }
+    }
 
     private void OnCardBorderDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args) =>
         ConfigureCardVisuals(sender as Border);
@@ -581,13 +601,26 @@ public sealed partial class DesktopTestWindow : Window
             return;
         }
 
-        var isActive = !string.IsNullOrWhiteSpace(activeWallpaperPath) &&
-            string.Equals(entry.FilePath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase);
+        UpdateCardStateVisuals(cardBorder, entry);
 
         if (cardBorder.FindName("CardPlaceholderIcon") is SymbolIcon placeholderIcon)
         {
             placeholderIcon.Symbol = entry.IsVideo ? Symbol.Video : Symbol.Pictures;
         }
+
+        if (cardBorder.FindName("CardPreviewImage") is Image previewImage)
+        {
+            _ = LoadWallpaperPreviewAsync(
+                previewImage,
+                (entry.IsImage || entry.IsVideo) && !entry.IsMissing ? entry.FilePath : null,
+                isVideo: entry.IsVideo);
+        }
+    }
+
+    private void UpdateCardStateVisuals(Border cardBorder, WallpaperLibraryEntryView entry)
+    {
+        var isActive = !string.IsNullOrWhiteSpace(activeWallpaperPath) &&
+            string.Equals(entry.FilePath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase);
 
         if (cardBorder.FindName("CardStateBadge") is Border badge &&
             cardBorder.FindName("CardStateBadgeText") is TextBlock badgeText)
@@ -606,14 +639,6 @@ public sealed partial class DesktopTestWindow : Window
             {
                 badge.Visibility = Visibility.Collapsed;
             }
-        }
-
-        if (cardBorder.FindName("CardPreviewImage") is Image previewImage)
-        {
-            _ = LoadWallpaperPreviewAsync(
-                previewImage,
-                (entry.IsImage || entry.IsVideo) && !entry.IsMissing ? entry.FilePath : null,
-                isVideo: entry.IsVideo);
         }
     }
 
@@ -653,6 +678,16 @@ public sealed partial class DesktopTestWindow : Window
 
     private async Task LoadWallpaperPreviewAsync(Image targetImage, string? filePath, bool isVideo)
     {
+        if (!closed &&
+            !string.IsNullOrWhiteSpace(filePath) &&
+            string.Equals(targetImage.Tag as string, filePath, StringComparison.OrdinalIgnoreCase) &&
+            targetImage.Source != null &&
+            targetImage.Visibility == Visibility.Visible &&
+            File.Exists(filePath))
+        {
+            return;
+        }
+
         targetImage.Tag = filePath;
         targetImage.Source = null;
         targetImage.Visibility = Visibility.Collapsed;
@@ -713,15 +748,50 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
+    private bool HasLibrarySnapshotChanged(IReadOnlyList<WallpaperLibraryEntryView> items)
+    {
+        if (LibraryListView.ItemsSource == null || renderedLibrarySnapshot.Count != items.Count)
+        {
+            return true;
+        }
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            var current = items[i];
+            var previous = renderedLibrarySnapshot[i];
+            if (!string.Equals(current.Id, previous.Id, StringComparison.Ordinal) ||
+                !string.Equals(current.FilePath, previous.FilePath, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(current.Type, previous.Type, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(current.DisplayName, previous.DisplayName, StringComparison.Ordinal) ||
+                current.IsMissing != previous.IsMissing)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void UpdateRenderedLibrarySnapshot(IReadOnlyList<WallpaperLibraryEntryView> items)
+    {
+        renderedLibrarySnapshot.Clear();
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            renderedLibrarySnapshot.Add((item.Id, item.FilePath, item.Type, item.DisplayName, item.IsMissing));
+        }
+    }
+
     private void RenderLibraryItems()
     {
         if (closed) return;
 
-        var count = libraryController.Items.Count;
+        var items = libraryController.Items;
+        var count = items.Count;
         var missingCount = 0;
         for (var i = 0; i < count; i++)
         {
-            if (libraryController.Items[i].IsMissing)
+            if (items[i].IsMissing)
             {
                 missingCount++;
             }
@@ -734,8 +804,22 @@ public sealed partial class DesktopTestWindow : Window
             _ => missingCount > 0 ? $"{count} wallpapers in collection ({missingCount} missing on disk)" : $"{count} wallpapers in collection"
         };
 
-        LibraryListView.ItemsSource = null;
-        LibraryListView.ItemsSource = libraryController.Items;
+        if (HasLibrarySnapshotChanged(items))
+        {
+            UpdateRenderedLibrarySnapshot(items);
+            LibraryListView.ItemsSource = null;
+            LibraryListView.ItemsSource = items;
+        }
+        else
+        {
+            foreach (var cardBorder in realizedCardBorders)
+            {
+                if (cardBorder.DataContext is WallpaperLibraryEntryView entry)
+                {
+                    UpdateCardStateVisuals(cardBorder, entry);
+                }
+            }
+        }
 
         var hasItems = count > 0;
         LibraryEmptyText.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
