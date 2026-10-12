@@ -6,11 +6,14 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.Windows.Storage.Pickers;
 using NiceWP.App.Tray;
 using NiceWP.Infrastructure.Autostart;
 using NiceWP.Infrastructure.Ipc;
 using NiceWP.Infrastructure.Library;
+using NiceWP.Infrastructure.Settings;
 using NiceWP.Infrastructure.Tray;
 
 namespace NiceWP.App;
@@ -22,19 +25,23 @@ public sealed partial class DesktopTestWindow : Window
     private readonly AppTrayIcon trayIcon;
     private readonly TrayLifecycleController controller;
     private readonly AutostartManager autostartManager = new();
+    private readonly SettingsService settingsService = new();
+    private readonly WallpaperThumbnailService thumbnailService = new();
     private readonly WallpaperLibraryController libraryController;
     private string? activeWallpaperPath;
     private string activeWallpaperType = IpcConstants.WallpaperTypeNone;
+    private bool activeWallpaperPaused;
+    private string activePlaybackState = IpcConstants.PlaybackStateNone;
     private bool closed;
     private bool selecting;
     private bool libraryBusy;
-    private bool isSyncingLibrarySelection;
     private bool isSyncingAutostart;
+    private bool isSyncingAppSettings;
 
     public DesktopTestWindow(bool isStartup = false)
     {
         InitializeComponent();
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(640, 480));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(1060, 720));
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
         Activated += OnActivated;
@@ -81,10 +88,40 @@ public sealed partial class DesktopTestWindow : Window
             StatusText.Text = "Diagnostic log could not be opened.";
         }
 
+        LibraryStoragePathText.Text = $"Library file: {libraryController.Service.FilePath}";
+        SettingsStoragePathText.Text = $"Settings file: {settingsService.FilePath}";
+
+        Navigation.SelectedItem = LibraryNavigationItem;
         RefreshAutostartState();
 
+        _ = LoadAppSettingsAsync();
         _ = LoadLibraryAsync();
         _ = SyncRuntimeStatusAsync();
+    }
+
+    public async Task LoadAppSettingsAsync()
+    {
+        try
+        {
+            var settings = await settingsService.LoadAsync();
+            if (closed) return;
+
+            isSyncingAppSettings = true;
+            try
+            {
+                RestoreLastWallpaperCheckBox.IsChecked = settings.RestoreLastWallpaper;
+                ApplyThemePreference(settings.Theme);
+                SelectThemeComboBoxItem(settings.Theme);
+            }
+            finally
+            {
+                isSyncingAppSettings = false;
+            }
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Error loading application settings: {exception}");
+        }
     }
 
     public async Task LoadLibraryAsync()
@@ -115,7 +152,7 @@ public sealed partial class DesktopTestWindow : Window
             if (!ensure.Success)
             {
                 StatusText.Text = ensure.Message ?? "Runtime host could not be started.";
-                PathText.Text = "No wallpaper";
+                UpdateActiveDetails(statusKnown: false);
                 return;
             }
 
@@ -124,19 +161,37 @@ public sealed partial class DesktopTestWindow : Window
 
             if (status.Success && status.HasActiveWallpaper && !string.IsNullOrWhiteSpace(status.ActivePath))
             {
+                var previousPath = activeWallpaperPath;
                 activeWallpaperPath = status.ActivePath;
                 activeWallpaperType = status.WallpaperType;
+                activeWallpaperPaused = status.IsPaused;
+                activePlaybackState = status.PlaybackState;
                 controller.SetActiveWallpaper(activeWallpaperPath, activeWallpaperType);
-                PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
-                StatusText.Text = string.Empty;
+                UpdateActiveDetails(status.IsPaused, status.PlaybackState, statusKnown: true);
+
+                if (!string.Equals(previousPath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    RenderLibraryItems();
+                }
             }
             else
             {
+                var hadWallpaper = !string.IsNullOrWhiteSpace(activeWallpaperPath);
                 activeWallpaperPath = null;
                 activeWallpaperType = IpcConstants.WallpaperTypeNone;
+                activeWallpaperPaused = false;
+                activePlaybackState = IpcConstants.PlaybackStateNone;
                 controller.SetActiveWallpaper(null, IpcConstants.WallpaperTypeNone);
-                PathText.Text = "No wallpaper";
-                StatusText.Text = status.Success ? string.Empty : (status.Message ?? "Failed to query runtime status.");
+                UpdateActiveDetails(statusKnown: status.Success);
+                if (!status.Success)
+                {
+                    StatusText.Text = status.Message ?? "Failed to query runtime status.";
+                }
+
+                if (hadWallpaper)
+                {
+                    RenderLibraryItems();
+                }
             }
         }
         catch (Exception exception)
@@ -145,7 +200,7 @@ public sealed partial class DesktopTestWindow : Window
             if (!closed)
             {
                 StatusText.Text = "Failed to synchronize status with runtime host.";
-                PathText.Text = "No wallpaper";
+                UpdateActiveDetails(statusKnown: false);
             }
         }
     }
@@ -157,10 +212,7 @@ public sealed partial class DesktopTestWindow : Window
             return "No wallpaper";
         }
 
-        var fileName = Path.GetFileName(path);
-        var isVideo = string.Equals(wallpaperType, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase)
-                      || string.Equals(Path.GetExtension(path), ".mp4", StringComparison.OrdinalIgnoreCase);
-        return isVideo ? $"Active video: {fileName}" : $"Active image: {fileName}";
+        return Path.GetFileName(path);
     }
 
     private async Task<PickFileResult?> PickWallpaperFileAsync()
@@ -177,12 +229,22 @@ public sealed partial class DesktopTestWindow : Window
     {
         if (selecting || libraryBusy || closed) return;
         selecting = true;
-        SelectImageButton.IsEnabled = false;
         UpdateLibraryActionState();
         try
         {
             var file = await PickWallpaperFileAsync();
             if (file == null || closed) return;
+
+            StatusText.Text = $"Applying wallpaper: {Path.GetFileName(file.Path)}...";
+
+            var ensure = await runtimeClient.EnsureHostRunningAsync();
+            if (closed) return;
+            if (!ensure.Success)
+            {
+                StatusText.Text = ensure.Message ?? "Runtime host could not be started.";
+                UpdateActiveDetails(statusKnown: false);
+                return;
+            }
 
             var isVideo = string.Equals(Path.GetExtension(file.Path), ".mp4", StringComparison.OrdinalIgnoreCase);
             var result = isVideo
@@ -193,16 +255,19 @@ public sealed partial class DesktopTestWindow : Window
 
             if (result.Success)
             {
-                activeWallpaperPath = file.Path;
+                activeWallpaperPath = Path.GetFullPath(file.Path);
                 activeWallpaperType = isVideo ? IpcConstants.WallpaperTypeVideo : IpcConstants.WallpaperTypeImage;
+                activeWallpaperPaused = false;
+                activePlaybackState = IpcConstants.PlaybackStateRunning;
                 controller.SetActiveWallpaper(activeWallpaperPath, activeWallpaperType);
-                PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
-                StatusText.Text = string.Empty;
+                await SyncRuntimeStatusAsync();
+                RenderLibraryItems();
+                StatusText.Text = $"Applied wallpaper: {Path.GetFileName(file.Path)}";
             }
             else
             {
                 StatusText.Text = result.Message ?? "Failed to set wallpaper.";
-                PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
+                UpdateActiveDetails(activeWallpaperPaused, activePlaybackState);
             }
         }
         catch (Exception exception)
@@ -215,7 +280,6 @@ public sealed partial class DesktopTestWindow : Window
             selecting = false;
             if (!closed)
             {
-                SelectImageButton.IsEnabled = true;
                 UpdateLibraryActionState();
             }
         }
@@ -258,27 +322,39 @@ public sealed partial class DesktopTestWindow : Window
     private async void OnApplyWallpaper(object sender, RoutedEventArgs args)
     {
         if (libraryBusy || selecting || closed) return;
+        if (sender is FrameworkElement { DataContext: WallpaperLibraryEntryView entry })
+        {
+            libraryController.SelectItem(entry.Id);
+        }
+
         libraryBusy = true;
-        SelectImageButton.IsEnabled = false;
         UpdateLibraryActionState();
         try
         {
+            var selectedName = libraryController.SelectedItem?.DisplayName;
+            if (!string.IsNullOrWhiteSpace(selectedName))
+            {
+                StatusText.Text = $"Applying wallpaper: {selectedName}...";
+            }
+
             var result = await libraryController.ApplySelectedAsync();
             if (closed) return;
-
-            RenderLibraryItems();
 
             if (result.Success)
             {
                 activeWallpaperPath = result.ActiveWallpaperPath;
                 activeWallpaperType = result.ActiveWallpaperType;
+                activeWallpaperPaused = result.IsPaused;
+                activePlaybackState = result.PlaybackState;
                 controller.SetActiveWallpaper(activeWallpaperPath, activeWallpaperType);
-                PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
-                StatusText.Text = string.Empty;
+                UpdateActiveDetails(result.IsPaused, result.PlaybackState, statusKnown: true);
+                RenderLibraryItems();
+                StatusText.Text = $"Applied wallpaper: {FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType)}";
             }
             else
             {
-                PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
+                RenderLibraryItems();
+                UpdateActiveDetails(activeWallpaperPaused, activePlaybackState);
                 StatusText.Text = result.Message ?? "Failed to apply wallpaper.";
             }
         }
@@ -295,7 +371,6 @@ public sealed partial class DesktopTestWindow : Window
             libraryBusy = false;
             if (!closed)
             {
-                SelectImageButton.IsEnabled = !selecting;
                 UpdateLibraryActionState();
             }
         }
@@ -303,7 +378,14 @@ public sealed partial class DesktopTestWindow : Window
 
     private async void OnRemoveWallpaper(object sender, RoutedEventArgs args)
     {
-        if (libraryBusy || closed) return;
+        if (libraryBusy || selecting || closed) return;
+        string? removedName = null;
+        if (sender is FrameworkElement { DataContext: WallpaperLibraryEntryView entry })
+        {
+            removedName = entry.DisplayName;
+            libraryController.SelectItem(entry.Id);
+        }
+
         libraryBusy = true;
         UpdateLibraryActionState();
         try
@@ -313,7 +395,7 @@ public sealed partial class DesktopTestWindow : Window
 
             RenderLibraryItems();
             StatusText.Text = result.Success
-                ? string.Empty
+                ? (string.IsNullOrWhiteSpace(removedName) ? "Removed from library." : $"Removed from library: {removedName}")
                 : (result.Message ?? "Failed to remove wallpaper from library.");
         }
         catch (Exception exception)
@@ -334,95 +416,394 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
-    private void OnLibrarySelectionChanged(object sender, SelectionChangedEventArgs args)
+    private async void OnPauseResumeWallpaper(object sender, RoutedEventArgs args)
     {
-        if (isSyncingLibrarySelection || closed) return;
-
-        var selectedId = (LibraryListView.SelectedItem as ListViewItem)?.Tag as string;
-        libraryController.SelectItem(selectedId);
+        if (libraryBusy || selecting || closed || string.IsNullOrWhiteSpace(activeWallpaperPath)) return;
+        libraryBusy = true;
         UpdateLibraryActionState();
+        try
+        {
+            var ensure = await runtimeClient.EnsureHostRunningAsync();
+            if (closed) return;
+            if (!ensure.Success)
+            {
+                StatusText.Text = ensure.Message ?? "Runtime host could not be started.";
+                UpdateActiveDetails(statusKnown: false);
+                return;
+            }
+
+            var isCurrentlyPaused = activeWallpaperPaused ||
+                string.Equals(activePlaybackState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase);
+
+            var response = isCurrentlyPaused
+                ? await runtimeClient.IpcClient.ResumeWallpaperAsync()
+                : await runtimeClient.IpcClient.PauseWallpaperAsync();
+
+            if (closed) return;
+
+            if (response.Success)
+            {
+                await SyncRuntimeStatusAsync();
+                StatusText.Text = isCurrentlyPaused ? "Wallpaper resumed." : "Wallpaper paused.";
+            }
+            else
+            {
+                StatusText.Text = response.Message ?? "Failed to change wallpaper playback state.";
+            }
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+            if (!closed)
+            {
+                StatusText.Text = "Could not pause or resume wallpaper.";
+            }
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+            }
+        }
+    }
+
+    private async void OnStopActiveWallpaper(object sender, RoutedEventArgs args)
+    {
+        if (libraryBusy || selecting || closed) return;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            var result = await controller.RequestStopWallpaperAsync();
+            if (closed) return;
+
+            if (result.Success)
+            {
+                activeWallpaperPath = null;
+                activeWallpaperType = IpcConstants.WallpaperTypeNone;
+                activeWallpaperPaused = false;
+                activePlaybackState = IpcConstants.PlaybackStateNone;
+                UpdateActiveDetails();
+                RenderLibraryItems();
+                StatusText.Text = "Wallpaper stopped.";
+            }
+            else
+            {
+                StatusText.Text = result.Message ?? "Failed to stop wallpaper.";
+            }
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+            if (!closed)
+            {
+                StatusText.Text = "Could not stop active wallpaper.";
+            }
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+            }
+        }
+    }
+
+    private async void OnRefreshStatus(object sender, RoutedEventArgs args)
+    {
+        if (libraryBusy || selecting || closed) return;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            await LoadLibraryAsync();
+            await SyncRuntimeStatusAsync();
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+            }
+        }
+    }
+
+    private async void OnNavigationChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        if (LibraryPage == null || ActivePage == null || SettingsPage == null) return;
+        var page = (args.SelectedItem as NavigationViewItem)?.Tag as string;
+        LibraryPage.Visibility = page == "Library" ? Visibility.Visible : Visibility.Collapsed;
+        ActivePage.Visibility = page == "Active" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPage.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
+
+        if (page == "Active" && controller != null)
+        {
+            await SyncRuntimeStatusAsync();
+        }
+        else if (page == "Settings")
+        {
+            RefreshAutostartState();
+            await LoadAppSettingsAsync();
+        }
+    }
+
+    private void OnGalleryLoaded(object sender, RoutedEventArgs args) => ResizeGallery();
+
+    private void OnGallerySizeChanged(object sender, SizeChangedEventArgs args) => ResizeGallery();
+
+    private void ResizeGallery()
+    {
+        if (LibraryListView.ItemsPanelRoot is ItemsWrapGrid panel)
+        {
+            var availableWidth = Math.Max(1, LibraryListView.ActualWidth - 8);
+            var columns = Math.Max(1, (int)(availableWidth / 252));
+            var computedWidth = Math.Floor(availableWidth / columns);
+            panel.ItemWidth = columns == 1
+                ? Math.Min(availableWidth, 420)
+                : Math.Clamp(computedWidth, 220, 320);
+        }
+    }
+
+    private void OnCardBorderLoaded(object sender, RoutedEventArgs args) =>
+        ConfigureCardVisuals(sender as Border);
+
+    private void OnCardBorderDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args) =>
+        ConfigureCardVisuals(sender as Border);
+
+    private void ConfigureCardVisuals(Border? cardBorder)
+    {
+        if (cardBorder == null || cardBorder.DataContext is not WallpaperLibraryEntryView entry)
+        {
+            return;
+        }
+
+        var isActive = !string.IsNullOrWhiteSpace(activeWallpaperPath) &&
+            string.Equals(entry.FilePath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase);
+
+        if (cardBorder.FindName("CardPlaceholderIcon") is SymbolIcon placeholderIcon)
+        {
+            placeholderIcon.Symbol = entry.IsVideo ? Symbol.Video : Symbol.Pictures;
+        }
+
+        if (cardBorder.FindName("CardStateBadge") is Border badge &&
+            cardBorder.FindName("CardStateBadgeText") is TextBlock badgeText)
+        {
+            if (entry.IsMissing)
+            {
+                badge.Visibility = Visibility.Visible;
+                badgeText.Text = "Missing";
+            }
+            else if (isActive)
+            {
+                badge.Visibility = Visibility.Visible;
+                badgeText.Text = "Active";
+            }
+            else
+            {
+                badge.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        if (cardBorder.FindName("CardPreviewImage") is Image previewImage)
+        {
+            _ = LoadWallpaperPreviewAsync(
+                previewImage,
+                (entry.IsImage || entry.IsVideo) && !entry.IsMissing ? entry.FilePath : null,
+                isVideo: entry.IsVideo);
+        }
+    }
+
+    private void OnApplyButtonLoaded(object sender, RoutedEventArgs args) =>
+        ConfigureApplyButton(sender as Button);
+
+    private void OnApplyButtonDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args) =>
+        ConfigureApplyButton(sender as Button);
+
+    private void ConfigureApplyButton(Button? button)
+    {
+        if (button == null || button.DataContext is not WallpaperLibraryEntryView entry)
+        {
+            return;
+        }
+
+        button.IsEnabled = entry.CanApply && !libraryBusy && !selecting;
+        AutomationProperties.SetName(button, $"Apply {entry.DisplayName}");
+    }
+
+    private void OnRemoveButtonLoaded(object sender, RoutedEventArgs args) =>
+        ConfigureRemoveButton(sender as Button);
+
+    private void OnRemoveButtonDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args) =>
+        ConfigureRemoveButton(sender as Button);
+
+    private void ConfigureRemoveButton(Button? button)
+    {
+        if (button == null || button.DataContext is not WallpaperLibraryEntryView entry)
+        {
+            return;
+        }
+
+        button.IsEnabled = !libraryBusy && !selecting;
+        AutomationProperties.SetName(button, $"Remove {entry.DisplayName}");
+    }
+
+    private async Task LoadWallpaperPreviewAsync(Image targetImage, string? filePath, bool isVideo)
+    {
+        targetImage.Tag = filePath;
+        targetImage.Source = null;
+        targetImage.Visibility = Visibility.Collapsed;
+
+        if (closed || string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var previewImagePath = filePath;
+            if (isVideo)
+            {
+                var cachedThumbnailPath = await Task.Run(() =>
+                    thumbnailService.GetOrCreateVideoThumbnailAsync(filePath));
+                if (closed || !string.Equals(targetImage.Tag as string, filePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(cachedThumbnailPath) || !File.Exists(cachedThumbnailPath))
+                {
+                    return;
+                }
+
+                previewImagePath = cachedThumbnailPath;
+            }
+
+            var bitmap = new BitmapImage
+            {
+                DecodePixelWidth = 320
+            };
+
+            await using var fileStream = new FileStream(
+                previewImagePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            await bitmap.SetSourceAsync(fileStream.AsRandomAccessStream());
+
+            if (closed || !string.Equals(targetImage.Tag as string, filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            targetImage.Source = bitmap;
+            targetImage.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to load wallpaper preview for '{filePath}': {ex.Message}");
+            if (!closed && string.Equals(targetImage.Tag as string, filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                targetImage.Source = null;
+                targetImage.Visibility = Visibility.Collapsed;
+            }
+        }
     }
 
     private void RenderLibraryItems()
     {
         if (closed) return;
 
-        isSyncingLibrarySelection = true;
-        try
+        var count = libraryController.Items.Count;
+        var missingCount = 0;
+        for (var i = 0; i < count; i++)
         {
-            var entries = libraryController.Items;
-            var selectedId = libraryController.SelectedItemId;
-
-            LibraryListView.Items.Clear();
-            ListViewItem? itemToSelect = null;
-
-            foreach (var entry in entries)
+            if (libraryController.Items[i].IsMissing)
             {
-                var rowPanel = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Spacing = 8
-                };
-
-                rowPanel.Children.Add(new TextBlock
-                {
-                    Text = entry.DisplayName,
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-
-                rowPanel.Children.Add(new TextBlock
-                {
-                    Text = $"({entry.Type})",
-                    Opacity = 0.75,
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-
-                if (entry.IsMissing)
-                {
-                    rowPanel.Children.Add(new TextBlock
-                    {
-                        Text = "Missing",
-                        Opacity = 0.85,
-                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                        VerticalAlignment = VerticalAlignment.Center
-                    });
-                }
-
-                var listViewItem = new ListViewItem
-                {
-                    Tag = entry.Id,
-                    Content = rowPanel
-                };
-                AutomationProperties.SetName(listViewItem, entry.DisplayLabel);
-
-                LibraryListView.Items.Add(listViewItem);
-
-                if (!string.IsNullOrWhiteSpace(selectedId) &&
-                    string.Equals(entry.Id, selectedId, StringComparison.OrdinalIgnoreCase))
-                {
-                    itemToSelect = listViewItem;
-                }
+                missingCount++;
             }
-
-            LibraryListView.SelectedItem = itemToSelect;
-            var hasItems = entries.Count > 0;
-            LibraryEmptyText.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
-            LibraryListView.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
         }
-        finally
+
+        LibraryCountText.Text = count switch
         {
-            isSyncingLibrarySelection = false;
-        }
+            0 => "0 wallpapers in collection",
+            1 => missingCount > 0 ? "1 wallpaper in collection (1 missing on disk)" : "1 wallpaper in collection",
+            _ => missingCount > 0 ? $"{count} wallpapers in collection ({missingCount} missing on disk)" : $"{count} wallpapers in collection"
+        };
 
+        LibraryListView.ItemsSource = null;
+        LibraryListView.ItemsSource = libraryController.Items;
+
+        var hasItems = count > 0;
+        LibraryEmptyText.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
+        LibraryListView.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
         UpdateLibraryActionState();
     }
 
     private void UpdateLibraryActionState()
     {
         if (closed) return;
-        AddWallpaperButton.IsEnabled = !libraryBusy && !selecting;
-        ApplyWallpaperButton.IsEnabled = !libraryBusy && !selecting && libraryController.CanApplySelected;
-        RemoveWallpaperButton.IsEnabled = !libraryBusy && !selecting && libraryController.CanRemoveSelected;
+        var isIdle = !libraryBusy && !selecting;
+        var hasWallpaper = !string.IsNullOrWhiteSpace(activeWallpaperPath);
+
+        AddWallpaperButton.IsEnabled = isIdle;
+        LibraryListView.IsEnabled = isIdle;
+        SelectImageButton.IsEnabled = isIdle;
+        PauseResumeWallpaperButton.IsEnabled = isIdle && hasWallpaper;
+        StopActiveWallpaperButton.IsEnabled = isIdle && hasWallpaper;
+        RefreshActiveStatusButton.IsEnabled = isIdle;
+    }
+
+    private void UpdateActiveDetails(bool isPaused = false, string? playbackState = null, bool statusKnown = true)
+    {
+        if (closed) return;
+
+        var hasWallpaper = !string.IsNullOrWhiteSpace(activeWallpaperPath) &&
+            !string.Equals(activeWallpaperType, IpcConstants.WallpaperTypeNone, StringComparison.OrdinalIgnoreCase);
+        var isMissingOnDisk = hasWallpaper && !File.Exists(activeWallpaperPath);
+        var isVideo = hasWallpaper && string.Equals(activeWallpaperType, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
+        var isImage = hasWallpaper && string.Equals(activeWallpaperType, IpcConstants.WallpaperTypeImage, StringComparison.OrdinalIgnoreCase);
+
+        PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
+        ToolTipService.SetToolTip(PathText, hasWallpaper ? activeWallpaperPath : null);
+
+        ActiveFullPathText.Text = hasWallpaper
+            ? activeWallpaperPath!
+            : "Select a wallpaper from the Library or choose a file below.";
+        ActiveMissingWarningText.Visibility = isMissingOnDisk ? Visibility.Visible : Visibility.Collapsed;
+
+        WallpaperTypeText.Text = hasWallpaper ? activeWallpaperType : "None";
+
+        var resolvedPaused = isPaused ||
+            string.Equals(playbackState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase);
+        activeWallpaperPaused = resolvedPaused;
+        activePlaybackState = hasWallpaper
+            ? (resolvedPaused ? IpcConstants.PlaybackStatePaused : IpcConstants.PlaybackStateRunning)
+            : IpcConstants.PlaybackStateNone;
+
+        PlaybackStatusText.Text = !statusKnown
+            ? "Unavailable"
+            : !hasWallpaper
+                ? "None"
+                : resolvedPaused
+                    ? "Paused"
+                    : "Running";
+
+        PauseResumeWallpaperButton.Content = resolvedPaused ? "Resume" : "Pause";
+        ActivePlaceholderIcon.Symbol = !hasWallpaper
+            ? Symbol.SlideShow
+            : isVideo
+                ? Symbol.Video
+                : Symbol.Pictures;
+
+        _ = LoadWallpaperPreviewAsync(
+            ActivePreviewImage,
+            (isImage || isVideo) && !isMissingOnDisk ? activeWallpaperPath : null,
+            isVideo: isVideo);
+        UpdateLibraryActionState();
     }
 
     private void RefreshAutostartState()
@@ -450,7 +831,7 @@ public sealed partial class DesktopTestWindow : Window
         }
         else
         {
-            StatusText.Text = string.Empty;
+            StatusText.Text = "Autostart enabled.";
         }
     }
 
@@ -466,8 +847,85 @@ public sealed partial class DesktopTestWindow : Window
         }
         else
         {
-            StatusText.Text = string.Empty;
+            StatusText.Text = "Autostart disabled.";
         }
+    }
+
+    private async void OnRestoreLastWallpaperChanged(object sender, RoutedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+
+        try
+        {
+            var current = await settingsService.LoadAsync();
+            current.RestoreLastWallpaper = RestoreLastWallpaperCheckBox.IsChecked == true;
+            var saved = await settingsService.SaveAsync(current);
+            if (!closed)
+            {
+                StatusText.Text = saved
+                    ? (current.RestoreLastWallpaper ? "Startup wallpaper restore enabled." : "Startup wallpaper restore disabled.")
+                    : "Failed to save restore preference.";
+            }
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Error saving RestoreLastWallpaper setting: {exception}");
+            if (!closed)
+            {
+                StatusText.Text = "Failed to save restore preference.";
+            }
+        }
+    }
+
+    private async void OnThemeSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        if (ThemeComboBox.SelectedItem is not ComboBoxItem selectedItem) return;
+
+        var tag = selectedItem.Tag as string;
+        var normalizedTheme = AppSettings.NormalizeTheme(tag);
+        ApplyThemePreference(normalizedTheme);
+
+        try
+        {
+            var current = await settingsService.LoadAsync();
+            current.Theme = normalizedTheme;
+            await settingsService.SaveAsync(current);
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Error saving theme preference: {exception}");
+        }
+    }
+
+    private void ApplyThemePreference(string? theme)
+    {
+        if (Navigation == null) return;
+
+        Navigation.RequestedTheme = AppSettings.NormalizeTheme(theme) switch
+        {
+            AppSettings.ThemeLight => ElementTheme.Light,
+            AppSettings.ThemeDark => ElementTheme.Dark,
+            _ => ElementTheme.Default
+        };
+    }
+
+    private void SelectThemeComboBoxItem(string? theme)
+    {
+        if (ThemeComboBox == null) return;
+        var expectedTag = AppSettings.NormalizeTheme(theme) ?? AppSettings.ThemeSystem;
+
+        for (var i = 0; i < ThemeComboBox.Items.Count; i++)
+        {
+            if (ThemeComboBox.Items[i] is ComboBoxItem item &&
+                string.Equals(item.Tag as string, expectedTag, StringComparison.OrdinalIgnoreCase))
+            {
+                ThemeComboBox.SelectedIndex = i;
+                return;
+            }
+        }
+
+        ThemeComboBox.SelectedIndex = 0;
     }
 
     private void RestoreAndShowWindow()
@@ -489,6 +947,7 @@ public sealed partial class DesktopTestWindow : Window
             TrayInterop.SetForegroundWindow(hwnd);
 
             RefreshAutostartState();
+            _ = LoadAppSettingsAsync();
             _ = LoadLibraryAsync();
             _ = SyncRuntimeStatusAsync();
         });
@@ -525,7 +984,10 @@ public sealed partial class DesktopTestWindow : Window
             {
                 activeWallpaperPath = null;
                 activeWallpaperType = IpcConstants.WallpaperTypeNone;
-                PathText.Text = "No wallpaper";
+                activeWallpaperPaused = false;
+                activePlaybackState = IpcConstants.PlaybackStateNone;
+                UpdateActiveDetails();
+                RenderLibraryItems();
                 StatusText.Text = string.Empty;
             }
             else
@@ -548,7 +1010,7 @@ public sealed partial class DesktopTestWindow : Window
         if (closed || args.WindowActivationState == WindowActivationState.Deactivated) return;
         RefreshAutostartState();
         _ = LoadLibraryAsync();
-        PathText.Text = FormatWallpaperDisplay(activeWallpaperPath, activeWallpaperType);
+        _ = SyncRuntimeStatusAsync();
     }
 
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)

@@ -639,7 +639,8 @@ public sealed class RuntimeHostApp : IDisposable
             {
                 RestoreLastWallpaper = currentSettings.RestoreLastWallpaper,
                 LastWallpaperType = wallpaperType,
-                LastWallpaperPath = string.IsNullOrWhiteSpace(fullPath) ? null : Path.GetFullPath(fullPath)
+                LastWallpaperPath = string.IsNullOrWhiteSpace(fullPath) ? null : Path.GetFullPath(fullPath),
+                Theme = currentSettings.Theme
             };
 
             var saved = await compositionRoot.SettingsService.SaveAsync(updatedSettings).ConfigureAwait(false);

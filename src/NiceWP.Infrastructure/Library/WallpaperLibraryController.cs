@@ -16,6 +16,17 @@ public sealed record WallpaperLibraryEntryView(
 {
     public string StatusText => IsMissing ? "Missing" : string.Empty;
 
+    public bool CanApply => !IsMissing && WallpaperLibraryController.IsSupportedWallpaperType(Type);
+
+    public bool IsImage => string.Equals(Type, IpcConstants.WallpaperTypeImage, StringComparison.OrdinalIgnoreCase);
+
+    public bool IsVideo => string.Equals(Type, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
+
+    public string ToolTipText =>
+        IsMissing
+            ? $"{DisplayName}\n{FilePath}\nStatus: File not found on disk"
+            : $"{DisplayName}\n{FilePath}";
+
     public string DisplayLabel =>
         IsMissing
             ? $"{DisplayName} [{Type}] - Missing"

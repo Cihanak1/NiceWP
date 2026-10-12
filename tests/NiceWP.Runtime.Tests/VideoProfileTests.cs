@@ -1,19 +1,82 @@
 using NiceWP.Core;
 using NiceWP.Rendering;
+using Windows.Media.Editing;
 using Windows.Media.MediaProperties;
+using Windows.Media.Transcoding;
 using Windows.Storage;
+using Windows.UI;
 using Xunit;
 
 namespace NiceWP.Runtime.Tests;
 
 public sealed class VideoProfileTests
 {
+    internal static string ResolveValidationVideoDirectory()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current != null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "NiceWallpaper.sln")))
+            {
+                return Path.Combine(current.FullName, ".system_generated", "video-validation");
+            }
+
+            current = current.Parent;
+        }
+
+        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".system_generated", "video-validation"));
+    }
+
+    internal static async Task EnsureValidH264SampleVideoAsync(string filePath, TimeSpan duration, Color color)
+    {
+        if (File.Exists(filePath) && new FileInfo(filePath).Length > 0)
+        {
+            return;
+        }
+
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var tempFileName = $"{Path.GetFileNameWithoutExtension(filePath)}_{Guid.NewGuid():N}.mp4";
+        var folder = await StorageFolder.GetFolderFromPathAsync(directory!);
+        var tempFile = await folder.CreateFileAsync(tempFileName, CreationCollisionOption.ReplaceExisting);
+
+        try
+        {
+            var clip = MediaClip.CreateFromColor(color, duration);
+            var composition = new MediaComposition();
+            composition.Clips.Add(clip);
+
+            var encodingProfile = MediaEncodingProfile.CreateMp4(VideoEncodingQuality.Qvga);
+            var result = await composition.RenderToFileAsync(
+                tempFile,
+                MediaTrimmingPreference.Fast,
+                encodingProfile);
+
+            Assert.Equal(TranscodeFailureReason.None, result);
+            File.Move(tempFile.Path, filePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(tempFile.Path))
+            {
+                try { File.Delete(tempFile.Path); } catch { }
+            }
+        }
+    }
+
     [Fact]
     public async Task ValidMp4H264VideosPassValidation()
     {
-        var basePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".system_generated", "video-validation"));
+        var basePath = ResolveValidationVideoDirectory();
         var sample5 = Path.Combine(basePath, "sample-5s.mp4");
         var sample10 = Path.Combine(basePath, "sample-10s.mp4");
+
+        await EnsureValidH264SampleVideoAsync(sample5, TimeSpan.FromSeconds(5), Color.FromArgb(255, 36, 98, 178));
+        await EnsureValidH264SampleVideoAsync(sample10, TimeSpan.FromSeconds(10), Color.FromArgb(255, 42, 132, 110));
 
         Assert.True(File.Exists(sample5), $"sample5 not found: {sample5}");
         Assert.True(File.Exists(sample10), $"sample10 not found: {sample10}");

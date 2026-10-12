@@ -281,4 +281,40 @@ public sealed class SettingsServiceTests : IDisposable
         var result = await service.SaveAsync(AppSettings.CreateDefault());
         Assert.False(result);
     }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_ThemePreference_NormalizesAndPersistsLightAndDarkThemes()
+    {
+        var service = new SettingsService(settingsFilePath);
+
+        Assert.True(await service.SaveAsync(new AppSettings
+        {
+            RestoreLastWallpaper = true,
+            LastWallpaperType = IpcConstants.WallpaperTypeNone,
+            Theme = "  dark "
+        }));
+
+        var loadedDark = await service.LoadAsync();
+        Assert.Equal(AppSettings.ThemeDark, loadedDark.Theme);
+
+        Assert.True(await service.SaveAsync(new AppSettings
+        {
+            RestoreLastWallpaper = true,
+            LastWallpaperType = IpcConstants.WallpaperTypeNone,
+            Theme = "light"
+        }));
+
+        var loadedLight = await service.LoadAsync();
+        Assert.Equal(AppSettings.ThemeLight, loadedLight.Theme);
+
+        Assert.True(await service.SaveAsync(new AppSettings
+        {
+            RestoreLastWallpaper = true,
+            LastWallpaperType = IpcConstants.WallpaperTypeNone,
+            Theme = "System"
+        }));
+
+        var loadedSystem = await service.LoadAsync();
+        Assert.Null(loadedSystem.Theme);
+    }
 }

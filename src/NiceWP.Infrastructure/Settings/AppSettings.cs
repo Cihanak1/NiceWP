@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using NiceWP.Infrastructure.Ipc;
 
 namespace NiceWP.Infrastructure.Settings;
@@ -8,17 +9,25 @@ namespace NiceWP.Infrastructure.Settings;
 /// </summary>
 public sealed class AppSettings
 {
+    public const string ThemeSystem = "System";
+    public const string ThemeLight = "Light";
+    public const string ThemeDark = "Dark";
+
     public bool RestoreLastWallpaper { get; set; } = true;
 
     public string LastWallpaperType { get; set; } = IpcConstants.WallpaperTypeNone;
 
     public string? LastWallpaperPath { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Theme { get; set; }
+
     public static AppSettings CreateDefault() => new()
     {
         RestoreLastWallpaper = true,
         LastWallpaperType = IpcConstants.WallpaperTypeNone,
-        LastWallpaperPath = null
+        LastWallpaperPath = null,
+        Theme = null
     };
 
     /// <summary>
@@ -40,7 +49,8 @@ public sealed class AppSettings
         {
             RestoreLastWallpaper = RestoreLastWallpaper,
             LastWallpaperType = normalizedType,
-            LastWallpaperPath = normalizedPath
+            LastWallpaperPath = normalizedPath,
+            Theme = NormalizeTheme(Theme)
         };
     }
 
@@ -62,5 +72,20 @@ public sealed class AppSettings
         }
 
         return IpcConstants.WallpaperTypeNone;
+    }
+
+    public static string? NormalizeTheme(string? theme)
+    {
+        if (string.Equals(theme?.Trim(), ThemeLight, StringComparison.OrdinalIgnoreCase))
+        {
+            return ThemeLight;
+        }
+
+        if (string.Equals(theme?.Trim(), ThemeDark, StringComparison.OrdinalIgnoreCase))
+        {
+            return ThemeDark;
+        }
+
+        return null;
     }
 }
