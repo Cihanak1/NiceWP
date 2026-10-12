@@ -13,10 +13,25 @@ public sealed class RuntimeHostTests
 
     private sealed class TestDesktopHost : IDesktopHost
     {
-        public Task<DesktopHostResult> ResolveAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new DesktopHostResult(10, DesktopHostError.None));
-        public bool IsValid(nint handle) => handle != 0;
-        public nint Attach(nint host, nint window) => 0;
+        public nint NextHandle { get; set; } = 10;
+        public int ResolveCount { get; private set; }
+        public nint LastAttachedHost { get; private set; }
+        public HashSet<nint> InvalidHandles { get; } = [];
+
+        public Task<DesktopHostResult> ResolveAsync(CancellationToken cancellationToken = default)
+        {
+            ResolveCount++;
+            return Task.FromResult(new DesktopHostResult(NextHandle, DesktopHostError.None));
+        }
+
+        public bool IsValid(nint handle) => handle != 0 && !InvalidHandles.Contains(handle);
+
+        public nint Attach(nint host, nint window)
+        {
+            LastAttachedHost = host;
+            return 0;
+        }
+
         public void Detach(nint host, nint window, nint previousParent) { }
     }
 
@@ -24,16 +39,20 @@ public sealed class RuntimeHostTests
     {
         private readonly TaskCompletionSource<bool>? loadStarted;
         private readonly TaskCompletionSource<WallpaperResult>? loadGate;
+        private readonly WallpaperResult loadResult;
 
         public ControllableRenderer(
             TaskCompletionSource<bool>? loadStarted = null,
-            TaskCompletionSource<WallpaperResult>? loadGate = null)
+            TaskCompletionSource<WallpaperResult>? loadGate = null,
+            WallpaperResult? loadResult = null)
         {
             this.loadStarted = loadStarted;
             this.loadGate = loadGate;
+            this.loadResult = loadResult ?? new WallpaperResult();
         }
 
-        public nint WindowHandle => 42;
+        public nint Handle { get; set; } = 42;
+        public nint WindowHandle => Handle;
         public int DisposeCount { get; private set; }
         public string? LoadedPath { get; private set; }
 
@@ -41,7 +60,7 @@ public sealed class RuntimeHostTests
         {
             LoadedPath = path;
             loadStarted?.TrySetResult(true);
-            return loadGate?.Task ?? Task.FromResult(new WallpaperResult());
+            return loadGate?.Task ?? Task.FromResult(loadResult);
         }
 
         public void Show() { }
@@ -50,6 +69,7 @@ public sealed class RuntimeHostTests
         {
             if (DisposeCount != 0) return;
             DisposeCount++;
+            Handle = 0;
             loadGate?.TrySetResult(new WallpaperResult(WallpaperError.Stopped, "Wallpaper stopped"));
         }
     }
@@ -414,5 +434,82 @@ public sealed class RuntimeHostTests
         var results = await Task.WhenAll(tasks);
         Assert.Equal(6, pingCount);
         Assert.All(results, r => Assert.True(r.Success));
+    }
+
+    [Fact]
+    public async Task ExplorerRestartAfterActiveVideo_SetVideoDisposesStaleRenderer_FailedStartDoesNotPersist_AndSubsequentSetVideoSucceeds()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"NiceWP_ExplorerVideoRestart_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var video1 = Path.Combine(tempDir, "video1.mp4");
+            var video2 = Path.Combine(tempDir, "video2.mp4");
+            await File.WriteAllBytesAsync(video1, [1, 2, 3]);
+            await File.WriteAllBytesAsync(video2, [4, 5, 6]);
+
+            var settingsService = new SettingsService(Path.Combine(tempDir, "settings.json"));
+            var desktopHost = new TestDesktopHost { NextHandle = 10 };
+            var videoRenderers = new List<ControllableRenderer>();
+            var nextVideoResult = new WallpaperResult();
+
+            var pipeName = CreateUniquePipeName();
+            using var composition = new RuntimeCompositionRoot(
+                desktopHost,
+                () => new ControllableRenderer(),
+                () =>
+                {
+                    var renderer = new ControllableRenderer(loadResult: nextVideoResult);
+                    videoRenderers.Add(renderer);
+                    return renderer;
+                },
+                settingsService);
+            using var guard = new SingleInstanceGuard($@"Local\NiceWP.Test.{Guid.NewGuid():N}");
+            using var host = new RuntimeHostApp(guard: guard, composition: composition, pipeName: pipeName);
+
+            host.Start();
+            var client = new RuntimeIpcClient(pipeName);
+
+            // 1. Apply initial video wallpaper on WorkerW handle 10
+            var firstSet = await client.SetVideoAsync(video1, timeoutMs: 3000);
+            Assert.True(firstSet.Success);
+            Assert.Single(videoRenderers);
+            Assert.Equal(10, desktopHost.LastAttachedHost);
+            Assert.Equal(Path.GetFullPath(video1), host.CurrentState.Path);
+
+            // 2. Simulate Explorer restart: WorkerW 10 and child video HWND are destroyed by OS; new WorkerW is 20
+            desktopHost.InvalidHandles.Add(10);
+            desktopHost.NextHandle = 20;
+            videoRenderers[0].Handle = 0;
+
+            // 3. First attempt after Explorer restart fails in video load -> stale renderer must be disposed, failure must not persist video2
+            nextVideoResult = new WallpaperResult(WallpaperError.RendererFailed, "Simulated video decode error");
+            var failedSet = await client.SetVideoAsync(video2, timeoutMs: 3000);
+            Assert.False(failedSet.Success);
+            Assert.Equal(2, videoRenderers.Count);
+            Assert.Equal(1, videoRenderers[0].DisposeCount);
+            Assert.Equal(1, videoRenderers[1].DisposeCount);
+
+            var persistedAfterFail = await settingsService.LoadAsync();
+            Assert.Equal(Path.GetFullPath(video1), persistedAfterFail.LastWallpaperPath);
+
+            // 4. Retry video apply -> fresh video renderer attaches to new WorkerW 20 and updates state
+            nextVideoResult = new WallpaperResult();
+            var recoveredSet = await client.SetVideoAsync(video2, timeoutMs: 3000);
+            Assert.True(recoveredSet.Success);
+            Assert.Equal(3, videoRenderers.Count);
+            Assert.Equal(0, videoRenderers[2].DisposeCount);
+            Assert.Equal(20, desktopHost.LastAttachedHost);
+            Assert.Equal(Path.GetFullPath(video2), host.CurrentState.Path);
+            Assert.Equal(IpcConstants.WallpaperTypeVideo, host.CurrentState.Type);
+
+            var persistedAfterSuccess = await settingsService.LoadAsync();
+            Assert.Equal(Path.GetFullPath(video2), persistedAfterSuccess.LastWallpaperPath);
+            Assert.Equal(IpcConstants.WallpaperTypeVideo, persistedAfterSuccess.LastWallpaperType);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
     }
 }

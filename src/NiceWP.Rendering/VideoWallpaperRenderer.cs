@@ -17,6 +17,7 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
     private readonly CancellationTokenSource lifetime = new();
     private readonly TaskCompletionSource<WallpaperResult> opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Window? window;
+    private nint windowHandle;
     private AppWindow? appWindow;
     private MediaPlayerElement? element;
     private MediaPlayer? player;
@@ -26,7 +27,8 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
     private bool stopped;
     private bool disposed;
 
-    public nint WindowHandle => window == null ? 0 : WinRT.Interop.WindowNative.GetWindowHandle(window);
+    public nint WindowHandle =>
+        window != null && windowHandle != 0 && RendererNativeMethods.IsWindow(windowHandle) ? windowHandle : 0;
 
     public async Task<WallpaperResult> LoadAsync(string path)
     {
@@ -57,6 +59,14 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
 
             player = new MediaPlayer { AutoPlay = false, IsMuted = true, IsLoopingEnabled = true };
             player.CommandManager.IsEnabled = false;
+            try
+            {
+                player.SystemMediaTransportControls.IsEnabled = false;
+            }
+            catch (Exception exception)
+            {
+                Trace.WriteLine($"Disabling SystemMediaTransportControls failed: {exception}");
+            }
             player.MediaOpened += OnMediaOpened;
             player.MediaFailed += OnMediaFailed;
             element = new MediaPlayerElement
@@ -70,6 +80,7 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
             };
             element.SetMediaPlayer(player);
             window = new Window { Title = "NiceWP Video Wallpaper", Content = element };
+            windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(window);
             window.Closed += OnWindowClosed;
             // As with the image renderer, retain AppWindow before WorkerW reparenting.
             appWindow = window.AppWindow;
@@ -84,18 +95,31 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
             player.Source = source;
             var result = await opened.Task.WaitAsync(cancellation);
             cancellation.ThrowIfCancellationRequested();
-            if (!result.Success) return result;
+            if (!result.Success)
+            {
+                Dispose();
+                return result;
+            }
+            if (WindowHandle == 0)
+            {
+                Dispose();
+                return new(WallpaperError.RendererFailed, "The video wallpaper window is no longer valid.");
+            }
             Trace.WriteLine($"Video opened: {fullPath}, H.264, window=0x{WindowHandle:X}");
             return playbackFailure ?? new WallpaperResult();
         }
         catch (OperationCanceledException)
         {
-            return stopped ? new(WallpaperError.Stopped, "Video opening was stopped.")
-                : new(WallpaperError.RendererFailed, "Video opening timed out.");
+            var cancelResult = stopped
+                ? new WallpaperResult(WallpaperError.Stopped, "Video opening was stopped.")
+                : new WallpaperResult(WallpaperError.RendererFailed, "Video opening timed out.");
+            Dispose();
+            return cancelResult;
         }
         catch (Exception exception)
         {
             Trace.WriteLine(exception);
+            Dispose();
             return new(WallpaperError.RendererFailed, "The video could not be opened.");
         }
         finally
@@ -152,6 +176,7 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
     {
         ObjectDisposedException.ThrowIf(stopped, this);
         if (playbackFailure is { } failure) throw new InvalidOperationException(failure.Message);
+        if (WindowHandle == 0) throw new InvalidOperationException("The video wallpaper window is no longer valid.");
         appWindow!.Show(false);
         player!.Play();
         Trace.WriteLine("Video playing: muted=True, looping=True, stretch=UniformToFill.");
@@ -175,8 +200,8 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
-        if (window != null) window.Closed -= OnWindowClosed;
         window = null;
+        windowHandle = 0;
         appWindow = null;
         try { Dispose(); }
         catch (Exception exception) { Trace.WriteLine($"Video window cleanup failed: {exception}"); }
@@ -185,38 +210,73 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
     public void Dispose()
     {
         if (disposed) return;
+        disposed = true;
         stopped = true;
         opened.TrySetResult(new(WallpaperError.Stopped, "Video opening was stopped."));
-        lifetime.Cancel();
-        List<Exception> errors = [];
+        try
+        {
+            lifetime.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
         void Release(Action action)
         {
             try { action(); }
-            catch (Exception exception) { errors.Add(exception); Trace.WriteLine(exception); }
+            catch (Exception exception) { Trace.WriteLine(exception); }
         }
-        if (player != null)
-        {
-            Release(() => player.MediaOpened -= OnMediaOpened);
-            Release(() => player.MediaFailed -= OnMediaFailed);
-            Release(() => player.Pause());
-            Release(() => player.Source = null);
-        }
-        Release(() => element?.SetMediaPlayer(null));
-        Release(() => { player?.Dispose(); player = null; });
-        Release(() => { source?.Dispose(); source = null; });
-        Release(() =>
-        {
-            if (window == null) return;
-            window.Closed -= OnWindowClosed;
-            window.Content = null;
-            window.Close();
-            window = null;
-        });
-        if (errors.Count != 0) throw new AggregateException("Video cleanup failed; retry Stop.", errors);
-        element = null;
+
+        var currentWindow = window;
+        var currentHandle = windowHandle;
+        var currentElement = element;
+        var currentPlayer = player;
+        var currentSource = source;
+
+        window = null;
+        windowHandle = 0;
         appWindow = null;
-        lifetime.Dispose();
-        disposed = true;
+        element = null;
+        player = null;
+        source = null;
+
+        var hwndAlive = currentWindow != null && currentHandle != 0 && RendererNativeMethods.IsWindow(currentHandle);
+
+        if (currentPlayer != null)
+        {
+            Release(() => currentPlayer.MediaOpened -= OnMediaOpened);
+            Release(() => currentPlayer.MediaFailed -= OnMediaFailed);
+            Release(() => currentPlayer.Pause());
+            Release(() => currentPlayer.Source = null);
+        }
+
+        if (hwndAlive && currentElement != null)
+        {
+            Release(() => currentElement.SetMediaPlayer(null));
+        }
+
+        if (currentPlayer != null)
+        {
+            Release(() => currentPlayer.Dispose());
+        }
+
+        if (currentSource != null)
+        {
+            Release(() => currentSource.Dispose());
+        }
+
+        if (currentWindow != null && hwndAlive && RendererNativeMethods.IsWindow(currentHandle))
+        {
+            Release(() => currentWindow.Closed -= OnWindowClosed);
+            Release(() => currentWindow.Content = null);
+            Release(() => currentWindow.Close());
+        }
+        else if (currentHandle != 0)
+        {
+            Trace.WriteLine($"Video window 0x{currentHandle:X} already destroyed; skipped XAML Window teardown.");
+        }
+
+        Release(() => lifetime.Dispose());
         Trace.WriteLine("Video renderer disposed; player, source and window released.");
     }
 }

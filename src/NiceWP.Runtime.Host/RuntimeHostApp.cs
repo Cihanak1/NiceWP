@@ -375,7 +375,19 @@ public sealed class RuntimeHostApp : IDisposable
             return IpcResponse.Fail(request.Id, result.Message ?? "Failed to stop wallpaper.");
         }).ConfigureAwait(false);
 
-        await WaitForPendingRestoreAsync().ConfigureAwait(false);
+        var pendingRestore = restoreTask;
+        if (!pendingRestore.IsCompleted)
+        {
+            try
+            {
+                await Task.WhenAny(pendingRestore, Task.Delay(Math.Min(restoreWaitTimeoutMs, 250))).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Error waiting for startup restore after stop: {ex}");
+            }
+        }
+
         return response;
     }
 

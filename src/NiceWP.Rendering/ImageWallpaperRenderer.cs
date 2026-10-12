@@ -13,13 +13,15 @@ namespace NiceWP.Rendering;
 public sealed class ImageWallpaperRenderer : IWallpaperRenderer
 {
     private Window? window;
+    private nint windowHandle;
     private AppWindow? appWindow;
     private Grid? viewport;
     private ImageBrush? imageBrush;
     private SoftwareBitmapSource? source;
     private bool disposed;
 
-    public nint WindowHandle => window == null ? 0 : WinRT.Interop.WindowNative.GetWindowHandle(window);
+    public nint WindowHandle =>
+        window != null && windowHandle != 0 && RendererNativeMethods.IsWindow(windowHandle) ? windowHandle : 0;
 
     public async Task<WallpaperResult> LoadAsync(string path)
     {
@@ -78,6 +80,7 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
                 IsHitTestVisible = false
             };
             window = new Window { Title = "NiceWP Image Wallpaper", Content = viewport };
+            windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(window);
             // AppWindow lookup is only supported while the HWND is top-level.
             appWindow = window.AppWindow;
             appWindow.IsShownInSwitchers = false;
@@ -87,6 +90,11 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
                 presenter.IsResizable = false;
             }
             appWindow.MoveAndResize(targetBounds);
+            if (WindowHandle == 0)
+            {
+                Dispose();
+                return new(WallpaperError.RendererFailed, "The wallpaper window could not be created.");
+            }
             Trace.WriteLine($"Image loaded: {fullPath}, window=0x{WindowHandle:X}");
             return new();
         }
@@ -112,7 +120,7 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
         var effectiveTargetHeight = isTransposed ? targetWidth : targetHeight;
         var (decodeWidth, decodeHeight) = ComputeDecodeDimensions(rawWidth, rawHeight, effectiveTargetWidth, effectiveTargetHeight);
 
-        if (decodeWidth < rawWidth && decodeHeight < rawHeight)
+        if (decodeWidth < rawWidth && decodeHeight < ImageWallpaperMaxDimension(rawHeight))
         {
             var transform = new BitmapTransform
             {
@@ -131,6 +139,8 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
 
         return await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
     }
+
+    private static uint ImageWallpaperMaxDimension(uint rawHeight) => rawHeight;
 
     public static (uint Width, uint Height) ComputeDecodeDimensions(
         uint sourceWidth,
@@ -159,7 +169,12 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
         return (scaledWidth, scaledHeight);
     }
 
-    public void Show() => appWindow!.Show(false);
+    public void Show()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (WindowHandle == 0) throw new InvalidOperationException("The image wallpaper window is no longer valid.");
+        appWindow!.Show(false);
+    }
 
     public void Pause()
     {
@@ -174,20 +189,61 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
     public void Dispose()
     {
         if (disposed) return;
-        if (imageBrush != null) imageBrush.ImageSource = null;
-        if (viewport != null) viewport.Background = null;
-        source?.Dispose();
-        source = null;
-        if (window != null)
-        {
-            window.Content = null;
-            window.Close();
-            window = null;
-        }
+        disposed = true;
+
+        var currentWindow = window;
+        var currentHandle = windowHandle;
+        var currentBrush = imageBrush;
+        var currentViewport = viewport;
+        var currentSource = source;
+
+        window = null;
+        windowHandle = 0;
         appWindow = null;
         imageBrush = null;
         viewport = null;
-        disposed = true;
+        source = null;
+
+        var hwndAlive = currentWindow != null && currentHandle != 0 && RendererNativeMethods.IsWindow(currentHandle);
+        if (hwndAlive)
+        {
+            try
+            {
+                if (currentBrush != null) currentBrush.ImageSource = null;
+                if (currentViewport != null) currentViewport.Background = null;
+            }
+            catch (Exception exception)
+            {
+                Trace.WriteLine(exception);
+            }
+        }
+
+        try
+        {
+            currentSource?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+        }
+
+        if (currentWindow != null && hwndAlive && RendererNativeMethods.IsWindow(currentHandle))
+        {
+            try
+            {
+                currentWindow.Content = null;
+                currentWindow.Close();
+            }
+            catch (Exception exception)
+            {
+                Trace.WriteLine(exception);
+            }
+        }
+        else if (currentHandle != 0)
+        {
+            Trace.WriteLine($"Image window 0x{currentHandle:X} already destroyed; skipped XAML Window teardown.");
+        }
+
         Trace.WriteLine("Image renderer disposed; source and window released.");
     }
 }

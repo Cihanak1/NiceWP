@@ -196,6 +196,30 @@ public sealed class ImageWallpaperServiceTests : IDisposable
         finally { File.Delete(secondVideo); }
     }
 
+    [Fact]
+    public async Task StaleHostOrDestroyedWindowDuringActiveVideo_NextVideoStartDisposesOldCreatesFreshRendererAndReAttaches()
+    {
+        Assert.True((await service.StartAsync(video)).Success);
+        Assert.Single(renderers);
+        Assert.Equal(1, host.ResolveCount);
+        Assert.Equal(10, host.LastAttachedHost);
+
+        // Simulate Explorer restart destroying WorkerW (10) and the child video HWND
+        host.InvalidHandles.Add(10);
+        host.NextHandle = 20;
+        renderers[0].Handle = 0;
+
+        // Re-applying even the same video path must dispose the stale renderer, create a fresh renderer, and attach to handle 20
+        var reapplyResult = await service.StartAsync(video);
+        Assert.True(reapplyResult.Success);
+        Assert.Equal(2, renderers.Count);
+        Assert.Equal(1, renderers[0].DisposeCount);
+        Assert.Equal(0, renderers[1].DisposeCount);
+        Assert.Equal(2, host.ResolveCount);
+        Assert.Equal(20, host.LastAttachedHost);
+        Assert.Equal(video, service.ActivePath);
+    }
+
     public void Dispose()
     {
         host.FailDetach = false;
@@ -208,7 +232,8 @@ public sealed class ImageWallpaperServiceTests : IDisposable
     private sealed class FakeRenderer(List<string> events, WallpaperResult result,
         TaskCompletionSource<WallpaperResult>? pending, bool completePendingOnDispose = false) : IWallpaperRenderer
     {
-        public nint WindowHandle => 42;
+        public nint Handle { get; set; } = 42;
+        public nint WindowHandle => Handle;
         public int DisposeCount { get; private set; }
         public bool FailDispose { get; set; }
         public Task<WallpaperResult> LoadAsync(string path)
@@ -222,6 +247,7 @@ public sealed class ImageWallpaperServiceTests : IDisposable
             if (DisposeCount != 0) return;
             if (FailDispose) throw new InvalidOperationException("Dispose failed");
             DisposeCount++;
+            Handle = 0;
             events.Add("dispose");
             if (completePendingOnDispose) pending?.TrySetResult(new(WallpaperError.Stopped));
         }
