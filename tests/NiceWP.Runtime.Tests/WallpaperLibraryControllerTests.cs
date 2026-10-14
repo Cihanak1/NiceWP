@@ -151,12 +151,8 @@ public sealed class WallpaperLibraryControllerTests : IDisposable
         var firstLoad = await controller.LoadAsync();
         Assert.Equal(2, firstLoad.Count);
         Assert.Equal(2, controller.Items.Count);
-        Assert.Equal("sunset.png", controller.Items[0].DisplayName);
-        Assert.Equal(IpcConstants.WallpaperTypeImage, controller.Items[0].Type);
-        Assert.False(controller.Items[0].IsMissing);
-        Assert.Equal("loop.mp4", controller.Items[1].DisplayName);
-        Assert.Equal(IpcConstants.WallpaperTypeVideo, controller.Items[1].Type);
-        Assert.False(controller.Items[1].IsMissing);
+        Assert.Contains(controller.Items, item => item.DisplayName == "sunset.png" && item.Type == IpcConstants.WallpaperTypeImage && !item.IsMissing);
+        Assert.Contains(controller.Items, item => item.DisplayName == "loop.mp4" && item.Type == IpcConstants.WallpaperTypeVideo && !item.IsMissing);
 
         var secondLoad = await controller.LoadAsync();
         Assert.Equal(2, secondLoad.Count);
@@ -360,8 +356,10 @@ public sealed class WallpaperLibraryControllerTests : IDisposable
         Assert.Equal(IpcConstants.WallpaperTypeImage, savedSettings.LastWallpaperType);
         Assert.Equal(Path.GetFullPath(imagePath), savedSettings.LastWallpaperPath);
 
-        var libraryJsonAfterApply = await File.ReadAllTextAsync(libraryFilePath);
-        Assert.Equal(libraryJsonBeforeApply, libraryJsonAfterApply);
+        var persistedLibrary = await service.LoadAsync();
+        Assert.Single(persistedLibrary.Items);
+        Assert.NotNull(persistedLibrary.Items[0].LastUsedAtUtc);
+        Assert.True(persistedLibrary.Items[0].LastUsedAtUtc > DateTimeOffset.UtcNow.AddMinutes(-1));
     }
 
     [Fact]
@@ -828,5 +826,255 @@ public sealed class WallpaperLibraryControllerTests : IDisposable
         Assert.False(applyController.IsBusy);
         Assert.Equal(Path.GetFullPath(imagePath), host.CurrentState.Path);
         Assert.Equal(Path.GetFullPath(imagePath), recoveredResult.ActiveWallpaperPath);
+    }
+
+    [Fact]
+    public async Task Search_FiltersByDisplayNameCaseInsensitive_AndIgnoresPath()
+    {
+        var alpine = CreateTempFile("Alpine_Meadow.png");
+        var desert = CreateTempFile("Desert_Dune.jpg");
+        var ocean = CreateTempFile("Ocean_Waves.mp4");
+
+        await controller.AddFileAsync(alpine);
+        await controller.AddFileAsync(desert);
+        await controller.AddFileAsync(ocean);
+
+        // Case-insensitive match on DisplayName
+        controller.SetSearchText("alpine");
+        Assert.Single(controller.Items);
+        Assert.Equal("Alpine_Meadow.png", controller.Items[0].DisplayName);
+
+        controller.SetSearchText("DESERT");
+        Assert.Single(controller.Items);
+        Assert.Equal("Desert_Dune.jpg", controller.Items[0].DisplayName);
+
+        // Partial match
+        controller.SetSearchText("es");
+        Assert.Equal(2, controller.Items.Count);
+        Assert.Contains(controller.Items, item => item.DisplayName == "Desert_Dune.jpg");
+        Assert.Contains(controller.Items, item => item.DisplayName == "Ocean_Waves.mp4");
+
+        // Path is NOT searched: search directory name
+        var dirName = Path.GetFileName(tempDirectory);
+        controller.SetSearchText(dirName);
+        Assert.Empty(controller.Items);
+
+        // Empty search returns all items
+        controller.SetSearchText(string.Empty);
+        Assert.Equal(3, controller.Items.Count);
+
+        // Non-matching search returns empty
+        controller.SetSearchText("galaxy");
+        Assert.Empty(controller.Items);
+
+        // Missing items also appear in search results
+        File.Delete(alpine);
+        await controller.LoadAsync();
+        controller.SetSearchText("Alpine");
+        Assert.Single(controller.Items);
+        Assert.True(controller.Items[0].IsMissing);
+    }
+
+    [Fact]
+    public async Task Filter_ByTypeFavoritesAndRecent_FiltersCorrectly()
+    {
+        var image1 = CreateTempFile("forest.png");
+        var image2 = CreateTempFile("lake.jpg");
+        var video1 = CreateTempFile("stars.mp4");
+
+        var add1 = await controller.AddFileAsync(image1);
+        var add2 = await controller.AddFileAsync(image2);
+        var add3 = await controller.AddFileAsync(video1);
+
+        // Mark image1 as favorite
+        await controller.SetFavoriteAsync(add1.Entry!.Id, true);
+
+        // Mark video1 as recent
+        await controller.RecordLastUsedAsync(add3.Entry!.Id, DateTimeOffset.UtcNow);
+
+        // Filter: Images
+        controller.SetFilter(WallpaperLibraryFilter.Images);
+        Assert.Equal(2, controller.Items.Count);
+        Assert.All(controller.Items, item => Assert.True(item.IsImage));
+
+        // Filter: Videos
+        controller.SetFilter(WallpaperLibraryFilter.Videos);
+        Assert.Single(controller.Items);
+        Assert.True(controller.Items[0].IsVideo);
+
+        // Filter: Favorites
+        controller.SetFilter(WallpaperLibraryFilter.Favorites);
+        Assert.Single(controller.Items);
+        Assert.Equal("forest.png", controller.Items[0].DisplayName);
+        Assert.True(controller.Items[0].IsFavorite);
+
+        // Filter: Recent
+        controller.SetFilter(WallpaperLibraryFilter.Recent);
+        Assert.Single(controller.Items);
+        Assert.Equal("stars.mp4", controller.Items[0].DisplayName);
+        Assert.NotNull(controller.Items[0].LastUsedAtUtc);
+
+        // Filter: All
+        controller.SetFilter(WallpaperLibraryFilter.All);
+        Assert.Equal(3, controller.Items.Count);
+    }
+
+    [Fact]
+    public async Task Sort_OrdersItemsCorrectly_AndDoesNotReorderLibraryJson()
+    {
+        var itemZ = CreateTempFile("Zebra.png");
+        var itemA = CreateTempFile("Alpha.png");
+        var itemB = CreateTempFile("Beta.png");
+
+        var baseTime = new DateTimeOffset(2026, 10, 10, 10, 0, 0, TimeSpan.Zero);
+
+        // Persist directly to control exact AddedAtUtc
+        var library = new WallpaperLibrary
+        {
+            Version = 1,
+            Items =
+            [
+                new WallpaperLibraryItem { Id = "z", Type = IpcConstants.WallpaperTypeImage, FilePath = Path.GetFullPath(itemZ), DisplayName = "Zebra.png", AddedAtUtc = baseTime },
+                new WallpaperLibraryItem { Id = "a", Type = IpcConstants.WallpaperTypeImage, FilePath = Path.GetFullPath(itemA), DisplayName = "Alpha.png", AddedAtUtc = baseTime.AddHours(1) },
+                new WallpaperLibraryItem { Id = "b", Type = IpcConstants.WallpaperTypeImage, FilePath = Path.GetFullPath(itemB), DisplayName = "Beta.png", AddedAtUtc = baseTime.AddHours(2) }
+            ]
+        };
+        await service.SaveAsync(library);
+        await controller.LoadAsync();
+
+        // Default: Newest (latest AddedAtUtc first)
+        Assert.Equal(WallpaperLibrarySort.Newest, controller.Sort);
+        Assert.Equal("Beta.png", controller.Items[0].DisplayName);
+        Assert.Equal("Alpha.png", controller.Items[1].DisplayName);
+        Assert.Equal("Zebra.png", controller.Items[2].DisplayName);
+
+        // Oldest
+        controller.SetSort(WallpaperLibrarySort.Oldest);
+        Assert.Equal("Zebra.png", controller.Items[0].DisplayName);
+        Assert.Equal("Alpha.png", controller.Items[1].DisplayName);
+        Assert.Equal("Beta.png", controller.Items[2].DisplayName);
+
+        // Name A-Z
+        controller.SetSort(WallpaperLibrarySort.NameAsc);
+        Assert.Equal("Alpha.png", controller.Items[0].DisplayName);
+        Assert.Equal("Beta.png", controller.Items[1].DisplayName);
+        Assert.Equal("Zebra.png", controller.Items[2].DisplayName);
+
+        // Name Z-A
+        controller.SetSort(WallpaperLibrarySort.NameDesc);
+        Assert.Equal("Zebra.png", controller.Items[0].DisplayName);
+        Assert.Equal("Beta.png", controller.Items[1].DisplayName);
+        Assert.Equal("Alpha.png", controller.Items[2].DisplayName);
+
+        // Verify library.json physical order was NOT modified by sort
+        var persisted = await service.LoadAsync();
+        Assert.Equal("Zebra.png", persisted.Items[0].DisplayName);
+        Assert.Equal("Alpha.png", persisted.Items[1].DisplayName);
+        Assert.Equal("Beta.png", persisted.Items[2].DisplayName);
+    }
+
+    [Fact]
+    public async Task Filter_Recent_OrdersByMostRecentFirst_AndCapsAtMaxRecentItems()
+    {
+        var baseTime = new DateTimeOffset(2026, 10, 14, 0, 0, 0, TimeSpan.Zero);
+        var items = new List<WallpaperLibraryItem>();
+
+        // Create 10 items with distinct LastUsedAtUtc
+        for (var i = 1; i <= 10; i++)
+        {
+            var path = CreateTempFile($"item_{i:D2}.png");
+            items.Add(new WallpaperLibraryItem
+            {
+                Id = $"id-{i:D2}",
+                Type = IpcConstants.WallpaperTypeImage,
+                FilePath = Path.GetFullPath(path),
+                DisplayName = $"item_{i:D2}.png",
+                AddedAtUtc = baseTime.AddMinutes(i),
+                LastUsedAtUtc = baseTime.AddHours(i) // item_10 is most recent
+            });
+        }
+
+        var library = new WallpaperLibrary { Version = 1, Items = items };
+        await service.SaveAsync(library);
+        await controller.LoadAsync();
+
+        controller.SetFilter(WallpaperLibraryFilter.Recent);
+
+        // Capped at MaxRecentItems = 8
+        Assert.Equal(WallpaperLibraryController.MaxRecentItems, controller.Items.Count);
+        Assert.Equal(8, controller.Items.Count);
+
+        // Ordered by most recent first
+        Assert.Equal("item_10.png", controller.Items[0].DisplayName);
+        Assert.Equal("item_09.png", controller.Items[1].DisplayName);
+        Assert.Equal("item_08.png", controller.Items[2].DisplayName);
+        Assert.Equal("item_07.png", controller.Items[3].DisplayName);
+        Assert.Equal("item_06.png", controller.Items[4].DisplayName);
+        Assert.Equal("item_05.png", controller.Items[5].DisplayName);
+        Assert.Equal("item_04.png", controller.Items[6].DisplayName);
+        Assert.Equal("item_03.png", controller.Items[7].DisplayName);
+    }
+
+    [Fact]
+    public async Task Favorites_Toggle_PersistsAndUpdatesProjectedEntry_WithoutChangingSelection()
+    {
+        var image1 = CreateTempFile("fav1.png");
+        var image2 = CreateTempFile("fav2.png");
+
+        var add1 = await controller.AddFileAsync(image1);
+        var add2 = await controller.AddFileAsync(image2);
+
+        // Select item 1
+        controller.SelectItem(add1.Entry!.Id);
+        Assert.Equal(add1.Entry.Id, controller.SelectedItemId);
+
+        // Toggle item 2 to favorite
+        var toggled = await controller.ToggleFavoriteAsync(add2.Entry!.Id);
+        Assert.True(toggled);
+
+        // Selection of item 1 is preserved
+        Assert.Equal(add1.Entry.Id, controller.SelectedItemId);
+
+        // Item 2 is marked as favorite in Items
+        var entry2 = controller.Items.First(item => item.Id == add2.Entry.Id);
+        Assert.True(entry2.IsFavorite);
+
+        // Persisted to library.json
+        var persisted = await service.LoadAsync();
+        Assert.True(persisted.FindById(add2.Entry.Id)!.IsFavorite);
+        Assert.False(persisted.FindById(add1.Entry.Id)!.IsFavorite);
+
+        // Toggle back to false
+        await controller.ToggleFavoriteAsync(add2.Entry.Id);
+        entry2 = controller.Items.First(item => item.Id == add2.Entry.Id);
+        Assert.False(entry2.IsFavorite);
+    }
+
+    [Fact]
+    public async Task Combined_SearchFilterAndSort_WorksHarmoniously()
+    {
+        var n1 = CreateTempFile("Nature_Zebra.png");
+        var n2 = CreateTempFile("Nature_Apple.png");
+        var c1 = CreateTempFile("City_Tower.png");
+        var nVideo = CreateTempFile("Nature_Video.mp4");
+
+        await controller.AddFileAsync(n1);
+        await controller.AddFileAsync(n2);
+        await controller.AddFileAsync(c1);
+        await controller.AddFileAsync(nVideo);
+
+        // Filter: Images, Search: "nature", Sort: NameAsc
+        controller.SetFilter(WallpaperLibraryFilter.Images);
+        controller.SetSearchText("nature");
+        controller.SetSort(WallpaperLibrarySort.NameAsc);
+
+        Assert.Equal(2, controller.Items.Count);
+        Assert.Equal("Nature_Apple.png", controller.Items[0].DisplayName);
+        Assert.Equal("Nature_Zebra.png", controller.Items[1].DisplayName);
+
+        // Switch to NameDesc
+        controller.SetSort(WallpaperLibrarySort.NameDesc);
+        Assert.Equal("Nature_Zebra.png", controller.Items[0].DisplayName);
+        Assert.Equal("Nature_Apple.png", controller.Items[1].DisplayName);
     }
 }

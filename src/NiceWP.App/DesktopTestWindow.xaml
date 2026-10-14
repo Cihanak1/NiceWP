@@ -39,6 +39,7 @@
             <Grid x:Name="LibraryPage" RowSpacing="16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
@@ -64,9 +65,43 @@
                         Style="{StaticResource AccentButtonStyle}" />
                 </Grid>
 
+                <!-- Toolbar: Search, Filter, Sort -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12">
+                    <TextBox
+                        x:Name="LibrarySearchBox"
+                        Width="240"
+                        PlaceholderText="Search wallpapers"
+                        TextChanged="OnSearchTextChanged"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="Search wallpapers" />
+                    <ComboBox
+                        x:Name="LibraryFilterComboBox"
+                        SelectionChanged="OnFilterSelectionChanged"
+                        VerticalAlignment="Center"
+                        MinWidth="120"
+                        AutomationProperties.Name="Filter wallpapers">
+                        <ComboBoxItem Content="All" Tag="All" IsSelected="True" />
+                        <ComboBoxItem Content="Images" Tag="Images" />
+                        <ComboBoxItem Content="Videos" Tag="Videos" />
+                        <ComboBoxItem Content="Favorites" Tag="Favorites" />
+                        <ComboBoxItem Content="Recent" Tag="Recent" />
+                    </ComboBox>
+                    <ComboBox
+                        x:Name="LibrarySortComboBox"
+                        SelectionChanged="OnSortSelectionChanged"
+                        VerticalAlignment="Center"
+                        MinWidth="130"
+                        AutomationProperties.Name="Sort wallpapers">
+                        <ComboBoxItem Content="Newest" Tag="Newest" IsSelected="True" />
+                        <ComboBoxItem Content="Oldest" Tag="Oldest" />
+                        <ComboBoxItem Content="Name A-Z" Tag="NameAsc" />
+                        <ComboBoxItem Content="Name Z-A" Tag="NameDesc" />
+                    </ComboBox>
+                </StackPanel>
+
                 <Border
                     x:Name="LibraryEmptyText" Visibility="Collapsed"
-                    Grid.Row="1"
+                    Grid.Row="2"
                     Padding="32"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Top"
@@ -77,6 +112,7 @@
                             HorizontalAlignment="Center"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock
+                            x:Name="EmptyTitleText"
                             Text="No wallpapers in library"
                             FontSize="16"
                             FontWeight="SemiBold"
@@ -84,6 +120,7 @@
                             TextAlignment="Center"
                             TextWrapping="Wrap" />
                         <TextBlock
+                            x:Name="EmptySubtitleText"
                             Text="Use Add Wallpaper to add an image or MP4."
                             HorizontalAlignment="Center"
                             TextAlignment="Center"
@@ -94,7 +131,7 @@
 
                 <GridView
                     x:Name="LibraryListView"
-                    Grid.Row="1"
+                    Grid.Row="2"
                     SelectionMode="None"
                     Visibility="Collapsed"
                     SizeChanged="OnGallerySizeChanged"
@@ -136,6 +173,28 @@
                                             x:Name="CardPreviewImage"
                                             Stretch="UniformToFill"
                                             Visibility="Collapsed" />
+                                        <Button
+                                            x:Name="CardFavoriteButton"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Top"
+                                            Margin="8"
+                                            Padding="4"
+                                            MinWidth="32"
+                                            MinHeight="32"
+                                            Width="32"
+                                            Height="32"
+                                            CornerRadius="16"
+                                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                                            BorderThickness="0"
+                                            Click="OnToggleFavorite"
+                                            Loaded="OnFavoriteButtonLoaded"
+                                            DataContextChanged="OnFavoriteButtonDataContextChanged"
+                                            AutomationProperties.Name="Favorite">
+                                            <FontIcon
+                                                x:Name="CardFavoriteIcon"
+                                                Glyph="&#xE734;"
+                                                FontSize="14" />
+                                        </Button>
                                         <Border
                                             x:Name="CardStateBadge"
                                             HorizontalAlignment="Right"

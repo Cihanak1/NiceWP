@@ -123,7 +123,9 @@ public sealed class WallpaperLibraryService
                 Type = wallpaperType,
                 FilePath = fullPath,
                 DisplayName = Path.GetFileName(fullPath),
-                AddedAtUtc = DateTimeOffset.UtcNow
+                AddedAtUtc = DateTimeOffset.UtcNow,
+                IsFavorite = false,
+                LastUsedAtUtc = null
             };
 
             library.Items.Add(newItem);
@@ -171,6 +173,134 @@ public sealed class WallpaperLibraryService
                 return false;
             }
 
+            return await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Updates the favorite state for the specified library item and persists the change to library.json.
+    /// </summary>
+    public async Task<bool> SetFavoriteAsync(string? id, bool isFavorite, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var trimmedId = id.Trim();
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var library = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            var item = library.FindById(trimmedId);
+            if (item == null)
+            {
+                return false;
+            }
+
+            if (item.IsFavorite == isFavorite)
+            {
+                return true;
+            }
+
+            item.IsFavorite = isFavorite;
+            return await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Toggles the favorite state for the specified library item and persists the change to library.json.
+    /// </summary>
+    public async Task<bool> ToggleFavoriteAsync(string? id, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var trimmedId = id.Trim();
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var library = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            var item = library.FindById(trimmedId);
+            if (item == null)
+            {
+                return false;
+            }
+
+            item.IsFavorite = !item.IsFavorite;
+            return await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Records the successful application timestamp for the specified library item and persists the change to library.json.
+    /// </summary>
+    public async Task<bool> RecordLastUsedAsync(string? id, DateTimeOffset? lastUsedAtUtc = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var trimmedId = id.Trim();
+        var timestamp = (lastUsedAtUtc ?? DateTimeOffset.UtcNow).ToUniversalTime();
+
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var library = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            var item = library.FindById(trimmedId);
+            if (item == null)
+            {
+                return false;
+            }
+
+            item.LastUsedAtUtc = timestamp;
+            return await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Records the successful application timestamp for a wallpaper matching the normalized path in library.json, if present.
+    /// </summary>
+    public async Task<bool> RecordLastUsedByPathAsync(string? path, DateTimeOffset? lastUsedAtUtc = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var timestamp = (lastUsedAtUtc ?? DateTimeOffset.UtcNow).ToUniversalTime();
+
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var library = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            var item = library.FindByPath(path);
+            if (item == null)
+            {
+                return false;
+            }
+
+            item.LastUsedAtUtc = timestamp;
             return await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
         }
         finally

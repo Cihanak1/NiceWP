@@ -161,7 +161,9 @@ public sealed class WallpaperLibrary
             Type = expectedType,
             FilePath = fullPath,
             DisplayName = displayName,
-            AddedAtUtc = addedAtUtc
+            AddedAtUtc = addedAtUtc,
+            IsFavorite = rawItem.IsFavorite,
+            LastUsedAtUtc = rawItem.LastUsedAtUtc?.ToUniversalTime()
         };
         return true;
     }

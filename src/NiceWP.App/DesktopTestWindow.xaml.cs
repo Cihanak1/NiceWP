@@ -31,7 +31,7 @@ public sealed partial class DesktopTestWindow : Window
     private readonly WallpaperThumbnailService thumbnailService = new();
     private readonly WallpaperLibraryController libraryController;
     private readonly HashSet<Border> realizedCardBorders = [];
-    private readonly List<(string Id, string FilePath, string Type, string DisplayName, bool IsMissing)> renderedLibrarySnapshot = [];
+    private readonly List<(string Id, string FilePath, string Type, string DisplayName, bool IsMissing, bool IsFavorite)> renderedLibrarySnapshot = [];
     private string? activeWallpaperPath;
     private string activeWallpaperType = IpcConstants.WallpaperTypeNone;
     private bool activeWallpaperPaused;
@@ -283,6 +283,7 @@ public sealed partial class DesktopTestWindow : Window
                 activeWallpaperPaused = false;
                 activePlaybackState = IpcConstants.PlaybackStateRunning;
                 controller.SetActiveWallpaper(activeWallpaperPath, activeWallpaperType);
+                await libraryController.RecordLastUsedByPathAsync(validatedPath);
                 await SyncRuntimeStatusAsync();
                 RenderLibraryItems();
                 StatusText.Text = $"Applied wallpaper: {Path.GetFileName(validatedPath)}";
@@ -441,6 +442,48 @@ public sealed partial class DesktopTestWindow : Window
             {
                 UpdateLibraryActionState();
             }
+        }
+    }
+
+    private async void OnToggleFavorite(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        if (sender is FrameworkElement { DataContext: WallpaperLibraryEntryView entry })
+        {
+            await libraryController.ToggleFavoriteAsync(entry.Id);
+            if (closed) return;
+            RenderLibraryItems();
+        }
+    }
+
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs args)
+    {
+        if (libraryController == null || closed) return;
+        libraryController.SetSearchText(LibrarySearchBox?.Text);
+        RenderLibraryItems();
+    }
+
+    private void OnFilterSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (libraryController == null || closed) return;
+        if (LibraryFilterComboBox?.SelectedItem is ComboBoxItem item &&
+            item.Tag is string tagStr &&
+            Enum.TryParse<WallpaperLibraryFilter>(tagStr, out var filter))
+        {
+            libraryController.SetFilter(filter);
+            RenderLibraryItems();
+        }
+    }
+
+    private void OnSortSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (libraryController == null || closed) return;
+        if (LibrarySortComboBox?.SelectedItem is ComboBoxItem item &&
+            item.Tag is string tagStr &&
+            Enum.TryParse<WallpaperLibrarySort>(tagStr, out var sort))
+        {
+            libraryController.SetSort(sort);
+            RenderLibraryItems();
         }
     }
 
@@ -659,6 +702,12 @@ public sealed partial class DesktopTestWindow : Window
         var isActive = !string.IsNullOrWhiteSpace(activeWallpaperPath) &&
             string.Equals(currentEntry.FilePath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase);
 
+        if (cardBorder.FindName("CardFavoriteButton") is Button favoriteButton)
+        {
+            var favoriteIcon = cardBorder.FindName("CardFavoriteIcon") as FontIcon;
+            ConfigureFavoriteButton(favoriteButton, favoriteIcon, currentEntry);
+        }
+
         if (cardBorder.FindName("CardStateBadge") is Border badge &&
             cardBorder.FindName("CardStateBadgeText") is TextBlock badgeText)
         {
@@ -688,6 +737,49 @@ public sealed partial class DesktopTestWindow : Window
         {
             removeButton.IsEnabled = currentEntry.CanRemove && isIdle;
         }
+    }
+
+    private void OnFavoriteButtonLoaded(object sender, RoutedEventArgs args) =>
+        ConfigureFavoriteButtonFromSender(sender as Button);
+
+    private void OnFavoriteButtonDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args) =>
+        ConfigureFavoriteButtonFromSender(sender as Button);
+
+    private void ConfigureFavoriteButtonFromSender(Button? button)
+    {
+        if (button == null || button.DataContext is not WallpaperLibraryEntryView entry) return;
+        var currentEntry = libraryController.Items.FirstOrDefault(item =>
+            string.Equals(item.Id, entry.Id, StringComparison.OrdinalIgnoreCase)) ?? entry;
+        var icon = button.FindName("CardFavoriteIcon") as FontIcon;
+        ConfigureFavoriteButton(button, icon, currentEntry);
+    }
+
+    private void ConfigureFavoriteButton(Button? button, FontIcon? icon, WallpaperLibraryEntryView entry)
+    {
+        if (button == null) return;
+        var isFav = entry.IsFavorite;
+        if (icon != null)
+        {
+            icon.Glyph = isFav ? "\uE735" : "\uE734";
+            if (isFav)
+            {
+                if (Application.Current.Resources.TryGetValue("AccentTextFillColorPrimaryBrush", out var brush) && brush is Brush accentBrush)
+                {
+                    icon.Foreground = accentBrush;
+                }
+            }
+            else
+            {
+                if (Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var brush) && brush is Brush secondaryBrush)
+                {
+                    icon.Foreground = secondaryBrush;
+                }
+            }
+        }
+
+        ToolTipService.SetToolTip(button, isFav ? "Remove from favorites" : "Add to favorites");
+        AutomationProperties.SetName(button, isFav ? $"Remove {entry.DisplayName} from favorites" : $"Add {entry.DisplayName} to favorites");
+        button.IsEnabled = !IsInteractionBusy;
     }
 
     private void OnApplyButtonLoaded(object sender, RoutedEventArgs args) =>
@@ -817,7 +909,8 @@ public sealed partial class DesktopTestWindow : Window
                 !string.Equals(current.FilePath, previous.FilePath, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(current.Type, previous.Type, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(current.DisplayName, previous.DisplayName, StringComparison.Ordinal) ||
-                current.IsMissing != previous.IsMissing)
+                current.IsMissing != previous.IsMissing ||
+                current.IsFavorite != previous.IsFavorite)
             {
                 return true;
             }
@@ -832,7 +925,7 @@ public sealed partial class DesktopTestWindow : Window
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
-            renderedLibrarySnapshot.Add((item.Id, item.FilePath, item.Type, item.DisplayName, item.IsMissing));
+            renderedLibrarySnapshot.Add((item.Id, item.FilePath, item.Type, item.DisplayName, item.IsMissing, item.IsFavorite));
         }
     }
 
@@ -841,6 +934,7 @@ public sealed partial class DesktopTestWindow : Window
         if (closed) return;
 
         var items = libraryController.Items;
+        var totalCount = libraryController.AllItems.Count;
         var count = items.Count;
         var missingCount = 0;
         for (var i = 0; i < count; i++)
@@ -851,12 +945,37 @@ public sealed partial class DesktopTestWindow : Window
             }
         }
 
-        LibraryCountText.Text = count switch
+        var isFilteredOrSearched = libraryController.Filter != WallpaperLibraryFilter.All ||
+            !string.IsNullOrWhiteSpace(libraryController.SearchText);
+
+        if (totalCount == 0)
         {
-            0 => "0 wallpapers in collection",
-            1 => missingCount > 0 ? "1 wallpaper in collection (1 missing on disk)" : "1 wallpaper in collection",
-            _ => missingCount > 0 ? $"{count} wallpapers in collection ({missingCount} missing on disk)" : $"{count} wallpapers in collection"
-        };
+            LibraryCountText.Text = "0 wallpapers in collection";
+            EmptyTitleText.Text = "No wallpapers in library";
+            EmptySubtitleText.Text = "Use Add Wallpaper to add an image or MP4.";
+        }
+        else if (isFilteredOrSearched)
+        {
+            LibraryCountText.Text = count switch
+            {
+                0 => $"0 of {totalCount} wallpapers found",
+                1 => missingCount > 0 ? $"1 of {totalCount} wallpapers found (1 missing on disk)" : $"1 of {totalCount} wallpapers found",
+                _ => missingCount > 0 ? $"{count} of {totalCount} wallpapers found ({missingCount} missing on disk)" : $"{count} of {totalCount} wallpapers found"
+            };
+            EmptyTitleText.Text = "No matching wallpapers";
+            EmptySubtitleText.Text = "Try adjusting your search or filter.";
+        }
+        else
+        {
+            LibraryCountText.Text = count switch
+            {
+                0 => "0 wallpapers in collection",
+                1 => missingCount > 0 ? "1 wallpaper in collection (1 missing on disk)" : "1 wallpaper in collection",
+                _ => missingCount > 0 ? $"{count} wallpapers in collection ({missingCount} missing on disk)" : $"{count} wallpapers in collection"
+            };
+            EmptyTitleText.Text = "No wallpapers in library";
+            EmptySubtitleText.Text = "Use Add Wallpaper to add an image or MP4.";
+        }
 
         if (HasLibrarySnapshotChanged(items))
         {
@@ -909,6 +1028,9 @@ public sealed partial class DesktopTestWindow : Window
 
         AddWallpaperButton.IsEnabled = isIdle;
         LibraryListView.IsEnabled = isIdle;
+        LibrarySearchBox.IsEnabled = isIdle;
+        LibraryFilterComboBox.IsEnabled = isIdle;
+        LibrarySortComboBox.IsEnabled = isIdle;
         SelectImageButton.IsEnabled = isIdle;
         PauseResumeWallpaperButton.IsEnabled = isIdle && hasWallpaper;
         StopActiveWallpaperButton.IsEnabled = isIdle && hasWallpaper;
@@ -920,6 +1042,11 @@ public sealed partial class DesktopTestWindow : Window
             {
                 var currentEntry = libraryController.Items.FirstOrDefault(item =>
                     string.Equals(item.Id, boundEntry.Id, StringComparison.OrdinalIgnoreCase)) ?? boundEntry;
+
+                if (cardBorder.FindName("CardFavoriteButton") is Button favoriteButton)
+                {
+                    favoriteButton.IsEnabled = isIdle;
+                }
 
                 if (cardBorder.FindName("CardApplyButton") is Button applyButton)
                 {

@@ -15,6 +15,10 @@ public sealed class WallpaperLibraryItem
 
     public DateTimeOffset AddedAtUtc { get; set; }
 
+    public bool IsFavorite { get; set; }
+
+    public DateTimeOffset? LastUsedAtUtc { get; set; }
+
     /// <summary>
     /// Computes at runtime whether the underlying wallpaper file currently exists on disk.
     /// </summary>

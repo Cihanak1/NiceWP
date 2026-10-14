@@ -152,8 +152,10 @@ public sealed class WallpaperLibraryServiceTests : IDisposable
             Assert.True(itemElement.TryGetProperty("FilePath", out _));
             Assert.True(itemElement.TryGetProperty("DisplayName", out _));
             Assert.True(itemElement.TryGetProperty("AddedAtUtc", out _));
+            Assert.True(itemElement.TryGetProperty("IsFavorite", out _));
+            Assert.True(itemElement.TryGetProperty("LastUsedAtUtc", out _));
             Assert.False(itemElement.TryGetProperty("IsMissing", out _));
-            Assert.Equal(5, itemElement.EnumerateObject().Count());
+            Assert.Equal(7, itemElement.EnumerateObject().Count());
         }
 
         var loaded = await nestedService.LoadAsync();
@@ -485,5 +487,97 @@ public sealed class WallpaperLibraryServiceTests : IDisposable
         var loaded = await service.LoadAsync();
         Assert.Single(loaded.Items);
         Assert.Equal(Path.GetFullPath(firstImage), loaded.Items[0].FilePath);
+    }
+
+    [Fact]
+    public async Task SetFavoriteAsync_And_ToggleFavoriteAsync_PersistsToLibraryJson()
+    {
+        var imagePath = CreateTempFile("favorite_test.png");
+        var addResult = await service.AddAsync(imagePath);
+        Assert.True(addResult.Success);
+        Assert.NotNull(addResult.Item);
+        Assert.False(addResult.Item.IsFavorite);
+
+        // Set favorite to true
+        var setSuccess = await service.SetFavoriteAsync(addResult.Item.Id, true);
+        Assert.True(setSuccess);
+
+        var loaded = await service.LoadAsync();
+        Assert.True(loaded.Items[0].IsFavorite);
+
+        // Toggle favorite back to false
+        var toggleSuccess = await service.ToggleFavoriteAsync(addResult.Item.Id);
+        Assert.True(toggleSuccess);
+
+        loaded = await service.LoadAsync();
+        Assert.False(loaded.Items[0].IsFavorite);
+
+        // Non-existent id returns false
+        Assert.False(await service.SetFavoriteAsync("non-existent-id", true));
+        Assert.False(await service.ToggleFavoriteAsync("non-existent-id"));
+    }
+
+    [Fact]
+    public async Task RecordLastUsedAsync_And_RecordLastUsedByPathAsync_PersistsToLibraryJson()
+    {
+        var imagePath = CreateTempFile("recents_test.png");
+        var addResult = await service.AddAsync(imagePath);
+        Assert.True(addResult.Success);
+        Assert.NotNull(addResult.Item);
+        Assert.Null(addResult.Item.LastUsedAtUtc);
+
+        var timestamp = new DateTimeOffset(2026, 10, 14, 12, 0, 0, TimeSpan.Zero);
+        var recordSuccess = await service.RecordLastUsedAsync(addResult.Item.Id, timestamp);
+        Assert.True(recordSuccess);
+
+        var loaded = await service.LoadAsync();
+        Assert.Equal(timestamp, loaded.Items[0].LastUsedAtUtc);
+
+        // Record by path with new timestamp
+        var updatedTimestamp = timestamp.AddHours(2);
+        var recordByPathSuccess = await service.RecordLastUsedByPathAsync(imagePath, updatedTimestamp);
+        Assert.True(recordByPathSuccess);
+
+        loaded = await service.LoadAsync();
+        Assert.Equal(updatedTimestamp, loaded.Items[0].LastUsedAtUtc);
+
+        // Non-existent id and path return false
+        Assert.False(await service.RecordLastUsedAsync("unknown-id"));
+        Assert.False(await service.RecordLastUsedByPathAsync("C:\\nonexistent\\path.png"));
+    }
+
+    [Fact]
+    public async Task LoadAsync_WithLegacyJsonMissingFavoriteAndLastUsed_LoadsSafelyWithDefaults()
+    {
+        var imagePath = CreateTempFile("legacy_wallpaper.png");
+        var legacyJson = $$"""
+        {
+          "Version": 1,
+          "Items": [
+            {
+              "Id": "legacy-item-1",
+              "Type": "Image",
+              "FilePath": {{JsonSerializer.Serialize(imagePath)}},
+              "DisplayName": "legacy_wallpaper.png",
+              "AddedAtUtc": "2026-10-10T08:00:00+00:00"
+            }
+          ]
+        }
+        """;
+
+        await File.WriteAllTextAsync(libraryFilePath, legacyJson, Encoding.UTF8);
+
+        var loaded = await service.LoadAsync();
+        Assert.Equal(WallpaperLibrary.CurrentVersion, loaded.Version);
+        Assert.Single(loaded.Items);
+        Assert.Equal("legacy-item-1", loaded.Items[0].Id);
+        Assert.False(loaded.Items[0].IsFavorite);
+        Assert.Null(loaded.Items[0].LastUsedAtUtc);
+
+        // Normalize preserves these defaults
+        var normalized = loaded.Normalize();
+        Assert.Single(normalized.Items);
+        Assert.False(normalized.Items[0].IsFavorite);
+        Assert.Null(normalized.Items[0].LastUsedAtUtc);
     }
 }

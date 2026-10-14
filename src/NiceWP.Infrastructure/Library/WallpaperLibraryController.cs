@@ -5,6 +5,29 @@ using NiceWP.Infrastructure.Ipc;
 namespace NiceWP.Infrastructure.Library;
 
 /// <summary>
+/// Specifies the active filter for library presentation.
+/// </summary>
+public enum WallpaperLibraryFilter
+{
+    All,
+    Images,
+    Videos,
+    Favorites,
+    Recent
+}
+
+/// <summary>
+/// Specifies the sort order for library presentation.
+/// </summary>
+public enum WallpaperLibrarySort
+{
+    Newest,
+    Oldest,
+    NameAsc,
+    NameDesc
+}
+
+/// <summary>
 /// Read-only view projection of a <see cref="WallpaperLibraryItem"/> for UI presentation.
 /// </summary>
 public sealed record WallpaperLibraryEntryView(
@@ -13,7 +36,9 @@ public sealed record WallpaperLibraryEntryView(
     string Type,
     string FilePath,
     DateTimeOffset AddedAtUtc,
-    bool IsMissing)
+    bool IsMissing,
+    bool IsFavorite = false,
+    DateTimeOffset? LastUsedAtUtc = null)
 {
     public string StatusText => IsMissing ? "Missing" : string.Empty;
 
@@ -51,7 +76,9 @@ public sealed record WallpaperLibraryEntryView(
             Type: item.Type,
             FilePath: item.FilePath,
             AddedAtUtc: item.AddedAtUtc,
-            IsMissing: !item.FileExists());
+            IsMissing: !item.FileExists(),
+            IsFavorite: item.IsFavorite,
+            LastUsedAtUtc: item.LastUsedAtUtc);
     }
 }
 
@@ -83,7 +110,10 @@ public sealed record WallpaperLibraryApplyResult(
 /// </summary>
 public sealed class WallpaperLibraryController
 {
-    private readonly List<WallpaperLibraryEntryView> items = [];
+    public const int MaxRecentItems = 8;
+
+    private readonly List<WallpaperLibraryEntryView> allItems = [];
+    private readonly List<WallpaperLibraryEntryView> visibleItems = [];
     private readonly RuntimeIpcClient ipcClient;
     private readonly Func<CancellationToken, Task<IpcResponse>> ensureHostRunningAsync;
     private int busyFlag;
@@ -92,16 +122,24 @@ public sealed class WallpaperLibraryController
 
     public RuntimeIpcClient IpcClient => ipcClient;
 
-    public IReadOnlyList<WallpaperLibraryEntryView> Items => items;
+    public IReadOnlyList<WallpaperLibraryEntryView> Items => visibleItems;
+
+    public IReadOnlyList<WallpaperLibraryEntryView> AllItems => allItems;
 
     public string? SelectedItemId { get; private set; }
 
     public bool IsBusy => Volatile.Read(ref busyFlag) != 0;
 
+    public string SearchText { get; private set; } = string.Empty;
+
+    public WallpaperLibraryFilter Filter { get; private set; } = WallpaperLibraryFilter.All;
+
+    public WallpaperLibrarySort Sort { get; private set; } = WallpaperLibrarySort.Newest;
+
     public WallpaperLibraryEntryView? SelectedItem =>
         string.IsNullOrWhiteSpace(SelectedItemId)
             ? null
-            : items.FirstOrDefault(item => string.Equals(item.Id, SelectedItemId, StringComparison.OrdinalIgnoreCase));
+            : visibleItems.FirstOrDefault(item => string.Equals(item.Id, SelectedItemId, StringComparison.OrdinalIgnoreCase));
 
     public bool CanRemoveSelected => !IsBusy && SelectedItem is { CanRemove: true };
 
@@ -118,6 +156,185 @@ public sealed class WallpaperLibraryController
         var launcher = hostLauncher ?? new RuntimeHostLauncher(this.ipcClient);
         this.ensureHostRunningAsync = ensureHostRunningAsync
             ?? (cancellationToken => launcher.EnsureHostRunningAsync(cancellationToken: cancellationToken));
+    }
+
+    public void SetSearchText(string? searchText)
+    {
+        SearchText = searchText?.Trim() ?? string.Empty;
+        ApplyFilterAndSort();
+    }
+
+    public void SetFilter(WallpaperLibraryFilter filter)
+    {
+        Filter = filter;
+        ApplyFilterAndSort();
+    }
+
+    public void SetSort(WallpaperLibrarySort sort)
+    {
+        Sort = sort;
+        ApplyFilterAndSort();
+    }
+
+    public async Task<bool> ToggleFavoriteAsync(string? id, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var trimmedId = id.Trim();
+        var entry = allItems.FirstOrDefault(item => string.Equals(item.Id, trimmedId, StringComparison.OrdinalIgnoreCase));
+        if (entry == null)
+        {
+            return false;
+        }
+
+        var newFavorite = !entry.IsFavorite;
+        var updated = await Service.SetFavoriteAsync(trimmedId, newFavorite, cancellationToken).ConfigureAwait(false);
+        if (updated)
+        {
+            for (var i = 0; i < allItems.Count; i++)
+            {
+                if (string.Equals(allItems[i].Id, trimmedId, StringComparison.OrdinalIgnoreCase))
+                {
+                    allItems[i] = allItems[i] with { IsFavorite = newFavorite };
+                    break;
+                }
+            }
+
+            ApplyFilterAndSort();
+        }
+
+        return updated;
+    }
+
+    public async Task<bool> SetFavoriteAsync(string? id, bool isFavorite, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var trimmedId = id.Trim();
+        var updated = await Service.SetFavoriteAsync(trimmedId, isFavorite, cancellationToken).ConfigureAwait(false);
+        if (updated)
+        {
+            for (var i = 0; i < allItems.Count; i++)
+            {
+                if (string.Equals(allItems[i].Id, trimmedId, StringComparison.OrdinalIgnoreCase))
+                {
+                    allItems[i] = allItems[i] with { IsFavorite = isFavorite };
+                    break;
+                }
+            }
+
+            ApplyFilterAndSort();
+        }
+
+        return updated;
+    }
+
+    public async Task<bool> RecordLastUsedAsync(string? id, DateTimeOffset? timestamp = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var trimmedId = id.Trim();
+        var now = (timestamp ?? DateTimeOffset.UtcNow).ToUniversalTime();
+        var updated = await Service.RecordLastUsedAsync(trimmedId, now, cancellationToken).ConfigureAwait(false);
+        if (updated)
+        {
+            for (var i = 0; i < allItems.Count; i++)
+            {
+                if (string.Equals(allItems[i].Id, trimmedId, StringComparison.OrdinalIgnoreCase))
+                {
+                    allItems[i] = allItems[i] with { LastUsedAtUtc = now };
+                    break;
+                }
+            }
+
+            ApplyFilterAndSort();
+        }
+
+        return updated;
+    }
+
+    public async Task<bool> RecordLastUsedByPathAsync(string? path, DateTimeOffset? timestamp = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var now = (timestamp ?? DateTimeOffset.UtcNow).ToUniversalTime();
+        var updated = await Service.RecordLastUsedByPathAsync(path, now, cancellationToken).ConfigureAwait(false);
+        if (updated)
+        {
+            for (var i = 0; i < allItems.Count; i++)
+            {
+                if (string.Equals(allItems[i].FilePath, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    allItems[i] = allItems[i] with { LastUsedAtUtc = now };
+                    break;
+                }
+            }
+
+            ApplyFilterAndSort();
+        }
+
+        return updated;
+    }
+
+    private void ApplyFilterAndSort()
+    {
+        IEnumerable<WallpaperLibraryEntryView> query = allItems;
+
+        query = Filter switch
+        {
+            WallpaperLibraryFilter.Images => query.Where(item => item.IsImage),
+            WallpaperLibraryFilter.Videos => query.Where(item => item.IsVideo),
+            WallpaperLibraryFilter.Favorites => query.Where(item => item.IsFavorite),
+            WallpaperLibraryFilter.Recent => query.Where(item => item.LastUsedAtUtc.HasValue),
+            _ => query
+        };
+
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            query = query.Where(item =>
+                item.DisplayName.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (Filter == WallpaperLibraryFilter.Recent)
+        {
+            query = query
+                .OrderByDescending(item => item.LastUsedAtUtc ?? DateTimeOffset.MinValue)
+                .ThenByDescending(item => item.AddedAtUtc)
+                .Take(MaxRecentItems);
+        }
+        else
+        {
+            query = Sort switch
+            {
+                WallpaperLibrarySort.Oldest => query
+                    .OrderBy(item => item.AddedAtUtc)
+                    .ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase),
+                WallpaperLibrarySort.NameAsc => query
+                    .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+                    .ThenByDescending(item => item.AddedAtUtc),
+                WallpaperLibrarySort.NameDesc => query
+                    .OrderByDescending(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+                    .ThenByDescending(item => item.AddedAtUtc),
+                _ => query // Default: Newest
+                    .OrderByDescending(item => item.AddedAtUtc)
+                    .ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+            };
+        }
+
+        visibleItems.Clear();
+        visibleItems.AddRange(query);
     }
 
     public static bool IsSupportedWallpaperType(string? type) =>
@@ -162,7 +379,7 @@ public sealed class WallpaperLibraryController
             return;
         }
 
-        var match = items.FirstOrDefault(item =>
+        var match = allItems.FirstOrDefault(item =>
             string.Equals(item.Id, id.Trim(), StringComparison.OrdinalIgnoreCase));
         SelectedItemId = match?.Id;
     }
@@ -336,7 +553,7 @@ public sealed class WallpaperLibraryController
             var item = await Service.FindByIdAsync(trimmedId, cancellationToken).ConfigureAwait(false);
             if (item == null)
             {
-                var projected = items.FirstOrDefault(entry =>
+                var projected = allItems.FirstOrDefault(entry =>
                     string.Equals(entry.Id, trimmedId, StringComparison.OrdinalIgnoreCase));
                 if (projected == null)
                 {
@@ -357,7 +574,9 @@ public sealed class WallpaperLibraryController
                     DisplayName = projected.DisplayName,
                     Type = projected.Type,
                     FilePath = projected.FilePath,
-                    AddedAtUtc = projected.AddedAtUtc
+                    AddedAtUtc = projected.AddedAtUtc,
+                    IsFavorite = projected.IsFavorite,
+                    LastUsedAtUtc = projected.LastUsedAtUtc
                 };
             }
 
@@ -570,6 +789,19 @@ public sealed class WallpaperLibraryController
         var playbackState = IpcConstants.PlaybackStateRunning;
         var isPaused = false;
 
+        var applyTimestamp = DateTimeOffset.UtcNow;
+        _ = await Service.RecordLastUsedAsync(item.Id, applyTimestamp, cancellationToken).ConfigureAwait(false);
+        for (var i = 0; i < allItems.Count; i++)
+        {
+            if (string.Equals(allItems[i].Id, item.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                allItems[i] = allItems[i] with { LastUsedAtUtc = applyTimestamp };
+                break;
+            }
+        }
+        ApplyFilterAndSort();
+        entryView = entryView with { LastUsedAtUtc = applyTimestamp };
+
         try
         {
             var statusResponse = await ipcClient.GetStatusAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -685,30 +917,34 @@ public sealed class WallpaperLibraryController
             return;
         }
 
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < allItems.Count; i++)
         {
-            if (string.Equals(items[i].Id, updatedEntry.Id, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(allItems[i].Id, updatedEntry.Id, StringComparison.OrdinalIgnoreCase))
             {
-                items[i] = updatedEntry;
+                allItems[i] = updatedEntry;
                 break;
             }
         }
+
+        ApplyFilterAndSort();
     }
 
     private void RebuildItems(WallpaperLibrary library)
     {
         var previousSelectedId = SelectedItemId;
-        items.Clear();
+        allItems.Clear();
 
         foreach (var item in library.Items)
         {
-            items.Add(WallpaperLibraryEntryView.FromItem(item));
+            allItems.Add(WallpaperLibraryEntryView.FromItem(item));
         }
 
+        ApplyFilterAndSort();
+
         if (!string.IsNullOrWhiteSpace(previousSelectedId) &&
-            items.Any(item => string.Equals(item.Id, previousSelectedId, StringComparison.OrdinalIgnoreCase)))
+            allItems.Any(item => string.Equals(item.Id, previousSelectedId, StringComparison.OrdinalIgnoreCase)))
         {
-            SelectedItemId = items.First(item =>
+            SelectedItemId = allItems.First(item =>
                 string.Equals(item.Id, previousSelectedId, StringComparison.OrdinalIgnoreCase)).Id;
         }
         else
