@@ -1077,4 +1077,168 @@ public sealed class WallpaperLibraryControllerTests : IDisposable
         Assert.Equal("Nature_Zebra.png", controller.Items[0].DisplayName);
         Assert.Equal("Nature_Apple.png", controller.Items[1].DisplayName);
     }
+
+    [Fact]
+    public async Task RelinkAsync_WhenItemIsMissing_UpdatesPathClearsMissingStateAndPreservesMetadata()
+    {
+        var originalImage = CreateTempFile("relink_ctrl_1.png");
+        var addResult = await controller.AddFileAsync(originalImage);
+        Assert.True(addResult.Success);
+        var itemId = addResult.Entry!.Id;
+
+        await controller.SetFavoriteAsync(itemId, true);
+        var timestamp = new DateTimeOffset(2026, 10, 14, 15, 30, 0, TimeSpan.Zero);
+        await controller.RecordLastUsedAsync(itemId, timestamp);
+
+        // Delete file on disk
+        File.Delete(originalImage);
+        await controller.LoadAsync();
+        var itemBefore = controller.Items.First(i => i.Id == itemId);
+        Assert.True(itemBefore.IsMissing);
+        Assert.True(itemBefore.CanLocate);
+        Assert.False(itemBefore.CanApply);
+        Assert.False(itemBefore.CanOpenLocation);
+
+        var newImage = CreateTempFile("relink_ctrl_2.jpg");
+        var relinkResult = await controller.RelinkAsync(itemId, newImage);
+        Assert.True(relinkResult.Success);
+        Assert.Equal($"File relinked: {itemBefore.DisplayName}", relinkResult.Message);
+
+        var itemAfter = controller.Items.First(i => i.Id == itemId);
+        Assert.False(itemAfter.IsMissing);
+        Assert.False(itemAfter.CanLocate);
+        Assert.True(itemAfter.CanApply);
+        Assert.True(itemAfter.CanOpenLocation);
+        Assert.True(itemAfter.IsFavorite);
+        Assert.Equal(timestamp, itemAfter.LastUsedAtUtc);
+        Assert.Equal(Path.GetFullPath(newImage), itemAfter.FilePath);
+        Assert.Equal("relink_ctrl_1.png", itemAfter.DisplayName);
+    }
+
+    [Fact]
+    public async Task RelinkAsync_DoesNotAutoApply_RuntimeHostCommandsNotSent()
+    {
+        var ipcSent = false;
+        var pipeName = CreateUniquePipeName();
+        var ipcClient = new RuntimeIpcClient(pipeName);
+        var mockController = new WallpaperLibraryController(
+            service,
+            ipcClient,
+            ensureHostRunningAsync: _ =>
+            {
+                ipcSent = true;
+                return Task.FromResult(IpcResponse.Ok(string.Empty));
+            });
+
+        var file1 = CreateTempFile("autoapply_check.png");
+        var addResult = await mockController.AddFileAsync(file1);
+        Assert.True(addResult.Success);
+
+        var file2 = CreateTempFile("autoapply_check2.png");
+        var relinkResult = await mockController.RelinkAsync(addResult.Entry!.Id, file2);
+        Assert.True(relinkResult.Success);
+
+        // Ensure host running / apply commands were NOT triggered
+        Assert.False(ipcSent);
+    }
+
+    [Fact]
+    public async Task RelinkAsync_WithDuplicatePath_ReturnsFailure()
+    {
+        var img1 = CreateTempFile("dup1.png");
+        var img2 = CreateTempFile("dup2.png");
+
+        var add1 = await controller.AddFileAsync(img1);
+        var add2 = await controller.AddFileAsync(img2);
+
+        var duplicateResult = await controller.RelinkAsync(add1.Entry!.Id, img2);
+        Assert.False(duplicateResult.Success);
+        Assert.True(duplicateResult.AlreadyExisted);
+        Assert.Equal("File already exists in library.", duplicateResult.Message);
+    }
+
+    [Fact]
+    public async Task RenameAsync_UpdatesDisplayName_ImmediatelyAffectsSearchAndSort()
+    {
+        var delta = CreateTempFile("Delta.png");
+        var alpha = CreateTempFile("Alpha.png");
+
+        var addDelta = await controller.AddFileAsync(delta);
+        var addAlpha = await controller.AddFileAsync(alpha);
+
+        controller.SetSort(WallpaperLibrarySort.NameAsc);
+        Assert.Equal("Alpha.png", controller.Items[0].DisplayName);
+        Assert.Equal("Delta.png", controller.Items[1].DisplayName);
+
+        // Rename Alpha to Zulu
+        var renameResult = await controller.RenameAsync(addAlpha.Entry!.Id, "Zulu Wallpaper");
+        Assert.True(renameResult.Success);
+        Assert.Equal("Renamed wallpaper: Zulu Wallpaper", renameResult.Message);
+
+        // Sort is immediately updated: Delta is now first, Zulu is second
+        Assert.Equal("Delta.png", controller.Items[0].DisplayName);
+        Assert.Equal("Zulu Wallpaper", controller.Items[1].DisplayName);
+
+        // Search immediately matches new name
+        controller.SetSearchText("Zulu");
+        Assert.Single(controller.Items);
+        Assert.Equal("Zulu Wallpaper", controller.Items[0].DisplayName);
+
+        controller.SetSearchText("Alpha");
+        Assert.Empty(controller.Items);
+
+        // Reset search
+        controller.SetSearchText(string.Empty);
+        Assert.Equal(2, controller.Items.Count);
+    }
+
+    [Fact]
+    public async Task RenameAsync_WithEmptyName_FailsAndLeavesItemUnchanged()
+    {
+        var img = CreateTempFile("keep_name.png");
+        var add = await controller.AddFileAsync(img);
+
+        var renameResult = await controller.RenameAsync(add.Entry!.Id, "   ");
+        Assert.False(renameResult.Success);
+        Assert.Equal("Name cannot be empty.", renameResult.Message);
+
+        Assert.Equal("keep_name.png", controller.Items[0].DisplayName);
+    }
+
+    [Fact]
+    public async Task OpenFileLocation_WhenFileExists_CallsExplorerDelegate()
+    {
+        string? launchedPath = null;
+        var customController = new WallpaperLibraryController(
+            service,
+            openFileLocationAction: path => launchedPath = path);
+
+        var img = CreateTempFile("open_loc.png");
+        var add = await customController.AddFileAsync(img);
+
+        var result = customController.OpenFileLocation(add.Entry!.Id);
+        Assert.True(result.Success);
+        Assert.Equal(Path.GetFullPath(img), launchedPath);
+    }
+
+    [Fact]
+    public async Task OpenFileLocation_WhenFileIsMissing_ReturnsFileNotFoundWithoutCallingDelegate()
+    {
+        var launched = false;
+        var customController = new WallpaperLibraryController(
+            service,
+            openFileLocationAction: _ => launched = true);
+
+        var img = CreateTempFile("missing_loc.png");
+        var add = await customController.AddFileAsync(img);
+
+        File.Delete(img);
+        await customController.LoadAsync();
+
+        var result = customController.OpenFileLocation(add.Entry!.Id);
+        Assert.False(result.Success);
+        Assert.Equal(WallpaperError.FileNotFound, result.Error);
+        Assert.Equal("File not found. Locate file to relink.", result.Message);
+        Assert.False(launched);
+    }
 }

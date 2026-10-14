@@ -580,4 +580,190 @@ public sealed class WallpaperLibraryServiceTests : IDisposable
         Assert.False(normalized.Items[0].IsFavorite);
         Assert.Null(normalized.Items[0].LastUsedAtUtc);
     }
+
+    [Fact]
+    public async Task RelinkAsync_MissingImageToValidImage_PreservesIdDisplayNameFavoriteLastUsedAndUpdatesPath()
+    {
+        var originalPath = CreateTempFile("sunset_old.png");
+        var addResult = await service.AddAsync(originalPath);
+        Assert.True(addResult.Success);
+        var itemId = addResult.Item!.Id;
+
+        // Set favorite and last used
+        var timestamp = new DateTimeOffset(2026, 10, 14, 15, 0, 0, TimeSpan.Zero);
+        await service.SetFavoriteAsync(itemId, true);
+        await service.RecordLastUsedAsync(itemId, timestamp);
+
+        // Delete original file to simulate missing file
+        File.Delete(originalPath);
+        var itemBefore = (await service.LoadAsync()).FindById(itemId)!;
+        Assert.False(itemBefore.FileExists());
+
+        // Create new image file
+        var newPath = CreateTempFile("sunset_new.jpg");
+
+        // Relink
+        var relinkResult = await service.RelinkAsync(itemId, newPath);
+        Assert.True(relinkResult.Success);
+        Assert.NotNull(relinkResult.Item);
+        Assert.Equal(itemId, relinkResult.Item.Id);
+        Assert.Equal(Path.GetFullPath(newPath), relinkResult.Item.FilePath);
+        Assert.Equal("sunset_old.png", relinkResult.Item.DisplayName); // DisplayName not changed
+        Assert.True(relinkResult.Item.IsFavorite); // IsFavorite preserved
+        Assert.Equal(timestamp, relinkResult.Item.LastUsedAtUtc); // LastUsedAtUtc preserved
+        Assert.True(relinkResult.Item.FileExists()); // Missing state cleared
+
+        // Verify persistence in library.json
+        var loaded = await service.LoadAsync();
+        var reloadedItem = loaded.FindById(itemId);
+        Assert.NotNull(reloadedItem);
+        Assert.Equal(Path.GetFullPath(newPath), reloadedItem.FilePath);
+        Assert.Equal("sunset_old.png", reloadedItem.DisplayName);
+        Assert.True(reloadedItem.IsFavorite);
+        Assert.Equal(timestamp, reloadedItem.LastUsedAtUtc);
+    }
+
+    [Fact]
+    public async Task RelinkAsync_MissingVideoToValidVideo_PreservesIdAndUpdatesPath()
+    {
+        var originalVideo = CreateTempFile("video_old.mp4");
+        var addResult = await service.AddAsync(originalVideo);
+        Assert.True(addResult.Success);
+        var itemId = addResult.Item!.Id;
+
+        File.Delete(originalVideo);
+        var newVideo = CreateTempFile("video_new.mp4");
+
+        var relinkResult = await service.RelinkAsync(itemId, newVideo);
+        Assert.True(relinkResult.Success);
+        Assert.Equal(Path.GetFullPath(newVideo), relinkResult.Item!.FilePath);
+        Assert.Equal(itemId, relinkResult.Item.Id);
+        Assert.True(relinkResult.Item.FileExists());
+    }
+
+    [Fact]
+    public async Task RelinkAsync_WrongMediaType_RejectedWithUnsupportedFormat()
+    {
+        var imagePath = CreateTempFile("my_image.png");
+        var addResult = await service.AddAsync(imagePath);
+        Assert.True(addResult.Success);
+        var itemId = addResult.Item!.Id;
+
+        var videoPath = CreateTempFile("not_an_image.mp4");
+
+        // Try to relink Image item to a Video file
+        var relinkResult = await service.RelinkAsync(itemId, videoPath);
+        Assert.False(relinkResult.Success);
+        Assert.Equal(WallpaperError.UnsupportedFormat, relinkResult.Error);
+
+        // Record in library remains unchanged
+        var loaded = await service.LoadAsync();
+        Assert.Equal(Path.GetFullPath(imagePath), loaded.FindById(itemId)!.FilePath);
+    }
+
+    [Fact]
+    public async Task RelinkAsync_UnsupportedOrInvalidFile_RejectedWithoutMutatingLibrary()
+    {
+        var imagePath = CreateTempFile("test_unsupported.png");
+        var addResult = await service.AddAsync(imagePath);
+        Assert.True(addResult.Success);
+        var itemId = addResult.Item!.Id;
+
+        // Non-existent path
+        var nonExistentResult = await service.RelinkAsync(itemId, "C:\\nonexistent\\image.png");
+        Assert.False(nonExistentResult.Success);
+        Assert.Equal(WallpaperError.FileNotFound, nonExistentResult.Error);
+
+        // Unsupported extension
+        var txtFile = CreateTempFile("document.txt");
+        var txtResult = await service.RelinkAsync(itemId, txtFile);
+        Assert.False(txtResult.Success);
+        Assert.Equal(WallpaperError.UnsupportedFormat, txtResult.Error);
+
+        // Empty path
+        var emptyResult = await service.RelinkAsync(itemId, "");
+        Assert.False(emptyResult.Success);
+        Assert.Equal(WallpaperError.InvalidPath, emptyResult.Error);
+
+        // Library remains untouched
+        var loaded = await service.LoadAsync();
+        Assert.Equal(Path.GetFullPath(imagePath), loaded.FindById(itemId)!.FilePath);
+    }
+
+    [Fact]
+    public async Task RelinkAsync_DuplicatePath_RejectedWithAlreadyExisted()
+    {
+        var image1 = CreateTempFile("image_one.png");
+        var image2 = CreateTempFile("image_two.png");
+
+        var add1 = await service.AddAsync(image1);
+        var add2 = await service.AddAsync(image2);
+        Assert.True(add1.Success);
+        Assert.True(add2.Success);
+
+        // Try to relink image 1 to image 2's path
+        var item1Id = add1.Item!.Id;
+        var item2Id = add2.Item!.Id;
+        var duplicateResult = await service.RelinkAsync(item1Id, image2);
+        Assert.False(duplicateResult.Success);
+        Assert.True(duplicateResult.AlreadyExisted);
+        Assert.Equal(WallpaperError.InvalidPath, duplicateResult.Error);
+        Assert.Equal("File already exists in library.", duplicateResult.Message);
+
+        // Both items remain unchanged
+        var loaded = await service.LoadAsync();
+        Assert.Equal(Path.GetFullPath(image1), loaded.FindById(item1Id)!.FilePath);
+        Assert.Equal(Path.GetFullPath(image2), loaded.FindById(item2Id)!.FilePath);
+    }
+
+    [Fact]
+    public async Task RenameAsync_ValidName_TrimsAndPersistsWithoutChangingPhysicalFile()
+    {
+        var imagePath = CreateTempFile("photo.png");
+        var addResult = await service.AddAsync(imagePath);
+        Assert.True(addResult.Success);
+        var itemId = addResult.Item!.Id;
+
+        var renameResult = await service.RenameAsync(itemId, "   Mountain View Sunset   ");
+        Assert.True(renameResult.Success);
+        Assert.Equal("Mountain View Sunset", renameResult.Item!.DisplayName);
+        Assert.Equal(Path.GetFullPath(imagePath), renameResult.Item.FilePath);
+
+        // Physical file on disk is not renamed or touched
+        Assert.True(File.Exists(imagePath));
+
+        // Persistence verified
+        var loaded = await service.LoadAsync();
+        Assert.Equal("Mountain View Sunset", loaded.FindById(itemId)!.DisplayName);
+    }
+
+    [Fact]
+    public async Task RenameAsync_EmptyOrWhitespace_RejectedWithoutMutatingLibrary()
+    {
+        var imagePath = CreateTempFile("photo2.png");
+        var addResult = await service.AddAsync(imagePath);
+        Assert.True(addResult.Success);
+        var itemId = addResult.Item!.Id;
+
+        var emptyResult = await service.RenameAsync(itemId, "   ");
+        Assert.False(emptyResult.Success);
+        Assert.Equal(WallpaperError.InvalidPath, emptyResult.Error);
+        Assert.Equal("Name cannot be empty.", emptyResult.Message);
+
+        var nullResult = await service.RenameAsync(itemId, null);
+        Assert.False(nullResult.Success);
+        Assert.Equal(WallpaperError.InvalidPath, nullResult.Error);
+
+        // Original display name unchanged
+        var loaded = await service.LoadAsync();
+        Assert.Equal("photo2.png", loaded.FindById(itemId)!.DisplayName);
+    }
+
+    [Fact]
+    public async Task RenameAsync_NonExistentItem_ReturnsFileNotFound()
+    {
+        var result = await service.RenameAsync("unknown-id", "New Name");
+        Assert.False(result.Success);
+        Assert.Equal(WallpaperError.FileNotFound, result.Error);
+    }
 }

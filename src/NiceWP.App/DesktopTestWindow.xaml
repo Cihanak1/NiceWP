@@ -163,6 +163,42 @@
                                 Loaded="OnCardBorderLoaded"
                                 DataContextChanged="OnCardBorderDataContextChanged"
                                 ToolTipService.ToolTip="{Binding ToolTipText}">
+                                <Border.ContextFlyout>
+                                    <MenuFlyout Opening="OnCardMenuFlyoutOpening">
+                                        <MenuFlyoutItem x:Name="MenuApplyItem" Text="Apply" Click="OnMenuApplyClick">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE768;" FontSize="14" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="MenuFavoriteItem" Text="Favorite" Click="OnMenuFavoriteClick">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon x:Name="MenuFavoriteIcon" Glyph="&#xE734;" FontSize="14" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="MenuRenameItem" Text="Rename…" Click="OnMenuRenameClick">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE8AC;" FontSize="14" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem x:Name="MenuOpenLocationItem" Text="Open File Location" Click="OnMenuOpenLocationClick">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xED25;" FontSize="14" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="MenuLocateFileItem" Text="Locate File…" Click="OnMenuLocateFileClick">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE721;" FontSize="14" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem x:Name="MenuRemoveItem" Text="Remove" Click="OnMenuRemoveClick">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Border.ContextFlyout>
                                 <StackPanel Spacing="12" Padding="12">
                                     <Grid Height="124" CornerRadius="4" Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
                                         <SymbolIcon
@@ -240,6 +276,14 @@
                                             Click="OnApplyWallpaper"
                                             Loaded="OnApplyButtonLoaded"
                                             DataContextChanged="OnApplyButtonDataContextChanged" />
+                                        <Button
+                                            x:Name="CardLocateButton" Style="{StaticResource AccentButtonStyle}"
+                                            Content="Locate File"
+                                            HorizontalAlignment="Stretch"
+                                            Visibility="Collapsed"
+                                            Click="OnLocateWallpaper"
+                                            Loaded="OnLocateButtonLoaded"
+                                            DataContextChanged="OnLocateButtonDataContextChanged" />
                                         <Button
                                             x:Name="CardRemoveButton"
                                             Grid.Column="1"

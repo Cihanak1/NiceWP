@@ -39,6 +39,7 @@ public sealed partial class DesktopTestWindow : Window
     private bool closed;
     private bool selecting;
     private bool libraryBusy;
+    private bool isRenameDialogOpen;
     private int libraryLoads;
     private bool isSyncingAutostart;
     private bool isSyncingAppSettings;
@@ -130,7 +131,7 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
-    private bool IsInteractionBusy => libraryBusy || selecting || libraryController.IsBusy;
+    private bool IsInteractionBusy => libraryBusy || selecting || isRenameDialogOpen || libraryController.IsBusy;
 
     public async Task LoadLibraryAsync()
     {
@@ -348,7 +349,8 @@ public sealed partial class DesktopTestWindow : Window
     private async void OnApplyWallpaper(object sender, RoutedEventArgs args)
     {
         if (IsInteractionBusy || closed) return;
-        if (sender is FrameworkElement { DataContext: WallpaperLibraryEntryView entry })
+        var entry = GetEntryFromSender(sender);
+        if (entry != null)
         {
             libraryController.SelectItem(entry.Id);
         }
@@ -409,7 +411,8 @@ public sealed partial class DesktopTestWindow : Window
     {
         if (IsInteractionBusy || closed) return;
         string? removedName = null;
-        if (sender is FrameworkElement { DataContext: WallpaperLibraryEntryView entry })
+        var entry = GetEntryFromSender(sender);
+        if (entry != null)
         {
             removedName = entry.DisplayName;
             libraryController.SelectItem(entry.Id);
@@ -448,11 +451,292 @@ public sealed partial class DesktopTestWindow : Window
     private async void OnToggleFavorite(object sender, RoutedEventArgs args)
     {
         if (IsInteractionBusy || closed) return;
-        if (sender is FrameworkElement { DataContext: WallpaperLibraryEntryView entry })
+        var entry = GetEntryFromSender(sender);
+        if (entry != null)
         {
             await libraryController.ToggleFavoriteAsync(entry.Id);
             if (closed) return;
             RenderLibraryItems();
+        }
+    }
+
+    private static WallpaperLibraryEntryView? GetEntryFromSender(object? sender)
+    {
+        if (sender is FrameworkElement fe)
+        {
+            if (fe.DataContext is WallpaperLibraryEntryView entry) return entry;
+            if (fe.Tag is WallpaperLibraryEntryView tagEntry) return tagEntry;
+        }
+        return null;
+    }
+
+    private async Task<PickFileResult?> PickRelinkFileAsync(bool isVideo)
+    {
+        var picker = new FileOpenPicker(AppWindow.Id);
+        if (isVideo)
+        {
+            picker.FileTypeFilter.Add(".mp4");
+        }
+        else
+        {
+            picker.FileTypeFilter.Add(".png");
+            picker.FileTypeFilter.Add(".jpg");
+            picker.FileTypeFilter.Add(".jpeg");
+        }
+        return await picker.PickSingleFileAsync();
+    }
+
+    private async void OnLocateWallpaper(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        var entry = GetEntryFromSender(sender);
+        if (entry == null) return;
+
+        await LocateWallpaperCoreAsync(entry);
+    }
+
+    private async void OnMenuLocateFileClick(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        var entry = GetEntryFromSender(sender);
+        if (entry == null) return;
+
+        await LocateWallpaperCoreAsync(entry);
+    }
+
+    private async Task LocateWallpaperCoreAsync(WallpaperLibraryEntryView entry)
+    {
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            var file = await PickRelinkFileAsync(entry.IsVideo);
+            if (file == null || closed) return;
+
+            var result = await libraryController.RelinkAsync(entry.Id, file.Path);
+            if (closed) return;
+
+            if (result.Success)
+            {
+                foreach (var cardBorder in realizedCardBorders)
+                {
+                    if (cardBorder.DataContext is WallpaperLibraryEntryView bound &&
+                        string.Equals(bound.Id, entry.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (cardBorder.FindName("CardPreviewImage") is Image previewImg)
+                        {
+                            previewImg.Tag = null;
+                            previewImg.Source = null;
+                            previewImg.Visibility = Visibility.Collapsed;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            RenderLibraryItems();
+            StatusText.Text = result.Success
+                ? (result.Message ?? "File relinked.")
+                : WallpaperLibraryController.MapUserStatusMessage(result.Error, result.Message);
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Failed to locate/relink wallpaper: {exception}");
+            if (!closed)
+            {
+                StatusText.Text = "Failed to relink file.";
+            }
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+            }
+        }
+    }
+
+    private void OnMenuApplyClick(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        OnApplyWallpaper(sender, args);
+    }
+
+    private void OnMenuFavoriteClick(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        OnToggleFavorite(sender, args);
+    }
+
+    private void OnMenuRemoveClick(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        OnRemoveWallpaper(sender, args);
+    }
+
+    private void OnMenuOpenLocationClick(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        var entry = GetEntryFromSender(sender);
+        if (entry == null) return;
+
+        var result = libraryController.OpenFileLocation(entry.Id);
+        if (!result.Success)
+        {
+            StatusText.Text = result.Message ?? "File not found.";
+        }
+    }
+
+    private async void OnMenuRenameClick(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || isRenameDialogOpen || closed) return;
+        var entry = GetEntryFromSender(sender);
+        if (entry == null) return;
+
+        var currentEntry = libraryController.Items.FirstOrDefault(item =>
+            string.Equals(item.Id, entry.Id, StringComparison.OrdinalIgnoreCase)) ?? entry;
+
+        isRenameDialogOpen = true;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            var renameBox = new TextBox
+            {
+                Text = currentEntry.DisplayName,
+                SelectionStart = 0,
+                SelectionLength = currentEntry.DisplayName.Length,
+                Margin = new Thickness(0, 8, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+
+            var errorText = new TextBlock
+            {
+                Text = "Name cannot be empty.",
+                FontSize = 12,
+                Foreground = Application.Current.Resources.TryGetValue("SystemFillColorCriticalBrush", out var critBrush) && critBrush is Brush cb
+                    ? cb
+                    : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 232, 17, 35)),
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+
+            renameBox.TextChanged += (_, _) =>
+            {
+                if (errorText.Visibility == Visibility.Visible && !string.IsNullOrWhiteSpace(renameBox.Text))
+                {
+                    errorText.Visibility = Visibility.Collapsed;
+                }
+            };
+
+            var contentPanel = new StackPanel { Spacing = 4 };
+            contentPanel.Children.Add(new TextBlock
+            {
+                Text = "Enter a display name for this wallpaper:",
+                Foreground = Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var secBrush) && secBrush is Brush sb
+                    ? sb
+                    : null
+            });
+            contentPanel.Children.Add(renameBox);
+            contentPanel.Children.Add(errorText);
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = this.Content.XamlRoot,
+                Title = "Rename Wallpaper",
+                PrimaryButtonText = "Rename",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                Content = contentPanel
+            };
+
+            dialog.PrimaryButtonClick += (_, dArgs) =>
+            {
+                if (string.IsNullOrWhiteSpace(renameBox.Text))
+                {
+                    dArgs.Cancel = true;
+                    errorText.Visibility = Visibility.Visible;
+                }
+            };
+
+            var dialogResult = await dialog.ShowAsync();
+            if (closed) return;
+
+            if (dialogResult == ContentDialogResult.Primary)
+            {
+                var newName = renameBox.Text.Trim();
+                var renameResult = await libraryController.RenameAsync(currentEntry.Id, newName);
+                if (closed) return;
+
+                RenderLibraryItems();
+                StatusText.Text = renameResult.Success
+                    ? (string.IsNullOrWhiteSpace(renameResult.Message) ? $"Renamed wallpaper: {newName}" : renameResult.Message)
+                    : WallpaperLibraryController.MapUserStatusMessage(renameResult.Error, renameResult.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Rename dialog failed: {ex}");
+        }
+        finally
+        {
+            isRenameDialogOpen = false;
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+            }
+        }
+    }
+
+    private void OnCardMenuFlyoutOpening(object sender, object args)
+    {
+        if (sender is not MenuFlyout flyout || flyout.Target is not Border cardBorder || cardBorder.DataContext is not WallpaperLibraryEntryView entry)
+        {
+            return;
+        }
+
+        var currentEntry = libraryController.Items.FirstOrDefault(item =>
+            string.Equals(item.Id, entry.Id, StringComparison.OrdinalIgnoreCase)) ?? entry;
+
+        var isIdle = !IsInteractionBusy;
+
+        foreach (var item in flyout.Items)
+        {
+            item.DataContext = currentEntry;
+            item.Tag = currentEntry;
+
+            if (item is MenuFlyoutItem mfi)
+            {
+                switch (mfi.Name)
+                {
+                    case "MenuApplyItem":
+                        mfi.IsEnabled = currentEntry.CanApply && isIdle;
+                        break;
+                    case "MenuFavoriteItem":
+                        mfi.IsEnabled = isIdle;
+                        mfi.Text = currentEntry.IsFavorite ? "Unfavorite" : "Favorite";
+                        if (mfi.FindName("MenuFavoriteIcon") is FontIcon favIcon)
+                        {
+                            favIcon.Glyph = currentEntry.IsFavorite ? "\uE735" : "\uE734";
+                        }
+                        break;
+                    case "MenuRenameItem":
+                        mfi.IsEnabled = isIdle;
+                        break;
+                    case "MenuOpenLocationItem":
+                        mfi.IsEnabled = !currentEntry.IsMissing && isIdle;
+                        break;
+                    case "MenuLocateFileItem":
+                        mfi.Visibility = currentEntry.IsMissing ? Visibility.Visible : Visibility.Collapsed;
+                        mfi.IsEnabled = currentEntry.IsMissing && isIdle;
+                        break;
+                    case "MenuRemoveItem":
+                        mfi.IsEnabled = currentEntry.CanRemove && isIdle;
+                        break;
+                }
+            }
         }
     }
 
@@ -730,7 +1014,14 @@ public sealed partial class DesktopTestWindow : Window
         var isIdle = !IsInteractionBusy;
         if (cardBorder.FindName("CardApplyButton") is Button applyButton)
         {
+            applyButton.Visibility = currentEntry.IsMissing ? Visibility.Collapsed : Visibility.Visible;
             applyButton.IsEnabled = currentEntry.CanApply && isIdle;
+        }
+
+        if (cardBorder.FindName("CardLocateButton") is Button locateButton)
+        {
+            locateButton.Visibility = currentEntry.IsMissing ? Visibility.Visible : Visibility.Collapsed;
+            locateButton.IsEnabled = isIdle;
         }
 
         if (cardBorder.FindName("CardRemoveButton") is Button removeButton)
@@ -798,8 +1089,30 @@ public sealed partial class DesktopTestWindow : Window
         var currentEntry = libraryController.Items.FirstOrDefault(item =>
             string.Equals(item.Id, entry.Id, StringComparison.OrdinalIgnoreCase)) ?? entry;
 
+        button.Visibility = currentEntry.IsMissing ? Visibility.Collapsed : Visibility.Visible;
         button.IsEnabled = currentEntry.CanApply && !IsInteractionBusy;
         AutomationProperties.SetName(button, $"Apply {currentEntry.DisplayName}");
+    }
+
+    private void OnLocateButtonLoaded(object sender, RoutedEventArgs args) =>
+        ConfigureLocateButton(sender as Button);
+
+    private void OnLocateButtonDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args) =>
+        ConfigureLocateButton(sender as Button);
+
+    private void ConfigureLocateButton(Button? button)
+    {
+        if (button == null || button.DataContext is not WallpaperLibraryEntryView entry)
+        {
+            return;
+        }
+
+        var currentEntry = libraryController.Items.FirstOrDefault(item =>
+            string.Equals(item.Id, entry.Id, StringComparison.OrdinalIgnoreCase)) ?? entry;
+
+        button.Visibility = currentEntry.IsMissing ? Visibility.Visible : Visibility.Collapsed;
+        button.IsEnabled = !IsInteractionBusy;
+        AutomationProperties.SetName(button, $"Locate file for {currentEntry.DisplayName}");
     }
 
     private void OnRemoveButtonLoaded(object sender, RoutedEventArgs args) =>
@@ -1050,7 +1363,14 @@ public sealed partial class DesktopTestWindow : Window
 
                 if (cardBorder.FindName("CardApplyButton") is Button applyButton)
                 {
+                    applyButton.Visibility = currentEntry.IsMissing ? Visibility.Collapsed : Visibility.Visible;
                     applyButton.IsEnabled = currentEntry.CanApply && isIdle;
+                }
+
+                if (cardBorder.FindName("CardLocateButton") is Button locateButton)
+                {
+                    locateButton.Visibility = currentEntry.IsMissing ? Visibility.Visible : Visibility.Collapsed;
+                    locateButton.IsEnabled = isIdle;
                 }
 
                 if (cardBorder.FindName("CardRemoveButton") is Button removeButton)

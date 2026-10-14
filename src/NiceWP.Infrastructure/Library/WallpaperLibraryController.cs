@@ -46,6 +46,10 @@ public sealed record WallpaperLibraryEntryView(
 
     public bool CanRemove => true;
 
+    public bool CanLocate => IsMissing;
+
+    public bool CanOpenLocation => !IsMissing;
+
     public bool IsImage => string.Equals(Type, IpcConstants.WallpaperTypeImage, StringComparison.OrdinalIgnoreCase);
 
     public bool IsVideo => string.Equals(Type, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
@@ -116,6 +120,7 @@ public sealed class WallpaperLibraryController
     private readonly List<WallpaperLibraryEntryView> visibleItems = [];
     private readonly RuntimeIpcClient ipcClient;
     private readonly Func<CancellationToken, Task<IpcResponse>> ensureHostRunningAsync;
+    private readonly Action<string> openFileLocationAction;
     private int busyFlag;
 
     public WallpaperLibraryService Service { get; }
@@ -149,13 +154,26 @@ public sealed class WallpaperLibraryController
         WallpaperLibraryService? service = null,
         RuntimeIpcClient? ipcClient = null,
         RuntimeHostLauncher? hostLauncher = null,
-        Func<CancellationToken, Task<IpcResponse>>? ensureHostRunningAsync = null)
+        Func<CancellationToken, Task<IpcResponse>>? ensureHostRunningAsync = null,
+        Action<string>? openFileLocationAction = null)
     {
         Service = service ?? new WallpaperLibraryService();
         this.ipcClient = ipcClient ?? hostLauncher?.IpcClient ?? new RuntimeIpcClient();
         var launcher = hostLauncher ?? new RuntimeHostLauncher(this.ipcClient);
         this.ensureHostRunningAsync = ensureHostRunningAsync
             ?? (cancellationToken => launcher.EnsureHostRunningAsync(cancellationToken: cancellationToken));
+        this.openFileLocationAction = openFileLocationAction ?? DefaultOpenFileLocation;
+    }
+
+    private static void DefaultOpenFileLocation(string fullPath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            Arguments = $"/select,\"{fullPath}\"",
+            UseShellExecute = true
+        };
+        Process.Start(startInfo);
     }
 
     public void SetSearchText(string? searchText)
@@ -511,6 +529,196 @@ public sealed class WallpaperLibraryController
             return new WallpaperLibraryActionResult(
                 Success: false,
                 Message: "Failed to load library.",
+                Error: WallpaperError.RendererFailed);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
+    }
+
+    /// <summary>
+    /// Opens Windows Explorer with the physical file of the specified library item selected.
+    /// If the file is missing, does not launch Explorer and returns an instructive error message.
+    /// </summary>
+    public WallpaperLibraryActionResult OpenFileLocation(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Select a wallpaper in the library.",
+                Error: WallpaperError.InvalidPath);
+        }
+
+        var trimmedId = id.Trim();
+        var entry = allItems.FirstOrDefault(item => string.Equals(item.Id, trimmedId, StringComparison.OrdinalIgnoreCase));
+        if (entry == null)
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "File not found.",
+                Error: WallpaperError.FileNotFound);
+        }
+
+        if (entry.IsMissing || !File.Exists(entry.FilePath))
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "File not found. Locate file to relink.",
+                Entry: entry,
+                Error: WallpaperError.FileNotFound);
+        }
+
+        try
+        {
+            openFileLocationAction(entry.FilePath);
+            return new WallpaperLibraryActionResult(
+                Success: true,
+                Entry: entry,
+                Error: WallpaperError.None);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to open file location for '{entry.FilePath}': {ex}");
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Failed to open file location.",
+                Entry: entry,
+                Error: WallpaperError.RendererFailed);
+        }
+    }
+
+    /// <summary>
+    /// Relinks the currently selected library entry to a new physical file path.
+    /// </summary>
+    public Task<WallpaperLibraryActionResult> RelinkSelectedAsync(string? newPath, CancellationToken cancellationToken = default) =>
+        RelinkAsync(SelectedItemId, newPath, cancellationToken);
+
+    /// <summary>
+    /// Relinks the specified library entry to a new physical file path, refreshes the projected list, and keeps selection.
+    /// </summary>
+    public async Task<WallpaperLibraryActionResult> RelinkAsync(
+        string? id,
+        string? newPath,
+        CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: MapUserStatusMessage(WallpaperError.Busy),
+                Entry: null,
+                Error: WallpaperError.Busy);
+        }
+
+        try
+        {
+            var relinkResult = await Service.RelinkAsync(id, newPath, cancellationToken).ConfigureAwait(false);
+            if (!relinkResult.Success || relinkResult.Item == null)
+            {
+                var message = !string.IsNullOrWhiteSpace(relinkResult.Message)
+                    ? relinkResult.Message
+                    : MapUserStatusMessage(relinkResult.Error);
+
+                return new WallpaperLibraryActionResult(
+                    Success: false,
+                    Message: message,
+                    Entry: null,
+                    AlreadyExisted: relinkResult.AlreadyExisted,
+                    Error: relinkResult.Error);
+            }
+
+            await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            SelectItem(relinkResult.Item.Id);
+
+            var entry = SelectedItem ?? WallpaperLibraryEntryView.FromItem(relinkResult.Item);
+            return new WallpaperLibraryActionResult(
+                Success: true,
+                Message: $"File relinked: {entry.DisplayName}",
+                Entry: entry,
+                Error: WallpaperError.None);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to relink wallpaper: {ex}");
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Failed to relink file.",
+                Entry: null,
+                Error: WallpaperError.RendererFailed);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
+    }
+
+    /// <summary>
+    /// Renames the currently selected library entry's display name without modifying the physical file on disk.
+    /// </summary>
+    public Task<WallpaperLibraryActionResult> RenameSelectedAsync(string? newDisplayName, CancellationToken cancellationToken = default) =>
+        RenameAsync(SelectedItemId, newDisplayName, cancellationToken);
+
+    /// <summary>
+    /// Renames the specified library entry's display name without modifying the physical file on disk,
+    /// refreshes the projected list, and keeps selection.
+    /// </summary>
+    public async Task<WallpaperLibraryActionResult> RenameAsync(
+        string? id,
+        string? newDisplayName,
+        CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: MapUserStatusMessage(WallpaperError.Busy),
+                Entry: null,
+                Error: WallpaperError.Busy);
+        }
+
+        try
+        {
+            var renameResult = await Service.RenameAsync(id, newDisplayName, cancellationToken).ConfigureAwait(false);
+            if (!renameResult.Success || renameResult.Item == null)
+            {
+                var message = !string.IsNullOrWhiteSpace(renameResult.Message)
+                    ? renameResult.Message
+                    : MapUserStatusMessage(renameResult.Error);
+
+                return new WallpaperLibraryActionResult(
+                    Success: false,
+                    Message: message,
+                    Entry: null,
+                    Error: renameResult.Error);
+            }
+
+            await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            SelectItem(renameResult.Item.Id);
+
+            var entry = SelectedItem ?? WallpaperLibraryEntryView.FromItem(renameResult.Item);
+            return new WallpaperLibraryActionResult(
+                Success: true,
+                Message: $"Renamed wallpaper: {entry.DisplayName}",
+                Entry: entry,
+                Error: WallpaperError.None);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to rename wallpaper: {ex}");
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Failed to rename wallpaper.",
+                Entry: null,
                 Error: WallpaperError.RendererFailed);
         }
         finally

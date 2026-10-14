@@ -17,6 +17,25 @@ public sealed record WallpaperLibraryAddResult(
     string? Message = null);
 
 /// <summary>
+/// Represents the result of attempting to relink a wallpaper file in <see cref="WallpaperLibraryService"/>.
+/// </summary>
+public sealed record WallpaperLibraryRelinkResult(
+    bool Success,
+    WallpaperLibraryItem? Item = null,
+    bool AlreadyExisted = false,
+    WallpaperError Error = WallpaperError.None,
+    string? Message = null);
+
+/// <summary>
+/// Represents the result of attempting to rename a wallpaper item in <see cref="WallpaperLibraryService"/>.
+/// </summary>
+public sealed record WallpaperLibraryRenameResult(
+    bool Success,
+    WallpaperLibraryItem? Item = null,
+    WallpaperError Error = WallpaperError.None,
+    string? Message = null);
+
+/// <summary>
 /// Provides resilient local JSON persistence and management for <see cref="WallpaperLibrary"/>
 /// at %LocalAppData%\NiceWP\library.json.
 /// </summary>
@@ -174,6 +193,157 @@ public sealed class WallpaperLibraryService
             }
 
             return await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Relinks the specified library item to a new physical file path.
+    /// Preserves the item's Id, DisplayName, AddedAtUtc, IsFavorite, and LastUsedAtUtc.
+    /// Validates that media types match (Image to Image, Video to Video) and prevents duplicate paths.
+    /// </summary>
+    public async Task<WallpaperLibraryRelinkResult> RelinkAsync(
+        string? id,
+        string? newPath,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return new WallpaperLibraryRelinkResult(
+                Success: false,
+                Error: WallpaperError.InvalidPath,
+                Message: "Select a wallpaper in the library to relink.");
+        }
+
+        var validation = ValidateWallpaperFile(newPath, out var fullPath, out var newType);
+        if (!validation.Success)
+        {
+            return new WallpaperLibraryRelinkResult(
+                Success: false,
+                Error: validation.Error,
+                Message: validation.Message);
+        }
+
+        var trimmedId = id.Trim();
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var library = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            var item = library.FindById(trimmedId);
+            if (item == null)
+            {
+                return new WallpaperLibraryRelinkResult(
+                    Success: false,
+                    Error: WallpaperError.FileNotFound,
+                    Message: "File not found.");
+            }
+
+            if (!string.Equals(item.Type, newType, StringComparison.OrdinalIgnoreCase))
+            {
+                return new WallpaperLibraryRelinkResult(
+                    Success: false,
+                    Error: WallpaperError.UnsupportedFormat,
+                    Message: "Unsupported wallpaper.");
+            }
+
+            var duplicate = library.FindByPath(fullPath);
+            if (duplicate != null && !string.Equals(duplicate.Id, item.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                return new WallpaperLibraryRelinkResult(
+                    Success: false,
+                    AlreadyExisted: true,
+                    Error: WallpaperError.InvalidPath,
+                    Message: "File already exists in library.");
+            }
+
+            item.FilePath = fullPath;
+
+            var saved = await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+            if (!saved)
+            {
+                return new WallpaperLibraryRelinkResult(
+                    Success: false,
+                    Error: WallpaperError.RendererFailed,
+                    Message: "Failed to persist wallpaper library.");
+            }
+
+            return new WallpaperLibraryRelinkResult(
+                Success: true,
+                Item: item,
+                Message: "File relinked.");
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Renames the display name of the specified library item without modifying the physical file on disk.
+    /// </summary>
+    public async Task<WallpaperLibraryRenameResult> RenameAsync(
+        string? id,
+        string? newDisplayName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return new WallpaperLibraryRenameResult(
+                Success: false,
+                Error: WallpaperError.InvalidPath,
+                Message: "Select a wallpaper in the library to rename.");
+        }
+
+        if (string.IsNullOrWhiteSpace(newDisplayName))
+        {
+            return new WallpaperLibraryRenameResult(
+                Success: false,
+                Error: WallpaperError.InvalidPath,
+                Message: "Name cannot be empty.");
+        }
+
+        var trimmedName = newDisplayName.Trim();
+        var trimmedId = id.Trim();
+
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var library = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            var item = library.FindById(trimmedId);
+            if (item == null)
+            {
+                return new WallpaperLibraryRenameResult(
+                    Success: false,
+                    Error: WallpaperError.FileNotFound,
+                    Message: "File not found.");
+            }
+
+            if (string.Equals(item.DisplayName, trimmedName, StringComparison.Ordinal))
+            {
+                return new WallpaperLibraryRenameResult(
+                    Success: true,
+                    Item: item,
+                    Message: string.Empty);
+            }
+
+            item.DisplayName = trimmedName;
+
+            var saved = await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+            if (!saved)
+            {
+                return new WallpaperLibraryRenameResult(
+                    Success: false,
+                    Error: WallpaperError.RendererFailed,
+                    Message: "Failed to persist wallpaper library.");
+            }
+
+            return new WallpaperLibraryRenameResult(
+                Success: true,
+                Item: item,
+                Message: string.Empty);
         }
         finally
         {
