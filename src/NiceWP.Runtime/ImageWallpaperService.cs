@@ -16,6 +16,9 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
 
     public string? ActivePath { get; private set; }
     public bool IsPaused { get; private set; }
+    public IWallpaperRenderer? ActiveRenderer => active;
+    public DesktopHostService DesktopService => desktop;
+    public bool IsDesktopHostConnected => desktop.Handle != 0 && host.IsValid(desktop.Handle);
 
     public async Task<WallpaperResult> StartAsync(string? path)
     {

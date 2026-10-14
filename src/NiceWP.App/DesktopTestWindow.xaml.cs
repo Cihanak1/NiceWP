@@ -15,8 +15,10 @@ using NiceWP.Core;
 using NiceWP.Infrastructure.Autostart;
 using NiceWP.Infrastructure.Ipc;
 using NiceWP.Infrastructure.Library;
+using NiceWP.Infrastructure.Observatory;
 using NiceWP.Infrastructure.Settings;
 using NiceWP.Infrastructure.Tray;
+using Windows.Storage;
 
 namespace NiceWP.App;
 
@@ -43,6 +45,10 @@ public sealed partial class DesktopTestWindow : Window
     private int libraryLoads;
     private bool isSyncingAutostart;
     private bool isSyncingAppSettings;
+    private DispatcherTimer? performanceTimer;
+    private bool isPerformancePageActive;
+    private bool isRefreshingPerformance;
+    private RuntimePerformanceStatus? latestPerformanceStatus;
 
     public DesktopTestWindow(bool isStartup = false)
     {
@@ -898,11 +904,23 @@ public sealed partial class DesktopTestWindow : Window
 
     private async void OnNavigationChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (LibraryPage == null || ActivePage == null || SettingsPage == null) return;
+        if (LibraryPage == null || ActivePage == null || PerformancePage == null || SettingsPage == null) return;
         var page = (args.SelectedItem as NavigationViewItem)?.Tag as string;
         LibraryPage.Visibility = page == "Library" ? Visibility.Visible : Visibility.Collapsed;
         ActivePage.Visibility = page == "Active" ? Visibility.Visible : Visibility.Collapsed;
+        PerformancePage.Visibility = page == "Performance" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
+
+        if (page == "Performance")
+        {
+            isPerformancePageActive = true;
+            StartPerformancePolling();
+        }
+        else
+        {
+            isPerformancePageActive = false;
+            StopPerformancePolling();
+        }
 
         if (page == "Active" && controller != null)
         {
@@ -1576,6 +1594,10 @@ public sealed partial class DesktopTestWindow : Window
             _ = LoadAppSettingsAsync();
             _ = LoadLibraryAsync();
             _ = SyncRuntimeStatusAsync();
+            if (isPerformancePageActive)
+            {
+                StartPerformancePolling();
+            }
         });
     }
 
@@ -1666,7 +1688,19 @@ public sealed partial class DesktopTestWindow : Window
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
-        if (closed || args.WindowActivationState == WindowActivationState.Deactivated) return;
+        if (closed) return;
+
+        if (args.WindowActivationState == WindowActivationState.Deactivated)
+        {
+            StopPerformancePolling();
+            return;
+        }
+
+        if (isPerformancePageActive)
+        {
+            StartPerformancePolling();
+        }
+
         RefreshAutostartState();
         _ = LoadLibraryAsync();
         _ = SyncRuntimeStatusAsync();
@@ -1674,12 +1708,14 @@ public sealed partial class DesktopTestWindow : Window
 
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
+        StopPerformancePolling();
         controller.OnWindowCloseRequested(out var cancelClose);
         args.Cancel = cancelClose;
     }
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
+        StopPerformancePolling();
         closed = true;
         trayIcon.Dispose();
         App.ReleaseSingleInstance();
@@ -1690,4 +1726,228 @@ public sealed partial class DesktopTestWindow : Window
             diagnostics.Dispose();
         }
     }
+
+    private void StartPerformancePolling()
+    {
+        if (closed) return;
+
+        if (performanceTimer == null)
+        {
+            performanceTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            performanceTimer.Tick += OnPerformanceTimerTick;
+        }
+
+        if (!performanceTimer.IsEnabled)
+        {
+            performanceTimer.Start();
+        }
+
+        _ = RefreshPerformanceAsync();
+    }
+
+    private void StopPerformancePolling()
+    {
+        if (performanceTimer != null && performanceTimer.IsEnabled)
+        {
+            performanceTimer.Stop();
+        }
+    }
+
+    private void OnPerformanceTimerTick(object? sender, object e)
+    {
+        if (!isPerformancePageActive || closed)
+        {
+            StopPerformancePolling();
+            return;
+        }
+
+        _ = RefreshPerformanceAsync();
+    }
+
+    private async Task RefreshPerformanceAsync()
+    {
+        if (closed || isRefreshingPerformance) return;
+        isRefreshingPerformance = true;
+
+        try
+        {
+            var response = await runtimeClient.GetPerformanceStatusAsync(timeoutMs: 2000);
+            if (closed || !isPerformancePageActive) return;
+
+            if (response.Success && response.Performance != null)
+            {
+                latestPerformanceStatus = response.Performance;
+                RenderPerformanceStatus(response.Performance);
+            }
+            else
+            {
+                RenderPerformanceUnavailable(response.Message ?? "Runtime host unreachable.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error querying performance telemetry: {ex.Message}");
+            if (!closed && isPerformancePageActive)
+            {
+                RenderPerformanceUnavailable("Telemetry capture failed.");
+            }
+        }
+        finally
+        {
+            isRefreshingPerformance = false;
+        }
+    }
+
+    private void RenderPerformanceStatus(RuntimePerformanceStatus status)
+    {
+        var snap = status.Snapshot;
+        var stats = status.Stats;
+
+        PerformanceHostStatusTitle.Text = "Runtime Host: Connected";
+        PerformanceHostStatusDetails.Text = $"PID: {snap.ProcessId} • Uptime: {FormatTimeSpan(snap.Uptime)}";
+        PerformanceLiveIndicator.Visibility = Visibility.Visible;
+
+        PerfCpuCurrentText.Text = stats.CurrentCpuPercent.HasValue ? $"{stats.CurrentCpuPercent.Value:F1}%" : "--%";
+        PerfWorkingSetText.Text = FormatMegabytes(snap.WorkingSetBytes);
+        PerfPrivateMemoryText.Text = FormatMegabytes(snap.PrivateMemoryBytes);
+        PerfThreadsText.Text = snap.ThreadCount.ToString();
+        PerfHandlesText.Text = snap.HandleCount.ToString();
+        PerfUptimeText.Text = FormatTimeSpan(snap.Uptime);
+
+        PerfSampleCountText.Text = $"{stats.SampleCount} samples (~{stats.SampleCount}s)";
+        var cpuAvg = stats.AverageCpuPercent.HasValue ? $"{stats.AverageCpuPercent.Value:F1}%" : "--%";
+        var cpuPeak = stats.PeakCpuPercent.HasValue ? $"{stats.PeakCpuPercent.Value:F1}%" : "--%";
+        PerfCpuStatsText.Text = $"Avg: {cpuAvg} • Peak: {cpuPeak}";
+
+        var ramAvg = FormatMegabytes(stats.AverageWorkingSetBytes);
+        var ramPeak = FormatMegabytes(stats.PeakWorkingSetBytes);
+        PerfRamStatsText.Text = $"Avg: {ramAvg} • Peak: {ramPeak}";
+
+        var privAvg = FormatMegabytes(stats.AveragePrivateMemoryBytes);
+        var privPeak = FormatMegabytes(stats.PeakPrivateMemoryBytes);
+        PerfPrivateStatsText.Text = $"Avg: {privAvg} • Peak: {privPeak}";
+
+        PerfThreadPeakText.Text = $"Peak: {stats.PeakThreadCount}";
+        PerfHandlePeakText.Text = $"Peak: {stats.PeakHandleCount}";
+
+        PerfWallpaperTypeStateText.Text = $"{snap.WallpaperType} • {snap.WallpaperState}";
+        PerfRendererStatusText.Text = snap.RendererWindowAlive ? "Alive (HWND valid)" : "Inactive";
+
+        if (snap.IsImageActive)
+        {
+            PerfSourceResolutionText.Text = FormatDimensions(snap.SourceWidth, snap.SourceHeight);
+            var decRes = FormatDimensions(snap.DecodeWidth, snap.DecodeHeight);
+            var decMem = snap.ApproximateDecodedMemoryBytes.HasValue ? $" ({FormatMegabytes(snap.ApproximateDecodedMemoryBytes.Value)})" : "";
+            PerfDecodeResolutionText.Text = $"{decRes}{decMem}";
+            PerfMediaDetailsText.Text = $"Path: {snap.ActiveWallpaperPath ?? "(None)"}";
+        }
+        else if (snap.IsVideoActive)
+        {
+            PerfSourceResolutionText.Text = FormatDimensions(snap.VideoWidth, snap.VideoHeight);
+            PerfDecodeResolutionText.Text = FormatDimensions(snap.DecodeWidth, snap.DecodeHeight);
+            var pos = FormatTimeSpan(snap.PlaybackPosition);
+            var dur = FormatTimeSpan(snap.PlaybackDuration);
+            PerfMediaDetailsText.Text = $"Status: {snap.PlaybackStatus ?? "Unknown"} • Pos: {pos} / {dur} • Path: {snap.ActiveWallpaperPath ?? "(None)"}";
+        }
+        else
+        {
+            PerfSourceResolutionText.Text = "None";
+            PerfDecodeResolutionText.Text = "None";
+            PerfMediaDetailsText.Text = "No active wallpaper.";
+        }
+
+        PerfDesktopHostStateText.Text = snap.DesktopHostConnected ? "Connected (WorkerW valid)" : "Disconnected";
+        PerfPauseReasonsText.Text = snap.PauseReasons;
+        PerfFullscreenPolicyText.Text = snap.FullscreenPauseActive ? "Active (Auto-paused by fullscreen window)" : "Inactive (Desktop visible)";
+        PerfPowerPolicyText.Text = snap.PowerPauseActive ? "Active (Auto-paused by power policy)" : "Inactive (AC or policy satisfied)";
+
+        if (snap.GpuPercent.HasValue)
+        {
+            PerfGpuStatusText.Text = $"GPU Utilization: {snap.GpuPercent.Value:F1}% • Dedicated Memory: {FormatMegabytes(snap.GpuMemoryBytes ?? 0)}";
+        }
+        else
+        {
+            PerfGpuStatusText.Text = snap.GpuStatusMessage ?? "GPU metrics: Unavailable. Windows process-level GPU counters require full D3D engine enumeration across all processes, adding 2+ seconds overhead per sample.";
+        }
+    }
+
+    private void RenderPerformanceUnavailable(string reason)
+    {
+        PerformanceHostStatusTitle.Text = "Runtime Host: Unavailable";
+        PerformanceHostStatusDetails.Text = reason;
+        PerformanceLiveIndicator.Visibility = Visibility.Collapsed;
+
+        PerfCpuCurrentText.Text = "--%";
+        PerfWorkingSetText.Text = "-- MB";
+        PerfPrivateMemoryText.Text = "-- MB";
+        PerfThreadsText.Text = "--";
+        PerfHandlesText.Text = "--";
+        PerfUptimeText.Text = "--";
+
+        PerfSampleCountText.Text = "0 samples";
+        PerfCpuStatsText.Text = "Avg: --% • Peak: --%";
+        PerfRamStatsText.Text = "Avg: -- MB • Peak: -- MB";
+        PerfPrivateStatsText.Text = "Avg: -- MB • Peak: -- MB";
+        PerfThreadPeakText.Text = "Peak: --";
+        PerfHandlePeakText.Text = "Peak: --";
+
+        PerfWallpaperTypeStateText.Text = "Unknown";
+        PerfRendererStatusText.Text = "Inactive";
+        PerfSourceResolutionText.Text = "Unavailable";
+        PerfDecodeResolutionText.Text = "Unavailable";
+        PerfMediaDetailsText.Text = "Runtime host is not responding.";
+
+        PerfDesktopHostStateText.Text = "Disconnected";
+        PerfPauseReasonsText.Text = "Unknown";
+        PerfFullscreenPolicyText.Text = "Unavailable";
+        PerfPowerPolicyText.Text = "Unavailable";
+    }
+
+    private async void OnExportReportClicked(object sender, RoutedEventArgs args)
+    {
+        if (closed) return;
+
+        try
+        {
+            var picker = new FileSavePicker(AppWindow.Id);
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeChoices.Add("Plain Text (*.txt)", new List<string> { ".txt" });
+            picker.SuggestedFileName = $"NiceWP-Performance-Report-{DateTime.Now:yyyyMMdd-HHmmss}.txt";
+
+            var file = await picker.PickSaveFileAsync();
+            if (file != null && !string.IsNullOrWhiteSpace(file.Path))
+            {
+                var status = latestPerformanceStatus;
+                if (status == null)
+                {
+                    var response = await runtimeClient.GetPerformanceStatusAsync(timeoutMs: 1500);
+                    if (response.Success && response.Performance != null)
+                    {
+                        status = response.Performance;
+                    }
+                }
+
+                var reportText = PerformanceReportGenerator.GenerateTextReport(status ?? new RuntimePerformanceStatus());
+                await File.WriteAllTextAsync(file.Path, reportText);
+                StatusText.Text = $"Performance report exported to {Path.GetFileName(file.Path)}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error exporting performance report: {ex.Message}");
+            StatusText.Text = "Failed to export performance report.";
+        }
+    }
+
+    private static string FormatMegabytes(long bytes) =>
+        $"{bytes / (1024.0 * 1024.0):F1} MB";
+
+    private static string FormatTimeSpan(TimeSpan? ts) =>
+        ts.HasValue ? $"{(int)ts.Value.TotalHours:D2}:{ts.Value.Minutes:D2}:{ts.Value.Seconds:D2}" : "--:--:--";
+
+    private static string FormatDimensions(uint? w, uint? h) =>
+        w.HasValue && h.HasValue ? $"{w.Value} x {h.Value}" : "Unavailable";
 }

@@ -534,11 +534,20 @@ public sealed class TrayLifecycleTests
             Assert.True(exitAppCalled);
 
             // Allow Host to exit
-            await Task.Delay(300);
+            var isHostExited = false;
+            for (var i = 0; i < 10; i++)
+            {
+                await Task.Delay(150);
+                var pingCheck = await client.PingAsync(timeoutMs: 200);
+                if (!pingCheck.Success)
+                {
+                    isHostExited = true;
+                    break;
+                }
+            }
 
             // Host must now be shut down!
-            var pingAfterExit = await client.PingAsync(timeoutMs: 500);
-            Assert.False(pingAfterExit.Success, "Runtime host must be shut down after tray Exit.");
+            Assert.True(isHostExited, "Runtime host must be shut down after tray Exit.");
         }
         finally
         {

@@ -26,6 +26,7 @@
         <NavigationView.MenuItems>
             <NavigationViewItem x:Name="LibraryNavigationItem" Content="Library" Tag="Library" Icon="Pictures" />
             <NavigationViewItem x:Name="ActiveNavigationItem" Content="Active Wallpaper" Tag="Active" Icon="SlideShow" />
+            <NavigationViewItem x:Name="PerformanceNavigationItem" Content="Performance" Tag="Performance" Icon="ShowResults" />
             <NavigationViewItem x:Name="SettingsNavigationItem" Content="Settings" Tag="Settings" Icon="Setting" />
         </NavigationView.MenuItems>
 
@@ -429,6 +430,295 @@
                             Content="Refresh"
                             Click="OnRefreshStatus" />
                     </VariableSizedWrapGrid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- PERFORMANCE PAGE -->
+            <ScrollViewer x:Name="PerformancePage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="16" MaxWidth="720" HorizontalAlignment="Left">
+                    <!-- Header & Action -->
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                            <TextBlock Text="Performance" Style="{ThemeResource TitleTextBlockStyle}" />
+                            <TextBlock
+                                x:Name="PerformanceSubtitleText"
+                                Text="Real-time resource utilization and runtime diagnostics."
+                                FontSize="13"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button
+                                x:Name="ExportReportButton"
+                                Content="Export Report"
+                                Click="OnExportReportClicked"
+                                AutomationProperties.Name="Export performance report" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Host Status Banner -->
+                    <Border
+                        x:Name="PerformanceHostStatusBorder"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14,10">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <SymbolIcon x:Name="PerformanceHostStatusIcon" Symbol="ShowResults" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock x:Name="PerformanceHostStatusTitle" Text="Runtime Host: Connected" FontSize="14" FontWeight="SemiBold" />
+                                <TextBlock x:Name="PerformanceHostStatusDetails" Text="PID: 0 • Uptime: 00:00:00" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" x:Name="PerformanceLiveIndicator" Text="LIVE (1s)" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- 1. Process & Memory Metrics -->
+                    <Border
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Runtime Process Metrics" FontSize="15" FontWeight="SemiBold" />
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- CPU -->
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="CPU Utilization" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfCpuCurrentText" Text="--%" FontSize="20" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <!-- Working Set -->
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Working Set (RAM)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfWorkingSetText" Text="-- MB" FontSize="20" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <!-- Private Memory -->
+                                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
+                                    <TextBlock Text="Private Memory" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfPrivateMemoryText" Text="-- MB" FontSize="20" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <!-- Threads -->
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Active Threads" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfThreadsText" Text="--" FontSize="18" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <!-- Handles -->
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Kernel Handles" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfHandlesText" Text="--" FontSize="18" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <!-- Uptime -->
+                                <StackPanel Grid.Row="1" Grid.Column="2" Spacing="2">
+                                    <TextBlock Text="Host Uptime" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfUptimeText" Text="--" FontSize="18" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 2. Last 60 Seconds Stats -->
+                    <Border
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                        <StackPanel Spacing="12">
+                            <Grid>
+                                <TextBlock Text="60-Second Short-Term Window" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock x:Name="PerfSampleCountText" Text="0 samples" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid ColumnSpacing="16" RowSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="CPU Average / Peak" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfCpuStatsText" Text="Avg: --% • Peak: --%" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="RAM Average / Peak" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfRamStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
+                                    <TextBlock Text="Private Average / Peak" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfPrivateStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Threads (Peak)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfThreadPeakText" Text="Peak: --" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Handles (Peak)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfHandlePeakText" Text="Peak: --" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 3. Wallpaper & Rendering Transparency -->
+                    <Border
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Wallpaper &amp; Rendering State" FontSize="15" FontWeight="SemiBold" />
+                            <Grid ColumnSpacing="16" RowSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Active Type &amp; Playback" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfWallpaperTypeStateText" Text="None • Inactive" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Renderer Window (HWND)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfRendererStatusText" Text="Inactive" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Source Resolution" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfSourceResolutionText" Text="Unavailable" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Decode Resolution &amp; Memory" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfDecodeResolutionText" Text="Unavailable" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="2">
+                                    <TextBlock Text="Media Details" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfMediaDetailsText" Text="None" FontSize="13" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 4. Efficiency & Policies -->
+                    <Border
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Efficiency &amp; Host Attachment" FontSize="15" FontWeight="SemiBold" />
+                            <Grid ColumnSpacing="16" RowSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Desktop Host (WorkerW)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfDesktopHostStateText" Text="Disconnected" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Active Pause Reasons" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfPauseReasonsText" Text="None" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Fullscreen Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfFullscreenPolicyText" Text="Inactive" FontSize="13" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Power / Battery Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfPowerPolicyText" Text="Inactive" FontSize="13" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 5. GPU Measurement Status -->
+                    <Border
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="GPU Measurement" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock
+                                x:Name="PerfGpuStatusText"
+                                Text="GPU metrics: Unavailable. Windows process-level GPU counters require full D3D engine enumeration across all processes, adding 2+ seconds overhead per sample."
+                                FontSize="12"
+                                TextWrapping="Wrap"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 6. Local Privacy Notice -->
+                    <Border
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                        <StackPanel Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <SymbolIcon Symbol="ProtectedDocument" VerticalAlignment="Center" />
+                                <TextBlock Text="Privacy &amp; Local Transparency" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock
+                                Text="Metrics are measured locally. NiceWP does not send performance telemetry anywhere."
+                                FontSize="12"
+                                TextWrapping="Wrap"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 

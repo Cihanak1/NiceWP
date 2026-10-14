@@ -43,6 +43,9 @@ public sealed class RuntimeIpcClient
     public Task<IpcResponse> GetStatusAsync(int timeoutMs = IpcConstants.DefaultTimeoutMilliseconds, CancellationToken cancellationToken = default) =>
         SendCommandAsync(IpcConstants.GetStatusCommand, timeoutMs, cancellationToken);
 
+    public Task<IpcResponse> GetPerformanceStatusAsync(int timeoutMs = IpcConstants.DefaultTimeoutMilliseconds, CancellationToken cancellationToken = default) =>
+        SendCommandAsync(IpcConstants.GetPerformanceStatusCommand, timeoutMs, cancellationToken);
+
     public async Task<IpcResponse> SendCommandAsync(string command, int timeoutMs = IpcConstants.DefaultTimeoutMilliseconds, CancellationToken cancellationToken = default)
     {
         var request = new IpcRequest(command);

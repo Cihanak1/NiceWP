@@ -14,6 +14,7 @@ public sealed class IpcResponse
     public string? ActivePath { get; set; }
     public bool IsPaused { get; set; }
     public string PlaybackState { get; set; } = IpcConstants.PlaybackStateNone;
+    public Observatory.RuntimePerformanceStatus? Performance { get; set; }
 
     public static IpcResponse Ok(string requestId, string? message = null) =>
         new()
@@ -31,6 +32,24 @@ public sealed class IpcResponse
             Success = false,
             Message = message,
             IsRunning = false
+        };
+
+    public static IpcResponse PerformanceStatus(
+        string requestId,
+        Observatory.RuntimePerformanceStatus performance,
+        string? message = null) =>
+        new()
+        {
+            RequestId = requestId,
+            Success = true,
+            Message = message,
+            IsRunning = true,
+            HasActiveWallpaper = performance?.Snapshot?.HasActiveWallpaper ?? false,
+            WallpaperType = performance?.Snapshot?.WallpaperType ?? IpcConstants.WallpaperTypeNone,
+            ActivePath = performance?.Snapshot?.ActiveWallpaperPath,
+            IsPaused = string.Equals(performance?.Snapshot?.WallpaperState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase),
+            PlaybackState = performance?.Snapshot?.WallpaperState ?? IpcConstants.PlaybackStateNone,
+            Performance = performance
         };
 
     public static IpcResponse Status(

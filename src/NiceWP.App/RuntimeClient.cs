@@ -82,6 +82,14 @@ public sealed class RuntimeClient
         ipcClient.GetStatusAsync(timeoutMs, cancellationToken);
 
     /// <summary>
+    /// Requests current performance metrics and rolling short-term statistics from the runtime host.
+    /// </summary>
+    public Task<IpcResponse> GetPerformanceStatusAsync(
+        int timeoutMs = IpcConstants.DefaultTimeoutMilliseconds,
+        CancellationToken cancellationToken = default) =>
+        ipcClient.GetPerformanceStatusAsync(timeoutMs, cancellationToken);
+
+    /// <summary>
     /// Sends a raw command request to the runtime host.
     /// </summary>
     public Task<IpcResponse> SendCommandAsync(

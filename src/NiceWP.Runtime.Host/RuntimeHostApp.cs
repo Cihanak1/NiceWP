@@ -18,6 +18,7 @@ public sealed class RuntimeHostApp : IDisposable
     private readonly IFullscreenWindowDetector fullscreenDetector;
     private readonly IPowerStatusProvider powerStatusProvider;
     private readonly RuntimeIpcServer ipcServer;
+    private readonly RuntimePerformanceSampler sampler;
     private readonly ManualResetEventSlim shutdownEvent = new(false);
     private readonly Action? onShutdownAction;
     private readonly int restoreWaitTimeoutMs;
@@ -48,6 +49,7 @@ public sealed class RuntimeHostApp : IDisposable
     public IPowerStatusProvider PowerStatusProvider => powerStatusProvider;
     public RuntimeIpcServer IpcServer => ipcServer;
     public RuntimeWallpaperState CurrentState => currentState;
+    public RuntimePerformanceSampler Sampler => sampler;
     public bool IsManualPaused => isManualPaused;
     public bool IsFullscreenPaused => isFullscreenPaused;
     public bool IsPowerPaused => isPowerPaused;
@@ -68,7 +70,8 @@ public sealed class RuntimeHostApp : IDisposable
         int fullscreenPollIntervalMs = IpcConstants.DefaultFullscreenPollIntervalMs,
         IPowerStatusProvider? powerStatusProvider = null,
         int powerPollIntervalMs = IpcConstants.DefaultPowerPollIntervalMs,
-        Action? onShutdown = null)
+        Action? onShutdown = null,
+        RuntimePerformanceSampler? sampler = null)
     {
         singleInstanceGuard = guard ?? (pipeName != null
             ? new SingleInstanceGuard($@"Local\NiceWP.Runtime.Host.{pipeName.Replace('\\', '.')}")
@@ -87,6 +90,8 @@ public sealed class RuntimeHostApp : IDisposable
         this.powerPollIntervalMs = powerPollIntervalMs > 0
             ? powerPollIntervalMs
             : IpcConstants.DefaultPowerPollIntervalMs;
+        this.sampler = sampler ?? new RuntimePerformanceSampler(
+            stateProvider: CaptureHostStateSnapshot);
         ipcServer = server ?? new RuntimeIpcServer(
             pipeName,
             onShutdownRequested: RequestShutdown,
@@ -109,6 +114,7 @@ public sealed class RuntimeHostApp : IDisposable
         started = true;
         policyCts = new CancellationTokenSource();
         ipcServer.Start();
+        sampler.Start();
         restoreTask = RestoreLastWallpaperCoreAsync();
         monitorTask = MonitorFullscreenPolicyLoopAsync(policyCts.Token);
         powerMonitorTask = MonitorPowerPolicyLoopAsync(policyCts.Token);
@@ -199,6 +205,11 @@ public sealed class RuntimeHostApp : IDisposable
             return await HandleResumeWallpaperAsync(request).ConfigureAwait(false);
         }
 
+        if (string.Equals(request.Command, IpcConstants.GetPerformanceStatusCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HandleGetPerformanceStatusAsync(request).ConfigureAwait(false);
+        }
+
         return IpcResponse.Fail(request.Id, $"Unknown command: '{request.Command}'");
     }
 
@@ -260,6 +271,64 @@ public sealed class RuntimeHostApp : IDisposable
             activePath: state.Path,
             playbackState: state.PlaybackState,
             isPaused: state.IsPaused);
+    }
+
+    private async Task<IpcResponse> HandleGetPerformanceStatusAsync(IpcRequest request)
+    {
+        if (!IsShuttingDown)
+        {
+            await WaitForPendingRestoreAsync().ConfigureAwait(false);
+        }
+
+        try
+        {
+            var status = sampler.GetStatus();
+            return IpcResponse.PerformanceStatus(request.Id, status);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error retrieving performance status: {ex}");
+            return IpcResponse.Fail(request.Id, "Performance telemetry unavailable.");
+        }
+    }
+
+    public RuntimeHostStateSnapshot CaptureHostStateSnapshot()
+    {
+        var state = currentState;
+        var activeRenderer = compositionRoot.WallpaperService.ActiveRenderer;
+        var isConnected = compositionRoot.WallpaperService.IsDesktopHostConnected;
+        var isAlive = activeRenderer?.IsWindowAlive ?? false;
+
+        string pauseReasons = "None";
+        if (state.IsPaused)
+        {
+            var reasons = new List<string>();
+            if (isManualPaused) reasons.Add("Manual");
+            if (isFullscreenPaused) reasons.Add("Fullscreen");
+            if (isPowerPaused) reasons.Add("Power");
+            pauseReasons = reasons.Count > 0 ? string.Join(", ", reasons) : "Unknown";
+        }
+
+        return new RuntimeHostStateSnapshot(
+            WallpaperType: state.Type,
+            WallpaperState: state.PlaybackState,
+            PauseReasons: pauseReasons,
+            ActiveWallpaperPath: state.Path,
+            DesktopHostConnected: isConnected,
+            RendererWindowAlive: isAlive,
+            SourceWidth: activeRenderer?.SourceWidth,
+            SourceHeight: activeRenderer?.SourceHeight,
+            DecodeWidth: activeRenderer?.DecodeWidth,
+            DecodeHeight: activeRenderer?.DecodeHeight,
+            ApproximateDecodedMemoryBytes: activeRenderer?.ApproximateDecodedMemoryBytes,
+            VideoWidth: activeRenderer?.VideoWidth,
+            VideoHeight: activeRenderer?.VideoHeight,
+            PlaybackStatus: activeRenderer?.PlaybackStatus,
+            PlaybackPosition: activeRenderer?.PlaybackPosition,
+            PlaybackDuration: activeRenderer?.PlaybackDuration,
+            FullscreenPauseActive: isFullscreenPaused,
+            PowerPauseActive: isPowerPaused,
+            ManualPauseActive: isManualPaused);
     }
 
     private async Task<IpcResponse> HandleSetImageAsync(IpcRequest request)
@@ -902,6 +971,7 @@ public sealed class RuntimeHostApp : IDisposable
             Trace.WriteLine($"Error waiting for policy monitor shutdown: {ex}");
         }
         policyCts?.Dispose();
+        sampler.Dispose();
         ipcServer.Dispose();
         compositionRoot.Dispose();
         singleInstanceGuard.Dispose();

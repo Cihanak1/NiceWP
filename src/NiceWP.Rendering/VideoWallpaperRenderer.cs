@@ -29,6 +29,46 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
 
     public RendererLifecycleState LifecycleState { get; private set; } = RendererLifecycleState.Alive;
 
+    public uint? SourceWidth => VideoWidth;
+    public uint? SourceHeight => VideoHeight;
+    public uint? VideoWidth { get; private set; }
+    public uint? VideoHeight { get; private set; }
+    public uint? DecodeWidth { get; private set; }
+    public uint? DecodeHeight { get; private set; }
+
+    public TimeSpan? PlaybackPosition
+    {
+        get
+        {
+            try { return player?.PlaybackSession?.Position; }
+            catch { return null; }
+        }
+    }
+
+    public TimeSpan? PlaybackDuration
+    {
+        get
+        {
+            try { return player?.PlaybackSession?.NaturalDuration; }
+            catch { return null; }
+        }
+    }
+
+    public string? PlaybackStatus
+    {
+        get
+        {
+            try { return player?.PlaybackSession?.PlaybackState.ToString(); }
+            catch { return null; }
+        }
+    }
+
+    public bool IsWindowAlive =>
+        !disposed &&
+        LifecycleState == RendererLifecycleState.Alive &&
+        windowHandle != 0 &&
+        RendererNativeMethods.IsWindow(windowHandle);
+
     public nint WindowHandle
     {
         get
@@ -79,6 +119,12 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
             var profileResult = ValidateProfile(profile);
             if (!profileResult.Success) return profileResult;
 
+            if (profile.Video != null)
+            {
+                VideoWidth = profile.Video.Width;
+                VideoHeight = profile.Video.Height;
+            }
+
             player = new MediaPlayer { AutoPlay = false, IsMuted = true, IsLoopingEnabled = true };
             player.CommandManager.IsEnabled = false;
             try
@@ -106,13 +152,23 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
             window.Closed += OnWindowClosed;
             // As with the image renderer, retain AppWindow before WorkerW reparenting.
             appWindow = window.AppWindow;
-            appWindow.IsShownInSwitchers = false;
+            try
+            {
+                appWindow.IsShownInSwitchers = false;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Disabling IsShownInSwitchers failed: {ex.Message}");
+            }
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
                 presenter.SetBorderAndTitleBar(false, false);
                 presenter.IsResizable = false;
             }
-            appWindow.MoveAndResize(DisplayArea.Primary.OuterBounds);
+            var primaryBounds = DisplayArea.Primary.OuterBounds;
+            DecodeWidth = (uint)primaryBounds.Width;
+            DecodeHeight = (uint)primaryBounds.Height;
+            appWindow.MoveAndResize(primaryBounds);
             source = MediaSource.CreateFromStorageFile(file);
             player.Source = source;
             var result = await opened.Task.WaitAsync(cancellation);
@@ -261,6 +317,10 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
         element = null;
         player = null;
         source = null;
+        VideoWidth = null;
+        VideoHeight = null;
+        DecodeWidth = null;
+        DecodeHeight = null;
 
         var hwndAlive = currentWindow != null && currentHandle != 0 && RendererNativeMethods.IsWindow(currentHandle) && LifecycleState != RendererLifecycleState.NativeWindowLost;
         if (!hwndAlive && currentHandle != 0)

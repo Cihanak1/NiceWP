@@ -22,6 +22,18 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
 
     public RendererLifecycleState LifecycleState { get; private set; } = RendererLifecycleState.Alive;
 
+    public uint? SourceWidth { get; private set; }
+    public uint? SourceHeight { get; private set; }
+    public uint? DecodeWidth { get; private set; }
+    public uint? DecodeHeight { get; private set; }
+    public long? ApproximateDecodedMemoryBytes { get; private set; }
+
+    public bool IsWindowAlive =>
+        !disposed &&
+        LifecycleState == RendererLifecycleState.Alive &&
+        windowHandle != 0 &&
+        RendererNativeMethods.IsWindow(windowHandle);
+
     public nint WindowHandle
     {
         get
@@ -72,6 +84,11 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
             if (codec != BitmapDecoder.PngDecoderId && codec != BitmapDecoder.JpegDecoderId)
                 return new(WallpaperError.UnsupportedFormat, "The file content must be PNG or JPEG.");
             using var bitmap = await DecodeBitmapAsync(decoder, targetBounds.Width, targetBounds.Height);
+            SourceWidth = decoder.PixelWidth;
+            SourceHeight = decoder.PixelHeight;
+            DecodeWidth = (uint)bitmap.PixelWidth;
+            DecodeHeight = (uint)bitmap.PixelHeight;
+            ApproximateDecodedMemoryBytes = (long)bitmap.PixelWidth * bitmap.PixelHeight * 4;
             source = new SoftwareBitmapSource();
             await source.SetBitmapAsync(bitmap);
         }
@@ -105,7 +122,14 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
             windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(window);
             // AppWindow lookup is only supported while the HWND is top-level.
             appWindow = window.AppWindow;
-            appWindow.IsShownInSwitchers = false;
+            try
+            {
+                appWindow.IsShownInSwitchers = false;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Disabling IsShownInSwitchers failed: {ex.Message}");
+            }
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
                 presenter.SetBorderAndTitleBar(false, false);
@@ -225,6 +249,11 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
         imageBrush = null;
         viewport = null;
         source = null;
+        SourceWidth = null;
+        SourceHeight = null;
+        DecodeWidth = null;
+        DecodeHeight = null;
+        ApproximateDecodedMemoryBytes = null;
 
         var hwndAlive = currentWindow != null && currentHandle != 0 && RendererNativeMethods.IsWindow(currentHandle) && LifecycleState != RendererLifecycleState.NativeWindowLost;
         if (!hwndAlive && currentHandle != 0)
