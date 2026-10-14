@@ -1,4 +1,5 @@
 using NiceWP.Core;
+using NiceWP.Platform.Windows;
 using Xunit;
 
 namespace NiceWP.Runtime.Tests;
@@ -210,6 +211,34 @@ public sealed class DesktopHostServiceTests
         service.Dispose();
         Assert.Equal(2, host.DetachCount);
         Assert.Equal(((nint)10, (nint)42, (nint)0), host.LastDetached);
+    }
+
+    [Fact]
+    public async Task StaleAttachment_DetachIsNoOpWhenAlreadyDetachedOrStopped()
+    {
+        var host = new FakeDesktopHost();
+        var service = new DesktopHostService(host);
+        await service.AttachAsync(42);
+
+        service.Stop();
+        Assert.Equal(1, host.DetachCount);
+
+        // Second stop must be an idempotent no-op
+        service.Stop();
+        Assert.Equal(1, host.DetachCount);
+
+        // Subsequent dispose must also be a no-op
+        service.Dispose();
+        Assert.Equal(1, host.DetachCount);
+    }
+
+    [Fact]
+    public void WindowsDesktopHost_DetachOnDestroyedWindowIsNoOp()
+    {
+        var host = new WindowsDesktopHost();
+        // Detaching window 0 or a non-existent window handle is safe and does not throw
+        host.Detach(10, 0, 0);
+        host.Detach(10, 99999, 0);
     }
 
     private sealed class FakeDesktopHost : IDesktopHost

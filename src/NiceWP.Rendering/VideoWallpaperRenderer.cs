@@ -27,8 +27,30 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
     private bool stopped;
     private bool disposed;
 
-    public nint WindowHandle =>
-        window != null && windowHandle != 0 && RendererNativeMethods.IsWindow(windowHandle) ? windowHandle : 0;
+    public RendererLifecycleState LifecycleState { get; private set; } = RendererLifecycleState.Alive;
+
+    public nint WindowHandle
+    {
+        get
+        {
+            if (disposed || LifecycleState == RendererLifecycleState.Disposed)
+            {
+                return 0;
+            }
+
+            if (window != null && windowHandle != 0)
+            {
+                if (RendererNativeMethods.IsWindow(windowHandle))
+                {
+                    return windowHandle;
+                }
+
+                LifecycleState = RendererLifecycleState.NativeWindowLost;
+            }
+
+            return 0;
+        }
+    }
 
     public async Task<WallpaperResult> LoadAsync(string path)
     {
@@ -209,7 +231,7 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
 
     public void Dispose()
     {
-        if (disposed) return;
+        if (disposed || LifecycleState == RendererLifecycleState.Disposed) return;
         disposed = true;
         stopped = true;
         opened.TrySetResult(new(WallpaperError.Stopped, "Video opening was stopped."));
@@ -240,7 +262,11 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
         player = null;
         source = null;
 
-        var hwndAlive = currentWindow != null && currentHandle != 0 && RendererNativeMethods.IsWindow(currentHandle);
+        var hwndAlive = currentWindow != null && currentHandle != 0 && RendererNativeMethods.IsWindow(currentHandle) && LifecycleState != RendererLifecycleState.NativeWindowLost;
+        if (!hwndAlive && currentHandle != 0)
+        {
+            LifecycleState = RendererLifecycleState.NativeWindowLost;
+        }
 
         if (currentPlayer != null)
         {
@@ -277,6 +303,7 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
         }
 
         Release(() => lifetime.Dispose());
+        LifecycleState = RendererLifecycleState.Disposed;
         Trace.WriteLine("Video renderer disposed; player, source and window released.");
     }
 }

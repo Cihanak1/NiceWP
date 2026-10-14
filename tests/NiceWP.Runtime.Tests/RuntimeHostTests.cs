@@ -512,4 +512,247 @@ public sealed class RuntimeHostTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task ExplorerLoss_Apply_Shutdown_IsSafeAndPreservesSettings()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"NiceWP_ShutdownLoss_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var image1 = Path.Combine(tempDir, "image1.jpg");
+            var image2 = Path.Combine(tempDir, "image2.jpg");
+            await File.WriteAllBytesAsync(image1, [1, 2, 3]);
+            await File.WriteAllBytesAsync(image2, [4, 5, 6]);
+
+            var settingsService = new SettingsService(Path.Combine(tempDir, "settings.json"));
+            var desktopHost = new TestDesktopHost { NextHandle = 10 };
+            var renderers = new List<ControllableRenderer>();
+
+            var pipeName = CreateUniquePipeName();
+            using var composition = new RuntimeCompositionRoot(
+                desktopHost,
+                () =>
+                {
+                    var renderer = new ControllableRenderer();
+                    renderers.Add(renderer);
+                    return renderer;
+                },
+                () => new ControllableRenderer(),
+                settingsService);
+            using var guard = new SingleInstanceGuard($@"Local\NiceWP.Test.{Guid.NewGuid():N}");
+            using var host = new RuntimeHostApp(guard: guard, composition: composition, pipeName: pipeName);
+
+            host.Start();
+            var client = new RuntimeIpcClient(pipeName);
+
+            // 1. Initial wallpaper applied
+            var firstSet = await client.SetImageAsync(image1, timeoutMs: 3000);
+            Assert.True(firstSet.Success);
+            Assert.Single(renderers);
+            Assert.Equal(0, renderers[0].DisposeCount);
+
+            // 2. Simulate Explorer restart: window 1 dead, desktop host dead
+            desktopHost.InvalidHandles.Add(10);
+            desktopHost.NextHandle = 20;
+            renderers[0].Handle = 0;
+
+            // 3. Apply wallpaper 2 on new Explorer host
+            var secondSet = await client.SetImageAsync(image2, timeoutMs: 3000);
+            Assert.True(secondSet.Success);
+            Assert.Equal(2, renderers.Count);
+            Assert.Equal(1, renderers[0].DisposeCount);
+            Assert.Equal(0, renderers[1].DisposeCount);
+
+            // 4. Shutdown requested
+            var shutdown = await client.ShutdownAsync(timeoutMs: 3000);
+            Assert.True(shutdown.Success);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (!host.IsShuttingDown && sw.ElapsedMilliseconds < 2000)
+            {
+                await Task.Delay(20);
+            }
+            Assert.True(host.IsShuttingDown);
+            Assert.Equal(1, renderers[0].DisposeCount);
+            Assert.Equal(1, renderers[1].DisposeCount);
+
+            // 5. Settings must preserve image2
+            var persisted = await settingsService.LoadAsync();
+            Assert.Equal(Path.GetFullPath(image2), persisted.LastWallpaperPath);
+            Assert.Equal(IpcConstants.WallpaperTypeImage, persisted.LastWallpaperType);
+            Assert.True(persisted.RestoreLastWallpaper);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task StaleRenderer_Shutdown_DoubleDispose_IsSafe()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"NiceWP_StaleShutdown_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var image = Path.Combine(tempDir, "image.jpg");
+            await File.WriteAllBytesAsync(image, [1, 2, 3]);
+
+            var settingsService = new SettingsService(Path.Combine(tempDir, "settings.json"));
+            var desktopHost = new TestDesktopHost { NextHandle = 10 };
+            var renderers = new List<ControllableRenderer>();
+
+            var pipeName = CreateUniquePipeName();
+            using var composition = new RuntimeCompositionRoot(
+                desktopHost,
+                () =>
+                {
+                    var renderer = new ControllableRenderer();
+                    renderers.Add(renderer);
+                    return renderer;
+                },
+                () => new ControllableRenderer(),
+                settingsService);
+            using var guard = new SingleInstanceGuard($@"Local\NiceWP.Test.{Guid.NewGuid():N}");
+            using var host = new RuntimeHostApp(guard: guard, composition: composition, pipeName: pipeName);
+
+            host.Start();
+            var client = new RuntimeIpcClient(pipeName);
+
+            var set = await client.SetImageAsync(image, timeoutMs: 3000);
+            Assert.True(set.Success);
+            Assert.Single(renderers);
+
+            // Explorer restart kills window and host
+            desktopHost.InvalidHandles.Add(10);
+            renderers[0].Handle = 0;
+
+            // Shutdown with stale renderer
+            host.RequestShutdown();
+            Assert.True(host.IsShuttingDown);
+            Assert.Equal(1, renderers[0].DisposeCount);
+
+            // Calling Dispose after RequestShutdown must be a safe idempotent no-op
+            host.Dispose();
+            Assert.Equal(1, renderers[0].DisposeCount);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task RequestShutdown_And_Dispose_RendererCleanupOnce()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"NiceWP_CleanupOnce_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var image = Path.Combine(tempDir, "image.jpg");
+            await File.WriteAllBytesAsync(image, [1, 2, 3]);
+
+            var settingsService = new SettingsService(Path.Combine(tempDir, "settings.json"));
+            var desktopHost = new TestDesktopHost { NextHandle = 10 };
+            var renderers = new List<ControllableRenderer>();
+
+            var pipeName = CreateUniquePipeName();
+            using var composition = new RuntimeCompositionRoot(
+                desktopHost,
+                () =>
+                {
+                    var renderer = new ControllableRenderer();
+                    renderers.Add(renderer);
+                    return renderer;
+                },
+                () => new ControllableRenderer(),
+                settingsService);
+            using var guard = new SingleInstanceGuard($@"Local\NiceWP.Test.{Guid.NewGuid():N}");
+            using var host = new RuntimeHostApp(guard: guard, composition: composition, pipeName: pipeName);
+
+            host.Start();
+            var client = new RuntimeIpcClient(pipeName);
+
+            var set = await client.SetImageAsync(image, timeoutMs: 3000);
+            Assert.True(set.Success);
+            Assert.Single(renderers);
+            Assert.Equal(0, renderers[0].DisposeCount);
+
+            host.RequestShutdown();
+            Assert.Equal(1, renderers[0].DisposeCount);
+
+            // Repeated dispose does not clean up twice
+            host.Dispose();
+            host.Dispose();
+            Assert.Equal(1, renderers[0].DisposeCount);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Stop_Then_Exit_IsSafeAndPreservesSettings()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"NiceWP_StopExit_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var image = Path.Combine(tempDir, "image.jpg");
+            await File.WriteAllBytesAsync(image, [1, 2, 3]);
+
+            var settingsService = new SettingsService(Path.Combine(tempDir, "settings.json"));
+            var desktopHost = new TestDesktopHost { NextHandle = 10 };
+            var renderers = new List<ControllableRenderer>();
+
+            var pipeName = CreateUniquePipeName();
+            using var composition = new RuntimeCompositionRoot(
+                desktopHost,
+                () =>
+                {
+                    var renderer = new ControllableRenderer();
+                    renderers.Add(renderer);
+                    return renderer;
+                },
+                () => new ControllableRenderer(),
+                settingsService);
+            using var guard = new SingleInstanceGuard($@"Local\NiceWP.Test.{Guid.NewGuid():N}");
+            using var host = new RuntimeHostApp(guard: guard, composition: composition, pipeName: pipeName);
+
+            host.Start();
+            var client = new RuntimeIpcClient(pipeName);
+
+            var set = await client.SetImageAsync(image, timeoutMs: 3000);
+            Assert.True(set.Success);
+            Assert.Single(renderers);
+            Assert.Equal(0, renderers[0].DisposeCount);
+
+            // Stop wallpaper first
+            var stop = await client.StopWallpaperAsync(timeoutMs: 3000);
+            Assert.True(stop.Success);
+            Assert.Equal(1, renderers[0].DisposeCount);
+            Assert.False(host.CurrentState.HasActiveWallpaper);
+
+            // Then Shutdown
+            var shutdown = await client.ShutdownAsync(timeoutMs: 3000);
+            Assert.True(shutdown.Success);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (!host.IsShuttingDown && sw.ElapsedMilliseconds < 2000)
+            {
+                await Task.Delay(20);
+            }
+            Assert.True(host.IsShuttingDown);
+            Assert.Equal(1, renderers[0].DisposeCount);
+
+            // Settings preserved with None (as set by StopWallpaper)
+            var persisted = await settingsService.LoadAsync();
+            Assert.Equal(IpcConstants.WallpaperTypeNone, persisted.LastWallpaperType);
+            Assert.Null(persisted.LastWallpaperPath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
 }

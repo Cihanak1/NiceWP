@@ -20,8 +20,30 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
     private SoftwareBitmapSource? source;
     private bool disposed;
 
-    public nint WindowHandle =>
-        window != null && windowHandle != 0 && RendererNativeMethods.IsWindow(windowHandle) ? windowHandle : 0;
+    public RendererLifecycleState LifecycleState { get; private set; } = RendererLifecycleState.Alive;
+
+    public nint WindowHandle
+    {
+        get
+        {
+            if (disposed || LifecycleState == RendererLifecycleState.Disposed)
+            {
+                return 0;
+            }
+
+            if (window != null && windowHandle != 0)
+            {
+                if (RendererNativeMethods.IsWindow(windowHandle))
+                {
+                    return windowHandle;
+                }
+
+                LifecycleState = RendererLifecycleState.NativeWindowLost;
+            }
+
+            return 0;
+        }
+    }
 
     public async Task<WallpaperResult> LoadAsync(string path)
     {
@@ -188,7 +210,7 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
 
     public void Dispose()
     {
-        if (disposed) return;
+        if (disposed || LifecycleState == RendererLifecycleState.Disposed) return;
         disposed = true;
 
         var currentWindow = window;
@@ -204,7 +226,12 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
         viewport = null;
         source = null;
 
-        var hwndAlive = currentWindow != null && currentHandle != 0 && RendererNativeMethods.IsWindow(currentHandle);
+        var hwndAlive = currentWindow != null && currentHandle != 0 && RendererNativeMethods.IsWindow(currentHandle) && LifecycleState != RendererLifecycleState.NativeWindowLost;
+        if (!hwndAlive && currentHandle != 0)
+        {
+            LifecycleState = RendererLifecycleState.NativeWindowLost;
+        }
+
         if (hwndAlive)
         {
             try
@@ -244,6 +271,7 @@ public sealed class ImageWallpaperRenderer : IWallpaperRenderer
             Trace.WriteLine($"Image window 0x{currentHandle:X} already destroyed; skipped XAML Window teardown.");
         }
 
+        LifecycleState = RendererLifecycleState.Disposed;
         Trace.WriteLine("Image renderer disposed; source and window released.");
     }
 }

@@ -32,12 +32,26 @@ public partial class App : Application
         var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         var dispatcher = new WinUIHostDispatcher(dispatcherQueue);
 
-        hostApp = new RuntimeHostApp(dispatcher: dispatcher);
+        hostApp = new RuntimeHostApp(
+            dispatcher: dispatcher,
+            onShutdown: () =>
+            {
+                try
+                {
+                    hostApp?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"Error during host disposal on shutdown: {ex}");
+                }
+                Environment.Exit(0);
+            });
+
         if (!hostApp.IsSingleInstance)
         {
             Trace.WriteLine("NiceWP.Runtime.Host is already running. Exiting.");
             hostApp.Dispose();
-            Exit();
+            Environment.Exit(0);
             return;
         }
 

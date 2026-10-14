@@ -40,6 +40,8 @@ public sealed class WindowsDesktopHost : IDesktopHost
         return explorer.Handle != 0 && FindHost(explorer) == handle;
     }
 
+    public bool IsWindowAlive(nint window) => window != 0 && IsWindow(window);
+
     public nint Attach(nint host, nint window)
     {
         ValidateWindow(window);
@@ -111,28 +113,40 @@ public sealed class WindowsDesktopHost : IDesktopHost
 
     public void Detach(nint host, nint window, nint previousParent)
     {
-        if (!attachments.TryGetValue(window, out var state))
+        if (window == 0 || !attachments.TryGetValue(window, out var state))
         {
+            return;
+        }
+
+        if (!IsWindow(window))
+        {
+            attachments.TryRemove(window, out _);
+            Trace.WriteLine($"Desktop cleanup: window=0x{window:X} already destroyed.");
             return;
         }
 
         if (state.Host != host || state.Parent != previousParent)
         {
-            throw new InvalidOperationException("The supplied attachment does not match the saved window state.");
+            if (host != 0 && !IsValid(host))
+            {
+                Trace.WriteLine($"Desktop cleanup: host 0x{host:X} no longer valid; proceeding with window detach.");
+            }
+            else
+            {
+                throw new InvalidOperationException("The supplied attachment does not match the saved window state.");
+            }
         }
 
-        if (IsWindow(window))
+        try
         {
             ValidateWindow(window);
             Restore(window, state);
             Trace.WriteLine($"Desktop cleanup: window=0x{window:X}, parent=0x{GetParent(window):X}, styleRestored={GetWindowLongPtr(window, StyleIndex) == state.Style}");
         }
-        else
+        finally
         {
-            Trace.WriteLine($"Desktop cleanup: window=0x{window:X} already destroyed.");
+            attachments.TryRemove(window, out _);
         }
-
-        attachments.TryRemove(window, out _);
     }
 
     private static DesktopHostResult Resolve(CancellationToken cancellationToken)

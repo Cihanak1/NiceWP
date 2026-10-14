@@ -174,7 +174,7 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
         if (active == null || desktop.Handle == 0) return new();
         try
         {
-            if (active.WindowHandle != 0 && host.IsValid(desktop.Handle)) return new();
+            if (active.WindowHandle != 0 && host.IsWindowAlive(active.WindowHandle) && host.IsValid(desktop.Handle)) return new();
             var cleanup = Stop();
             return cleanup.Success
                 ? new(WallpaperError.DesktopHostUnavailable, "The desktop host is no longer available. Select an image again.") : cleanup;

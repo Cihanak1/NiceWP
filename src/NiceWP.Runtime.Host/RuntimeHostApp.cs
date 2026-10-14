@@ -19,6 +19,7 @@ public sealed class RuntimeHostApp : IDisposable
     private readonly IPowerStatusProvider powerStatusProvider;
     private readonly RuntimeIpcServer ipcServer;
     private readonly ManualResetEventSlim shutdownEvent = new(false);
+    private readonly Action? onShutdownAction;
     private readonly int restoreWaitTimeoutMs;
     private readonly int fullscreenPollIntervalMs;
     private readonly int powerPollIntervalMs;
@@ -66,7 +67,8 @@ public sealed class RuntimeHostApp : IDisposable
         IFullscreenWindowDetector? fullscreenDetector = null,
         int fullscreenPollIntervalMs = IpcConstants.DefaultFullscreenPollIntervalMs,
         IPowerStatusProvider? powerStatusProvider = null,
-        int powerPollIntervalMs = IpcConstants.DefaultPowerPollIntervalMs)
+        int powerPollIntervalMs = IpcConstants.DefaultPowerPollIntervalMs,
+        Action? onShutdown = null)
     {
         singleInstanceGuard = guard ?? (pipeName != null
             ? new SingleInstanceGuard($@"Local\NiceWP.Runtime.Host.{pipeName.Replace('\\', '.')}")
@@ -75,6 +77,7 @@ public sealed class RuntimeHostApp : IDisposable
         this.dispatcher = dispatcher ?? new CurrentThreadHostDispatcher();
         this.fullscreenDetector = fullscreenDetector ?? compositionRoot.FullscreenDetector;
         this.powerStatusProvider = powerStatusProvider ?? compositionRoot.PowerStatusProvider;
+        this.onShutdownAction = onShutdown;
         this.restoreWaitTimeoutMs = restoreWaitTimeoutMs > 0
             ? restoreWaitTimeoutMs
             : IpcConstants.DefaultRestoreWaitTimeoutMs;
@@ -832,33 +835,29 @@ public sealed class RuntimeHostApp : IDisposable
 
         try
         {
-            if (Application.Current != null)
+            if (dispatcher.HasThreadAccess)
             {
-                _ = dispatcher.InvokeAsync(() =>
+                if (!compositionRoot.IsDisposed)
                 {
-                    try
+                    compositionRoot.WallpaperService.Stop();
+                }
+            }
+            else
+            {
+                try
+                {
+                    dispatcher.InvokeAsync(() =>
                     {
                         if (!compositionRoot.IsDisposed)
                         {
                             compositionRoot.WallpaperService.Stop();
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        Trace.WriteLine($"Error stopping wallpaper: {ex}");
-                    }
-                    Application.Current?.Exit();
-                });
-            }
-            else
-            {
-                dispatcher.InvokeAsync(() =>
+                    }).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
                 {
-                    if (!compositionRoot.IsDisposed)
-                    {
-                        compositionRoot.WallpaperService.Stop();
-                    }
-                }).GetAwaiter().GetResult();
+                    Trace.WriteLine($"Error stopping wallpaper on dispatcher during shutdown: {ex}");
+                }
             }
         }
         catch (Exception ex)
@@ -880,6 +879,7 @@ public sealed class RuntimeHostApp : IDisposable
         CancelPolicyMonitor();
         StopWallpaperOnceForShutdown();
         TrySetShutdownEvent();
+        onShutdownAction?.Invoke();
     }
 
     public void Dispose()

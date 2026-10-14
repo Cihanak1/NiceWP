@@ -17,4 +17,7 @@ public interface IDesktopHost
     /// <summary>Restores the saved parent, style and bounds on the owning thread; failures throw.
     /// Repeated detachment is safe. A destroyed window only releases the saved state.</summary>
     void Detach(nint host, nint window, nint previousParent);
+
+    /// <summary>Checks whether the given window HWND is alive and valid.</summary>
+    bool IsWindowAlive(nint window) => window != 0;
 }
