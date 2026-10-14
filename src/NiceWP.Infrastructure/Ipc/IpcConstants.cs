@@ -35,7 +35,15 @@ public static class IpcConstants
     public const int DefaultInitialPingTimeoutMs = 300;
     public const int DefaultRestoreWaitTimeoutMs = 2000;
     public const int DefaultFullscreenPollIntervalMs = 500;
+    public const int DefaultFullscreenFallbackIntervalMs = 5000;
     public const int DefaultPowerPollIntervalMs = 3000;
+    public const int DefaultPowerFallbackIntervalMs = 30000;
+
+    public const string PauseReasonManual = "Manual";
+    public const string PauseReasonFullscreen = "Fullscreen";
+    public const string PauseReasonPower = "Power";
+    public const string PauseReasonSessionLocked = "SessionLocked";
+    public const string PauseReasonDisplayOff = "DisplayOff";
 
     public static string GetDefaultPipeName() =>
         $"NiceWP.Runtime.Pipe.{Environment.UserName}";

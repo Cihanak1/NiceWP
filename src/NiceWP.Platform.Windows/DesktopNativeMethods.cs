@@ -147,4 +147,91 @@ internal static class DesktopNativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetSystemPowerStatus(out SystemPowerStatus lpSystemPowerStatus);
+
+    internal const uint WmWtsSessionChange = 0x02B1;
+    internal const uint WmPowerBroadcast = 0x0218;
+    internal const uint PbtPowerSettingChange = 0x8013;
+    internal const uint PbtApmPowerStatusChange = 0x000A;
+    internal const nuint WtsSessionLock = 0x7;
+    internal const nuint WtsSessionUnlock = 0x8;
+    internal const nuint WtsRemoteConnect = 0x3;
+    internal const nuint WtsRemoteDisconnect = 0x4;
+    internal const uint EventSystemForeground = 0x0003;
+    internal const uint WinEventOutOfContext = 0x0000;
+    internal const uint NotifyForThisSession = 0;
+    internal const uint DeviceNotifyWindowHandle = 0;
+
+    internal static readonly Guid GuidConsoleDisplayState = new(0x6fe69556, 0x704a, 0x47a0, 0x8f, 0x24, 0xc2, 0x8d, 0x93, 0x6f, 0xda, 0x47);
+    internal static readonly Guid GuidAcDcPowerSource = new(0x5d3e9a59, 0xe9d5, 0x4b00, 0xa6, 0xbd, 0xff, 0x34, 0xff, 0x51, 0x65, 0x48);
+    internal static readonly Guid GuidPowerSavingStatus = new(0xe00958da, 0x1821, 0x4814, 0xaf, 0x59, 0x6e, 0x02, 0x63, 0x3c, 0x7d, 0x07);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct WindowClassEx
+    {
+        internal uint cbSize;
+        internal uint style;
+        internal nint lpfnWndProc;
+        internal int cbClsExtra;
+        internal int cbWndExtra;
+        internal nint hInstance;
+        internal nint hIcon;
+        internal nint hCursor;
+        internal nint hbrBackground;
+        internal string? lpszMenuName;
+        internal string lpszClassName;
+        internal nint hIconSm;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct PowerBroadcastSetting
+    {
+        internal Guid PowerSetting;
+        internal uint DataLength;
+        internal byte Data;
+    }
+
+    internal delegate nint WndProc(nint hWnd, uint uMsg, nuint wParam, nint lParam);
+    internal delegate void WinEventProc(nint hWinEventHook, uint eventType, nint hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+    [DllImport("wtsapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool WTSRegisterSessionNotification(nint hWnd, uint dwFlags);
+
+    [DllImport("wtsapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool WTSUnRegisterSessionNotification(nint hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern nint RegisterPowerSettingNotification(nint hRecipient, in Guid powerSettingGuid, uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool UnregisterPowerSettingNotification(nint handle);
+
+    [DllImport("user32.dll")]
+    internal static extern nint SetWinEventHook(uint eventMin, uint eventMax, nint hmodWinEventProc, WinEventProc lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool UnhookWinEvent(nint hWinEventHook);
+
+    [DllImport("user32.dll", EntryPoint = "CreateWindowExW", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern nint CreateWindowEx(uint dwExStyle, string lpClassName, string lpWindowName, uint dwStyle, int x, int y, int nWidth, int nHeight, nint hWndParent, nint hMenu, nint hInstance, nint lpParam);
+
+    [DllImport("user32.dll", EntryPoint = "DefWindowProcW", CharSet = CharSet.Unicode)]
+    internal static extern nint DefWindowProc(nint hWnd, uint uMsg, nuint wParam, nint lParam);
+
+    [DllImport("user32.dll", EntryPoint = "DestroyWindow", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DestroyWindow(nint hWnd);
+
+    [DllImport("user32.dll", EntryPoint = "RegisterClassExW", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern ushort RegisterClassEx(ref WindowClassEx lpwcx);
+
+    [DllImport("user32.dll", EntryPoint = "UnregisterClassW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool UnregisterClass(string lpClassName, nint hInstance);
+
+    [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW", CharSet = CharSet.Unicode)]
+    internal static extern nint GetModuleHandle(string? lpModuleName);
 }

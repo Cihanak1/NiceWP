@@ -648,13 +648,27 @@
                         CornerRadius="8"
                         Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Efficiency &amp; Host Attachment" FontSize="15" FontWeight="SemiBold" />
+                            <Grid>
+                                <TextBlock Text="Efficiency &amp; Host Attachment" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Border x:Name="PerfEfficiencyStatusBadge"
+                                        HorizontalAlignment="Right"
+                                        CornerRadius="4"
+                                        Padding="8,2"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                    <TextBlock x:Name="PerfEfficiencyStatusText"
+                                               Text="Efficiency: Active"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                </Border>
+                            </Grid>
                             <Grid ColumnSpacing="16" RowSpacing="10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
@@ -677,6 +691,16 @@
                                 <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
                                     <TextBlock Text="Power / Battery Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="PerfPowerPolicyText" Text="Inactive" FontSize="13" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Session Lock Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfSessionLockPolicyText" Text="Inactive" FontSize="13" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Display Power Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfDisplayPowerPolicyText" Text="Inactive" FontSize="13" />
                                 </StackPanel>
                             </Grid>
                         </StackPanel>

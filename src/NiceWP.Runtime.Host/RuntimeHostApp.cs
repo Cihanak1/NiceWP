@@ -17,13 +17,16 @@ public sealed class RuntimeHostApp : IDisposable
     private readonly IHostDispatcher dispatcher;
     private readonly IFullscreenWindowDetector fullscreenDetector;
     private readonly IPowerStatusProvider powerStatusProvider;
+    private readonly IRuntimeEventNotifier eventNotifier;
     private readonly RuntimeIpcServer ipcServer;
     private readonly RuntimePerformanceSampler sampler;
     private readonly ManualResetEventSlim shutdownEvent = new(false);
     private readonly Action? onShutdownAction;
     private readonly int restoreWaitTimeoutMs;
     private readonly int fullscreenPollIntervalMs;
+    private readonly int fullscreenFallbackIntervalMs;
     private readonly int powerPollIntervalMs;
+    private readonly int powerFallbackIntervalMs;
     private CancellationTokenSource? policyCts;
     private volatile TaskCompletionSource<bool> policyWakeSignal =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -34,6 +37,8 @@ public sealed class RuntimeHostApp : IDisposable
     private volatile bool isManualPaused;
     private volatile bool isFullscreenPaused;
     private volatile bool isPowerPaused;
+    private volatile bool isSessionLockedPaused;
+    private volatile bool isDisplayOffPaused;
     private int commandSequence;
     private int shutdownRequested;
     private int wallpaperStoppedOnShutdown;
@@ -47,14 +52,17 @@ public sealed class RuntimeHostApp : IDisposable
     public IHostDispatcher Dispatcher => dispatcher;
     public IFullscreenWindowDetector FullscreenDetector => fullscreenDetector;
     public IPowerStatusProvider PowerStatusProvider => powerStatusProvider;
+    public IRuntimeEventNotifier EventNotifier => eventNotifier;
     public RuntimeIpcServer IpcServer => ipcServer;
     public RuntimeWallpaperState CurrentState => currentState;
     public RuntimePerformanceSampler Sampler => sampler;
     public bool IsManualPaused => isManualPaused;
     public bool IsFullscreenPaused => isFullscreenPaused;
     public bool IsPowerPaused => isPowerPaused;
-    public bool IsAutoPaused => !isManualPaused && (isFullscreenPaused || isPowerPaused);
-    public bool ShouldBePaused => isManualPaused || isFullscreenPaused || isPowerPaused;
+    public bool IsSessionLockedPaused => isSessionLockedPaused;
+    public bool IsDisplayOffPaused => isDisplayOffPaused;
+    public bool IsAutoPaused => !isManualPaused && (isFullscreenPaused || isPowerPaused || isSessionLockedPaused || isDisplayOffPaused);
+    public bool ShouldBePaused => isManualPaused || isFullscreenPaused || isPowerPaused || isSessionLockedPaused || isDisplayOffPaused;
     public Task RestoreTask => restoreTask;
     public Task MonitorTask => monitorTask;
     public Task PowerMonitorTask => powerMonitorTask;
@@ -68,10 +76,13 @@ public sealed class RuntimeHostApp : IDisposable
         int restoreWaitTimeoutMs = IpcConstants.DefaultRestoreWaitTimeoutMs,
         IFullscreenWindowDetector? fullscreenDetector = null,
         int fullscreenPollIntervalMs = IpcConstants.DefaultFullscreenPollIntervalMs,
+        int fullscreenFallbackIntervalMs = IpcConstants.DefaultFullscreenFallbackIntervalMs,
         IPowerStatusProvider? powerStatusProvider = null,
         int powerPollIntervalMs = IpcConstants.DefaultPowerPollIntervalMs,
+        int powerFallbackIntervalMs = IpcConstants.DefaultPowerFallbackIntervalMs,
         Action? onShutdown = null,
-        RuntimePerformanceSampler? sampler = null)
+        RuntimePerformanceSampler? sampler = null,
+        IRuntimeEventNotifier? eventNotifier = null)
     {
         singleInstanceGuard = guard ?? (pipeName != null
             ? new SingleInstanceGuard($@"Local\NiceWP.Runtime.Host.{pipeName.Replace('\\', '.')}")
@@ -80,6 +91,7 @@ public sealed class RuntimeHostApp : IDisposable
         this.dispatcher = dispatcher ?? new CurrentThreadHostDispatcher();
         this.fullscreenDetector = fullscreenDetector ?? compositionRoot.FullscreenDetector;
         this.powerStatusProvider = powerStatusProvider ?? compositionRoot.PowerStatusProvider;
+        this.eventNotifier = eventNotifier ?? compositionRoot.EventNotifier;
         this.onShutdownAction = onShutdown;
         this.restoreWaitTimeoutMs = restoreWaitTimeoutMs > 0
             ? restoreWaitTimeoutMs
@@ -87,9 +99,15 @@ public sealed class RuntimeHostApp : IDisposable
         this.fullscreenPollIntervalMs = fullscreenPollIntervalMs > 0
             ? fullscreenPollIntervalMs
             : IpcConstants.DefaultFullscreenPollIntervalMs;
+        this.fullscreenFallbackIntervalMs = fullscreenFallbackIntervalMs > 0
+            ? fullscreenFallbackIntervalMs
+            : IpcConstants.DefaultFullscreenFallbackIntervalMs;
         this.powerPollIntervalMs = powerPollIntervalMs > 0
             ? powerPollIntervalMs
             : IpcConstants.DefaultPowerPollIntervalMs;
+        this.powerFallbackIntervalMs = powerFallbackIntervalMs > 0
+            ? powerFallbackIntervalMs
+            : IpcConstants.DefaultPowerFallbackIntervalMs;
         this.sampler = sampler ?? new RuntimePerformanceSampler(
             stateProvider: CaptureHostStateSnapshot);
         ipcServer = server ?? new RuntimeIpcServer(
@@ -113,12 +131,50 @@ public sealed class RuntimeHostApp : IDisposable
 
         started = true;
         policyCts = new CancellationTokenSource();
+        eventNotifier.ForegroundWindowChanged += OnForegroundWindowChanged;
+        eventNotifier.PowerStatusChanged += OnPowerStatusChanged;
+        eventNotifier.SessionLockChanged += OnSessionLockChanged;
+        eventNotifier.DisplayPowerChanged += OnDisplayPowerChanged;
         ipcServer.Start();
         sampler.Start();
         restoreTask = RestoreLastWallpaperCoreAsync();
         monitorTask = MonitorFullscreenPolicyLoopAsync(policyCts.Token);
         powerMonitorTask = MonitorPowerPolicyLoopAsync(policyCts.Token);
         Trace.WriteLine($"NiceWP.Runtime.Host started, pid={Environment.ProcessId}");
+    }
+
+    private void OnForegroundWindowChanged(object? sender, EventArgs e)
+    {
+        if (IsShuttingDown) return;
+        _ = EvaluateFullscreenPolicyAsync();
+    }
+
+    private void OnPowerStatusChanged(object? sender, EventArgs e)
+    {
+        if (IsShuttingDown) return;
+        _ = EvaluatePowerPolicyAsync();
+    }
+
+    private void OnSessionLockChanged(bool isLocked)
+    {
+        if (IsShuttingDown) return;
+        _ = dispatcher.InvokeAsync(() =>
+        {
+            if (IsShuttingDown || !currentState.HasActiveWallpaper) return;
+            isSessionLockedPaused = isLocked;
+            SynchronizeAutoPauseStateOnDispatcher();
+        });
+    }
+
+    private void OnDisplayPowerChanged(bool isDisplayOn)
+    {
+        if (IsShuttingDown) return;
+        _ = dispatcher.InvokeAsync(() =>
+        {
+            if (IsShuttingDown || !currentState.HasActiveWallpaper) return;
+            isDisplayOffPaused = !isDisplayOn;
+            SynchronizeAutoPauseStateOnDispatcher();
+        });
     }
 
     public int Run(CancellationToken cancellationToken = default)
@@ -306,6 +362,8 @@ public sealed class RuntimeHostApp : IDisposable
             if (isManualPaused) reasons.Add("Manual");
             if (isFullscreenPaused) reasons.Add("Fullscreen");
             if (isPowerPaused) reasons.Add("Power");
+            if (isSessionLockedPaused) reasons.Add("SessionLocked");
+            if (isDisplayOffPaused) reasons.Add("DisplayOff");
             pauseReasons = reasons.Count > 0 ? string.Join(", ", reasons) : "Unknown";
         }
 
@@ -328,7 +386,9 @@ public sealed class RuntimeHostApp : IDisposable
             PlaybackDuration: activeRenderer?.PlaybackDuration,
             FullscreenPauseActive: isFullscreenPaused,
             PowerPauseActive: isPowerPaused,
-            ManualPauseActive: isManualPaused);
+            ManualPauseActive: isManualPaused,
+            SessionLockedPauseActive: isSessionLockedPaused,
+            DisplayOffPauseActive: isDisplayOffPaused);
     }
 
     private async Task<IpcResponse> HandleSetImageAsync(IpcRequest request)
@@ -541,6 +601,8 @@ public sealed class RuntimeHostApp : IDisposable
         isManualPaused = false;
         isFullscreenPaused = false;
         isPowerPaused = false;
+        isSessionLockedPaused = false;
+        isDisplayOffPaused = false;
     }
 
     private void NotifyPolicyStateChanged()
@@ -583,7 +645,11 @@ public sealed class RuntimeHostApp : IDisposable
                     break;
                 }
 
-                await Task.Delay(fullscreenPollIntervalMs, cancellationToken).ConfigureAwait(false);
+                var delayMs = eventNotifier.IsForegroundHookActive
+                    ? fullscreenFallbackIntervalMs
+                    : fullscreenPollIntervalMs;
+
+                await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
                 if (cancellationToken.IsCancellationRequested || disposed || shutdownEvent.IsSet)
                 {
                     break;
@@ -613,7 +679,11 @@ public sealed class RuntimeHostApp : IDisposable
                     break;
                 }
 
-                await Task.Delay(powerPollIntervalMs, cancellationToken).ConfigureAwait(false);
+                var delayMs = eventNotifier.IsPowerNotificationActive
+                    ? powerFallbackIntervalMs
+                    : powerPollIntervalMs;
+
+                await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
                 if (cancellationToken.IsCancellationRequested || disposed || shutdownEvent.IsSet)
                 {
                     break;
@@ -724,7 +794,7 @@ public sealed class RuntimeHostApp : IDisposable
             if (result.Success)
             {
                 currentState = currentState.AsPaused();
-                Trace.WriteLine($"Wallpaper auto-paused (fullscreen={isFullscreenPaused}, power={isPowerPaused}): {currentState.Path}");
+                Trace.WriteLine($"Wallpaper auto-paused (fullscreen={isFullscreenPaused}, power={isPowerPaused}, sessionLocked={isSessionLockedPaused}, displayOff={isDisplayOffPaused}): {currentState.Path}");
             }
             else if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
             {
@@ -959,6 +1029,10 @@ public sealed class RuntimeHostApp : IDisposable
         Interlocked.Increment(ref commandSequence);
         ClearPauseReasons();
         currentState = RuntimeWallpaperState.Empty;
+        eventNotifier.ForegroundWindowChanged -= OnForegroundWindowChanged;
+        eventNotifier.PowerStatusChanged -= OnPowerStatusChanged;
+        eventNotifier.SessionLockChanged -= OnSessionLockChanged;
+        eventNotifier.DisplayPowerChanged -= OnDisplayPowerChanged;
         CancelPolicyMonitor();
         StopWallpaperOnceForShutdown();
         TrySetShutdownEvent();

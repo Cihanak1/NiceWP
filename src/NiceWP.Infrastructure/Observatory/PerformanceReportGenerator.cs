@@ -79,6 +79,8 @@ public static class PerformanceReportGenerator
         sb.AppendLine($"Active Pause Reasons: {snapshot.PauseReasons}");
         sb.AppendLine($"Fullscreen Policy   : {(snapshot.FullscreenPauseActive ? "Active (Paused due to foreground window)" : "Inactive")}");
         sb.AppendLine($"Power Policy        : {(snapshot.PowerPauseActive ? "Active (Paused due to battery saver/DC)" : "Inactive")}");
+        sb.AppendLine($"Session Lock Policy : {(snapshot.SessionLockedPauseActive ? "Active (Paused due to locked session)" : "Inactive")}");
+        sb.AppendLine($"Display Power Policy: {(snapshot.DisplayOffPauseActive ? "Active (Paused due to display sleep/off)" : "Inactive")}");
         sb.AppendLine($"Manual Pause        : {(snapshot.ManualPauseActive ? "Active (User paused)" : "Inactive")}");
         sb.AppendLine();
 

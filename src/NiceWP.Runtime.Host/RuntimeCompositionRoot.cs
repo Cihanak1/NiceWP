@@ -17,6 +17,7 @@ public sealed class RuntimeCompositionRoot : IDisposable
     public SettingsService SettingsService { get; }
     public IFullscreenWindowDetector FullscreenDetector { get; }
     public IPowerStatusProvider PowerStatusProvider { get; }
+    public IRuntimeEventNotifier EventNotifier { get; }
     public bool IsDisposed => disposed;
     private bool disposed;
 
@@ -26,7 +27,8 @@ public sealed class RuntimeCompositionRoot : IDisposable
         Func<IWallpaperRenderer>? videoRendererFactory = null,
         SettingsService? settingsService = null,
         IFullscreenWindowDetector? fullscreenDetector = null,
-        IPowerStatusProvider? powerStatusProvider = null)
+        IPowerStatusProvider? powerStatusProvider = null,
+        IRuntimeEventNotifier? eventNotifier = null)
     {
         DesktopHost = desktopHost ?? new WindowsDesktopHost();
         var createImg = imageRendererFactory ?? (() => new ImageWallpaperRenderer());
@@ -40,12 +42,23 @@ public sealed class RuntimeCompositionRoot : IDisposable
         PowerStatusProvider = powerStatusProvider ?? (isProductionDesktop
             ? new WindowsPowerStatusProvider()
             : new InactivePowerStatusProvider());
+        EventNotifier = eventNotifier ?? (isProductionDesktop
+            ? new WindowsRuntimeEventNotifier()
+            : NullRuntimeEventNotifier.Instance);
     }
 
     public void Dispose()
     {
         if (disposed) return;
         disposed = true;
+        try
+        {
+            EventNotifier.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error during event notifier cleanup: {ex}");
+        }
         try
         {
             WallpaperService.Stop();

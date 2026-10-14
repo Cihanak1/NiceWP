@@ -43,6 +43,8 @@ public sealed class RuntimePerformanceSnapshot
     public bool FullscreenPauseActive { get; init; }
     public bool PowerPauseActive { get; init; }
     public bool ManualPauseActive { get; init; }
+    public bool SessionLockedPauseActive { get; init; }
+    public bool DisplayOffPauseActive { get; init; }
 
     // GPU Metrics (null when unavailable)
     public double? GpuPercent { get; init; }
@@ -57,4 +59,12 @@ public sealed class RuntimePerformanceSnapshot
 
     public bool HasActiveWallpaper =>
         !string.Equals(WallpaperType, IpcConstants.WallpaperTypeNone, StringComparison.OrdinalIgnoreCase);
+
+    public bool IsPaused =>
+        HasActiveWallpaper &&
+        string.Equals(WallpaperState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase);
+
+    public bool IsRunning =>
+        HasActiveWallpaper &&
+        string.Equals(WallpaperState, IpcConstants.PlaybackStateRunning, StringComparison.OrdinalIgnoreCase);
 }

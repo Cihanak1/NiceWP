@@ -26,7 +26,9 @@ public sealed record RuntimeHostStateSnapshot(
     TimeSpan? PlaybackDuration = null,
     bool FullscreenPauseActive = false,
     bool PowerPauseActive = false,
-    bool ManualPauseActive = false)
+    bool ManualPauseActive = false,
+    bool SessionLockedPauseActive = false,
+    bool DisplayOffPauseActive = false)
 {
     public static readonly RuntimeHostStateSnapshot Empty = new(
         IpcConstants.WallpaperTypeNone,
@@ -51,14 +53,19 @@ public sealed class RuntimePerformanceSampler : IDisposable
     private readonly IGpuMetricsProvider gpuProvider;
     private readonly PerformanceRingBuffer ringBuffer;
     private readonly int sampleIntervalMs;
+    private readonly int kernelMetricsInterval;
     private readonly DateTime startTimeUtc;
     private readonly object syncRoot = new();
     private CancellationTokenSource? cts;
     private Task? sampleLoopTask;
     private RuntimePerformanceSnapshot latestSnapshot;
+    private int sampleCounter;
+    private int cachedThreadCount;
+    private int cachedHandleCount;
     private bool disposed;
 
     public int SampleIntervalMs => sampleIntervalMs;
+    public int KernelMetricsInterval => kernelMetricsInterval;
     public PerformanceRingBuffer RingBuffer => ringBuffer;
     public RuntimePerformanceSnapshot LatestSnapshot => latestSnapshot;
     public bool IsRunning => sampleLoopTask != null && !sampleLoopTask.IsCompleted;
@@ -68,12 +75,14 @@ public sealed class RuntimePerformanceSampler : IDisposable
         Func<RuntimeHostStateSnapshot>? stateProvider = null,
         IGpuMetricsProvider? gpuProvider = null,
         int sampleIntervalMs = 1000,
-        int ringBufferCapacity = 60)
+        int ringBufferCapacity = 60,
+        int kernelMetricsInterval = 5)
     {
         this.process = process ?? Process.GetCurrentProcess();
         this.stateProvider = stateProvider ?? (() => RuntimeHostStateSnapshot.Empty);
         this.gpuProvider = gpuProvider ?? UnavailableGpuMetricsProvider.Instance;
         this.sampleIntervalMs = sampleIntervalMs > 0 ? sampleIntervalMs : 1000;
+        this.kernelMetricsInterval = kernelMetricsInterval > 0 ? kernelMetricsInterval : 5;
         this.ringBuffer = new PerformanceRingBuffer(ringBufferCapacity > 0 ? ringBufferCapacity : 60);
         this.cpuCalculator = new CpuUsageCalculator(this.process);
 
@@ -199,8 +208,16 @@ public sealed class RuntimePerformanceSampler : IDisposable
                 process.Refresh();
                 workingSet = process.WorkingSet64;
                 privateMemory = process.PrivateMemorySize64;
-                threadCount = process.Threads.Count;
-                handleCount = process.HandleCount;
+
+                var shouldRefreshKernelMetrics = sampleCounter % kernelMetricsInterval == 0 || cachedThreadCount == 0;
+                if (shouldRefreshKernelMetrics)
+                {
+                    cachedThreadCount = process.Threads.Count;
+                    cachedHandleCount = process.HandleCount;
+                }
+                threadCount = cachedThreadCount;
+                handleCount = cachedHandleCount;
+                sampleCounter++;
             }
             catch (Exception ex)
             {
@@ -269,6 +286,8 @@ public sealed class RuntimePerformanceSampler : IDisposable
                 FullscreenPauseActive = state.FullscreenPauseActive,
                 PowerPauseActive = state.PowerPauseActive,
                 ManualPauseActive = state.ManualPauseActive,
+                SessionLockedPauseActive = state.SessionLockedPauseActive,
+                DisplayOffPauseActive = state.DisplayOffPauseActive,
 
                 GpuPercent = gpuUsage,
                 GpuMemoryBytes = gpuMemory,

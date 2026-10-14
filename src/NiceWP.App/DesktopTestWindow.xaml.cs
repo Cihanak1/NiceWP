@@ -78,7 +78,11 @@ public sealed partial class DesktopTestWindow : Window
             runtimeClient.IpcClient,
             initialWindowVisible: !isStartup,
             restoreWindowAction: RestoreAndShowWindow,
-            hideWindowAction: () => AppWindow.Hide(),
+            hideWindowAction: () =>
+            {
+                StopPerformancePolling();
+                AppWindow.Hide();
+            },
             exitAppAction: PerformAppExit,
             syncStatusAction: SyncRuntimeStatusAsync);
 
@@ -1863,6 +1867,31 @@ public sealed partial class DesktopTestWindow : Window
         PerfPauseReasonsText.Text = snap.PauseReasons;
         PerfFullscreenPolicyText.Text = snap.FullscreenPauseActive ? "Active (Auto-paused by fullscreen window)" : "Inactive (Desktop visible)";
         PerfPowerPolicyText.Text = snap.PowerPauseActive ? "Active (Auto-paused by power policy)" : "Inactive (AC or policy satisfied)";
+        PerfSessionLockPolicyText.Text = snap.SessionLockedPauseActive ? "Active (Auto-paused by session lock)" : "Inactive (Session unlocked)";
+        PerfDisplayPowerPolicyText.Text = snap.DisplayOffPauseActive ? "Active (Auto-paused by display off)" : "Inactive (Display active)";
+
+        if (snap.HasActiveWallpaper)
+        {
+            if (snap.IsPaused)
+            {
+                if (snap.FullscreenPauseActive || snap.PowerPauseActive || snap.SessionLockedPauseActive || snap.DisplayOffPauseActive)
+                {
+                    PerfEfficiencyStatusText.Text = "Efficiency: Paused to save resources";
+                }
+                else
+                {
+                    PerfEfficiencyStatusText.Text = "Efficiency: Paused (Manual)";
+                }
+            }
+            else
+            {
+                PerfEfficiencyStatusText.Text = "Efficiency: Active";
+            }
+        }
+        else
+        {
+            PerfEfficiencyStatusText.Text = "Efficiency: Idle (No wallpaper)";
+        }
 
         if (snap.GpuPercent.HasValue)
         {
@@ -1904,6 +1933,9 @@ public sealed partial class DesktopTestWindow : Window
         PerfPauseReasonsText.Text = "Unknown";
         PerfFullscreenPolicyText.Text = "Unavailable";
         PerfPowerPolicyText.Text = "Unavailable";
+        PerfSessionLockPolicyText.Text = "Unavailable";
+        PerfDisplayPowerPolicyText.Text = "Unavailable";
+        PerfEfficiencyStatusText.Text = "Efficiency: Unavailable";
     }
 
     private async void OnExportReportClicked(object sender, RoutedEventArgs args)
