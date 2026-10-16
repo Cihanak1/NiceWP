@@ -76,6 +76,9 @@ public static class PerformanceReportGenerator
         sb.AppendLine("--------------------------------------------------------------------------------");
         sb.AppendLine("  3. EFFICIENCY & POLICIES");
         sb.AppendLine("--------------------------------------------------------------------------------");
+        sb.AppendLine($"Efficiency Profile  : {snapshot.EfficiencyProfile}");
+        sb.AppendLine($"Runtime Health      : {snapshot.RuntimeHealth}");
+        sb.AppendLine($"Current Action      : {snapshot.CurrentAction}");
         sb.AppendLine($"Active Pause Reasons: {snapshot.PauseReasons}");
         sb.AppendLine($"Fullscreen Policy   : {(snapshot.FullscreenPauseActive ? "Active (Paused due to foreground window)" : "Inactive")}");
         sb.AppendLine($"Power Policy        : {(snapshot.PowerPauseActive ? "Active (Paused due to battery saver/DC)" : "Inactive")}");
@@ -101,6 +104,18 @@ public static class PerformanceReportGenerator
             sb.AppendLine($"GPU Status Note     : {snapshot.GpuStatusMessage}");
         }
         sb.AppendLine();
+
+        if (snapshot.RecentEvents != null && snapshot.RecentEvents.Count > 0)
+        {
+            sb.AppendLine("--------------------------------------------------------------------------------");
+            sb.AppendLine("  5. RECENT RUNTIME AUDIT EVENTS (IN-MEMORY RING BUFFER)");
+            sb.AppendLine("--------------------------------------------------------------------------------");
+            foreach (var evt in snapshot.RecentEvents)
+            {
+                sb.AppendLine($"  [{evt.TimestampUtc:HH:mm:ss}] {evt.EventType,-24} : {evt.Message}");
+            }
+            sb.AppendLine();
+        }
 
         sb.AppendLine("================================================================================");
         sb.AppendLine("  DATA TRANSPARENCY & PRIVACY NOTICE");

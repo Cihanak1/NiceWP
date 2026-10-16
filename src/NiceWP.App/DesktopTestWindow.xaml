@@ -640,7 +640,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- 4. Efficiency & Policies -->
+                    <!-- 4. Efficiency & Guardrails -->
                     <Border
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -649,7 +649,7 @@
                         Padding="16">
                         <StackPanel Spacing="12">
                             <Grid>
-                                <TextBlock Text="Efficiency &amp; Host Attachment" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Text="Efficiency &amp; Guardrails" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 <Border x:Name="PerfEfficiencyStatusBadge"
                                         HorizontalAlignment="Right"
                                         CornerRadius="4"
@@ -671,34 +671,51 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Efficiency Mode" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfEfficiencyProfileText" Text="Balanced" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Runtime Health" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfRuntimeHealthText" Text="Healthy" FontSize="14" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="2">
+                                    <TextBlock Text="Current Host Action" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PerfCurrentActionText" Text="Operating normally" FontSize="13" FontWeight="SemiBold" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2">
                                     <TextBlock Text="Desktop Host (WorkerW)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="PerfDesktopHostStateText" Text="Disconnected" FontSize="14" FontWeight="SemiBold" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="2">
                                     <TextBlock Text="Active Pause Reasons" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="PerfPauseReasonsText" Text="None" FontSize="14" FontWeight="SemiBold" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                                <StackPanel Grid.Row="3" Grid.Column="0" Spacing="2">
                                     <TextBlock Text="Fullscreen Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="PerfFullscreenPolicyText" Text="Inactive" FontSize="13" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                                <StackPanel Grid.Row="3" Grid.Column="1" Spacing="2">
                                     <TextBlock Text="Power / Battery Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="PerfPowerPolicyText" Text="Inactive" FontSize="13" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2">
+                                <StackPanel Grid.Row="4" Grid.Column="0" Spacing="2">
                                     <TextBlock Text="Session Lock Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="PerfSessionLockPolicyText" Text="Inactive" FontSize="13" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="2">
+                                <StackPanel Grid.Row="4" Grid.Column="1" Spacing="2">
                                     <TextBlock Text="Display Power Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="PerfDisplayPowerPolicyText" Text="Inactive" FontSize="13" />
                                 </StackPanel>
@@ -706,7 +723,29 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- 5. GPU Measurement Status -->
+                    <!-- 5. Runtime Audit Trail (Recent Events) -->
+                    <Border
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                        <StackPanel Spacing="10">
+                            <Grid>
+                                <TextBlock Text="Runtime Audit Trail &amp; Events" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock x:Name="PerfRecentEventsCountText" Text="0 events" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock
+                                x:Name="PerfRecentEventsListText"
+                                FontFamily="Consolas, Cascadia Mono, monospace"
+                                FontSize="12"
+                                TextWrapping="Wrap"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="No events recorded." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 6. GPU Measurement Status -->
                     <Border
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -724,7 +763,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- 6. Local Privacy Notice -->
+                    <!-- 7. Local Privacy Notice -->
                     <Border
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -781,6 +820,37 @@
                                 <ComboBoxItem Content="Light" Tag="Light" />
                                 <ComboBoxItem Content="Dark" Tag="Dark" />
                             </ComboBox>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Efficiency Mode Group -->
+                    <Border
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Efficiency Mode &amp; Power Profile" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock
+                                Text="Control how NiceWP balances visual smoothness with background battery and CPU efficiency."
+                                FontSize="12"
+                                TextWrapping="Wrap"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <ComboBox
+                                x:Name="EfficiencyProfileComboBox"
+                                Width="280"
+                                SelectionChanged="OnEfficiencyProfileSelectionChanged"
+                                AutomationProperties.Name="Efficiency mode">
+                                <ComboBoxItem Content="Balanced (Recommended)" Tag="Balanced" />
+                                <ComboBoxItem Content="Eco (Aggressive Power Saving)" Tag="Eco" />
+                                <ComboBoxItem Content="Unrestricted (Continuous Playback)" Tag="Unrestricted" />
+                            </ComboBox>
+                            <TextBlock
+                                x:Name="EfficiencyProfileDescriptionText"
+                                FontSize="12"
+                                TextWrapping="Wrap"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </Border>
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -129,6 +130,7 @@ public sealed partial class DesktopTestWindow : Window
                 RestoreLastWallpaperCheckBox.IsChecked = settings.RestoreLastWallpaper;
                 ApplyThemePreference(settings.Theme);
                 SelectThemeComboBoxItem(settings.Theme);
+                SelectEfficiencyProfileComboBoxItem(settings.EfficiencyProfile);
             }
             finally
             {
@@ -1576,6 +1578,60 @@ public sealed partial class DesktopTestWindow : Window
         ThemeComboBox.SelectedIndex = 0;
     }
 
+    private async void OnEfficiencyProfileSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        if (EfficiencyProfileComboBox.SelectedItem is not ComboBoxItem selectedItem) return;
+
+        var tag = selectedItem.Tag as string;
+        var normalizedProfile = AppSettings.NormalizeEfficiencyProfile(tag) ?? "Balanced";
+        UpdateEfficiencyProfileDescription(normalizedProfile);
+
+        try
+        {
+            var current = await settingsService.LoadAsync();
+            current.EfficiencyProfile = AppSettings.NormalizeEfficiencyProfile(tag);
+            await settingsService.SaveAsync(current);
+
+            _ = runtimeClient.SetEfficiencyProfileAsync(normalizedProfile);
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Error saving efficiency profile preference: {exception}");
+        }
+    }
+
+    private void UpdateEfficiencyProfileDescription(string profile)
+    {
+        if (EfficiencyProfileDescriptionText == null) return;
+        EfficiencyProfileDescriptionText.Text = profile switch
+        {
+            "Eco" => "Eco: Aggressive power and CPU savings. Automatically pauses during fullscreen windows, battery saver / low battery, workstation lock, and display sleep.",
+            "Unrestricted" => "Unrestricted: Keeps wallpaper playing even during fullscreen applications and battery power. Still pauses on workstation lock and display sleep for safety.",
+            _ => "Balanced (Recommended): Smart resource efficiency. Automatically pauses when fullscreen apps cover the desktop or battery saver is engaged."
+        };
+    }
+
+    private void SelectEfficiencyProfileComboBoxItem(string? profile)
+    {
+        if (EfficiencyProfileComboBox == null) return;
+        var expectedTag = AppSettings.NormalizeEfficiencyProfile(profile) ?? "Balanced";
+
+        for (var i = 0; i < EfficiencyProfileComboBox.Items.Count; i++)
+        {
+            if (EfficiencyProfileComboBox.Items[i] is ComboBoxItem item &&
+                string.Equals(item.Tag as string, expectedTag, StringComparison.OrdinalIgnoreCase))
+            {
+                EfficiencyProfileComboBox.SelectedIndex = i;
+                UpdateEfficiencyProfileDescription(expectedTag);
+                return;
+            }
+        }
+
+        EfficiencyProfileComboBox.SelectedIndex = 0;
+        UpdateEfficiencyProfileDescription("Balanced");
+    }
+
     private void RestoreAndShowWindow()
     {
         DispatcherQueue.TryEnqueue(() =>
@@ -1870,6 +1926,26 @@ public sealed partial class DesktopTestWindow : Window
         PerfSessionLockPolicyText.Text = snap.SessionLockedPauseActive ? "Active (Auto-paused by session lock)" : "Inactive (Session unlocked)";
         PerfDisplayPowerPolicyText.Text = snap.DisplayOffPauseActive ? "Active (Auto-paused by display off)" : "Inactive (Display active)";
 
+        PerfEfficiencyProfileText.Text = snap.EfficiencyProfile ?? "Balanced";
+        PerfRuntimeHealthText.Text = snap.RuntimeHealth ?? "Healthy";
+        PerfCurrentActionText.Text = snap.CurrentAction ?? "Operating normally";
+
+        if (snap.RecentEvents != null && snap.RecentEvents.Count > 0)
+        {
+            PerfRecentEventsCountText.Text = $"{snap.RecentEvents.Count} recent events";
+            var sb = new StringBuilder();
+            foreach (var evt in snap.RecentEvents)
+            {
+                sb.AppendLine($"[{evt.TimestampUtc:HH:mm:ss}] {evt.EventType}: {evt.Message}");
+            }
+            PerfRecentEventsListText.Text = sb.ToString().TrimEnd();
+        }
+        else
+        {
+            PerfRecentEventsCountText.Text = "0 events";
+            PerfRecentEventsListText.Text = "No events recorded.";
+        }
+
         if (snap.HasActiveWallpaper)
         {
             if (snap.IsPaused)
@@ -1936,6 +2012,12 @@ public sealed partial class DesktopTestWindow : Window
         PerfSessionLockPolicyText.Text = "Unavailable";
         PerfDisplayPowerPolicyText.Text = "Unavailable";
         PerfEfficiencyStatusText.Text = "Efficiency: Unavailable";
+
+        PerfEfficiencyProfileText.Text = "Unknown";
+        PerfRuntimeHealthText.Text = "Unavailable";
+        PerfCurrentActionText.Text = "Runtime host disconnected";
+        PerfRecentEventsCountText.Text = "0 events";
+        PerfRecentEventsListText.Text = "Unavailable.";
     }
 
     private async void OnExportReportClicked(object sender, RoutedEventArgs args)

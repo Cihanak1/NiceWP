@@ -14,6 +14,7 @@ public static class IpcConstants
     public const string ResumeWallpaperCommand = "ResumeWallpaper";
     public const string GetStatusCommand = "GetStatus";
     public const string GetPerformanceStatusCommand = "GetPerformanceStatus";
+    public const string SetEfficiencyProfileCommand = "SetEfficiencyProfile";
 
     public const string PongMessage = "Pong";
     public const string ShutdownMessage = "Shutting down";

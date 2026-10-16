@@ -90,6 +90,15 @@ public sealed class RuntimeClient
         ipcClient.GetPerformanceStatusAsync(timeoutMs, cancellationToken);
 
     /// <summary>
+    /// Updates the active efficiency profile (Eco, Balanced, Unrestricted) on the runtime host.
+    /// </summary>
+    public Task<IpcResponse> SetEfficiencyProfileAsync(
+        string profile,
+        int timeoutMs = IpcConstants.DefaultTimeoutMilliseconds,
+        CancellationToken cancellationToken = default) =>
+        ipcClient.SetEfficiencyProfileAsync(profile, timeoutMs, cancellationToken);
+
+    /// <summary>
     /// Sends a raw command request to the runtime host.
     /// </summary>
     public Task<IpcResponse> SendCommandAsync(

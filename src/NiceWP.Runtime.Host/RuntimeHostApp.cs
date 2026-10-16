@@ -39,6 +39,9 @@ public sealed class RuntimeHostApp : IDisposable
     private volatile bool isPowerPaused;
     private volatile bool isSessionLockedPaused;
     private volatile bool isDisplayOffPaused;
+    private readonly RuntimeHealthTracker healthTracker = new();
+    private readonly RuntimeAuditTrail auditTrail = new();
+    private volatile EfficiencyProfile currentEfficiencyProfile = EfficiencyProfile.Balanced;
     private int commandSequence;
     private int shutdownRequested;
     private int wallpaperStoppedOnShutdown;
@@ -66,6 +69,9 @@ public sealed class RuntimeHostApp : IDisposable
     public Task RestoreTask => restoreTask;
     public Task MonitorTask => monitorTask;
     public Task PowerMonitorTask => powerMonitorTask;
+    public RuntimeHealthTracker HealthTracker => healthTracker;
+    public RuntimeAuditTrail AuditTrail => auditTrail;
+    public EfficiencyProfile CurrentEfficiencyProfile => currentEfficiencyProfile;
 
     public RuntimeHostApp(
         SingleInstanceGuard? guard = null,
@@ -161,7 +167,16 @@ public sealed class RuntimeHostApp : IDisposable
         _ = dispatcher.InvokeAsync(() =>
         {
             if (IsShuttingDown || !currentState.HasActiveWallpaper) return;
-            isSessionLockedPaused = isLocked;
+            var shouldPause = EfficiencyPolicyMatrix.ShouldPauseForSessionLock(currentEfficiencyProfile, isLocked);
+            isSessionLockedPaused = shouldPause;
+            if (isLocked)
+            {
+                auditTrail.Record("SessionLocked", "Workstation locked; auto-pause evaluated.");
+            }
+            else
+            {
+                auditTrail.Record("SessionUnlocked", "Workstation unlocked.");
+            }
             SynchronizeAutoPauseStateOnDispatcher();
         });
     }
@@ -172,7 +187,16 @@ public sealed class RuntimeHostApp : IDisposable
         _ = dispatcher.InvokeAsync(() =>
         {
             if (IsShuttingDown || !currentState.HasActiveWallpaper) return;
-            isDisplayOffPaused = !isDisplayOn;
+            var shouldPause = EfficiencyPolicyMatrix.ShouldPauseForDisplayOff(currentEfficiencyProfile, !isDisplayOn);
+            isDisplayOffPaused = shouldPause;
+            if (!isDisplayOn)
+            {
+                auditTrail.Record("DisplayOff", "Display power suspended; auto-pause evaluated.");
+            }
+            else
+            {
+                auditTrail.Record("DisplayOn", "Display power restored.");
+            }
             SynchronizeAutoPauseStateOnDispatcher();
         });
     }
@@ -266,6 +290,11 @@ public sealed class RuntimeHostApp : IDisposable
             return await HandleGetPerformanceStatusAsync(request).ConfigureAwait(false);
         }
 
+        if (string.Equals(request.Command, IpcConstants.SetEfficiencyProfileCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HandleSetEfficiencyProfileAsync(request).ConfigureAwait(false);
+        }
+
         return IpcResponse.Fail(request.Id, $"Unknown command: '{request.Command}'");
     }
 
@@ -348,6 +377,42 @@ public sealed class RuntimeHostApp : IDisposable
         }
     }
 
+    private async Task<IpcResponse> HandleSetEfficiencyProfileAsync(IpcRequest request)
+    {
+        if (IsShuttingDown)
+        {
+            return IpcResponse.Fail(request.Id, "Runtime host is shutting down.");
+        }
+
+        var profile = EfficiencyPolicyMatrix.ParseProfile(request.Path);
+        currentEfficiencyProfile = profile;
+        auditTrail.Record("EfficiencyProfileChanged", $"Switched to {profile.ToDisplayString()} profile.");
+
+        try
+        {
+            var settings = await compositionRoot.SettingsService.LoadAsync().ConfigureAwait(false);
+            var updated = new AppSettings
+            {
+                RestoreLastWallpaper = settings.RestoreLastWallpaper,
+                LastWallpaperType = settings.LastWallpaperType,
+                LastWallpaperPath = settings.LastWallpaperPath,
+                Theme = settings.Theme,
+                EfficiencyProfile = profile.ToDisplayString()
+            };
+            await compositionRoot.SettingsService.SaveAsync(updated).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error persisting efficiency profile: {ex.Message}");
+        }
+
+        _ = EvaluateFullscreenPolicyAsync();
+        _ = EvaluatePowerPolicyAsync();
+        NotifyPolicyStateChanged();
+
+        return IpcResponse.Ok(request.Id, $"Efficiency profile set to {profile.ToDisplayString()}.");
+    }
+
     public RuntimeHostStateSnapshot CaptureHostStateSnapshot()
     {
         var state = currentState;
@@ -366,6 +431,19 @@ public sealed class RuntimeHostApp : IDisposable
             if (isDisplayOffPaused) reasons.Add("DisplayOff");
             pauseReasons = reasons.Count > 0 ? string.Join(", ", reasons) : "Unknown";
         }
+
+        var (healthStatus, _) = healthTracker.EvaluateHealth(state.HasActiveWallpaper, isConnected, isAlive);
+        var currentAction = healthTracker.ComputeCurrentAction(
+            healthTracker.IsCircuitBreakerTripped,
+            state.HasActiveWallpaper,
+            state.IsPaused,
+            isManualPaused,
+            isFullscreenPaused,
+            isPowerPaused,
+            isSessionLockedPaused,
+            isDisplayOffPaused,
+            state.Type);
+        var recentEvents = auditTrail.GetRecentEvents(10);
 
         return new RuntimeHostStateSnapshot(
             WallpaperType: state.Type,
@@ -388,7 +466,11 @@ public sealed class RuntimeHostApp : IDisposable
             PowerPauseActive: isPowerPaused,
             ManualPauseActive: isManualPaused,
             SessionLockedPauseActive: isSessionLockedPaused,
-            DisplayOffPauseActive: isDisplayOffPaused);
+            DisplayOffPauseActive: isDisplayOffPaused,
+            EfficiencyProfile: currentEfficiencyProfile.ToDisplayString(),
+            RuntimeHealth: healthStatus.ToDisplayString(),
+            CurrentAction: currentAction,
+            RecentEvents: recentEvents);
     }
 
     private async Task<IpcResponse> HandleSetImageAsync(IpcRequest request)
@@ -409,6 +491,7 @@ public sealed class RuntimeHostApp : IDisposable
             return IpcResponse.Fail(request.Id, validation.Message ?? "Invalid image path.");
         }
 
+        healthTracker.ResetCircuitBreaker();
         var seq = Interlocked.Increment(ref commandSequence);
         await CancelPendingRestoreAsync().ConfigureAwait(false);
 
@@ -422,6 +505,8 @@ public sealed class RuntimeHostApp : IDisposable
             var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
             if (result.Success)
             {
+                healthTracker.RecordSuccess();
+                auditTrail.Record("WallpaperStarted", $"Image wallpaper set: {Path.GetFileName(fullPath)}");
                 if (Volatile.Read(ref commandSequence) == seq && !IsShuttingDown)
                 {
                     ClearPauseReasons();
@@ -432,7 +517,15 @@ public sealed class RuntimeHostApp : IDisposable
                 return IpcResponse.Ok(request.Id, $"Image wallpaper set: {fullPath}");
             }
 
-            return IpcResponse.Fail(request.Id, result.Message ?? "Failed to set image wallpaper.");
+            var reason = result.Message ?? "Failed to set image wallpaper.";
+            var tripped = healthTracker.RecordFailure(reason);
+            auditTrail.Record("WallpaperFailed", $"Failed to set image wallpaper: {reason}");
+            if (tripped)
+            {
+                auditTrail.Record("CircuitBreakerTripped", "Circuit breaker tripped after 3 consecutive failures. State moved to SafeStopped.");
+            }
+
+            return IpcResponse.Fail(request.Id, reason);
         }).ConfigureAwait(false);
     }
 
@@ -454,6 +547,7 @@ public sealed class RuntimeHostApp : IDisposable
             return IpcResponse.Fail(request.Id, validation.Message ?? "Invalid video path.");
         }
 
+        healthTracker.ResetCircuitBreaker();
         var seq = Interlocked.Increment(ref commandSequence);
         await CancelPendingRestoreAsync().ConfigureAwait(false);
 
@@ -467,6 +561,8 @@ public sealed class RuntimeHostApp : IDisposable
             var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
             if (result.Success)
             {
+                healthTracker.RecordSuccess();
+                auditTrail.Record("WallpaperStarted", $"Video wallpaper set: {Path.GetFileName(fullPath)}");
                 if (Volatile.Read(ref commandSequence) == seq && !IsShuttingDown)
                 {
                     ClearPauseReasons();
@@ -477,7 +573,15 @@ public sealed class RuntimeHostApp : IDisposable
                 return IpcResponse.Ok(request.Id, $"Video wallpaper set: {fullPath}");
             }
 
-            return IpcResponse.Fail(request.Id, result.Message ?? "Failed to set video wallpaper.");
+            var reason = result.Message ?? "Failed to set video wallpaper.";
+            var tripped = healthTracker.RecordFailure(reason);
+            auditTrail.Record("WallpaperFailed", $"Failed to set video wallpaper: {reason}");
+            if (tripped)
+            {
+                auditTrail.Record("CircuitBreakerTripped", "Circuit breaker tripped after 3 consecutive failures. State moved to SafeStopped.");
+            }
+
+            return IpcResponse.Fail(request.Id, reason);
         }).ConfigureAwait(false);
     }
 
@@ -497,6 +601,7 @@ public sealed class RuntimeHostApp : IDisposable
             {
                 ClearPauseReasons();
                 currentState = RuntimeWallpaperState.Empty;
+                auditTrail.Record("WallpaperStopped", "Wallpaper stopped by request.");
                 if (Volatile.Read(ref commandSequence) == seq && !IsShuttingDown)
                 {
                     await PersistWallpaperStateAsync(IpcConstants.WallpaperTypeNone, null).ConfigureAwait(false);
@@ -547,6 +652,7 @@ public sealed class RuntimeHostApp : IDisposable
                 isFullscreenPaused = false;
                 isPowerPaused = false;
                 currentState = currentState.AsPaused();
+                auditTrail.Record("WallpaperPaused", $"Wallpaper paused manually: {Path.GetFileName(currentState.Path)}");
                 return IpcResponse.Ok(request.Id, $"Wallpaper paused: {currentState.Path}");
             }
 
@@ -567,6 +673,11 @@ public sealed class RuntimeHostApp : IDisposable
             return IpcResponse.Fail(request.Id, "Runtime host is shutting down.");
         }
 
+        if (healthTracker.IsCircuitBreakerTripped)
+        {
+            return IpcResponse.Fail(request.Id, "Cannot resume wallpaper while circuit breaker is tripped (SafeStopped). Please apply a wallpaper to reset.");
+        }
+
         await WaitForPendingRestoreAsync().ConfigureAwait(false);
         Interlocked.Increment(ref commandSequence);
 
@@ -582,6 +693,7 @@ public sealed class RuntimeHostApp : IDisposable
             {
                 ClearPauseReasons();
                 currentState = currentState.AsRunning();
+                auditTrail.Record("WallpaperResumed", $"Wallpaper resumed manually: {Path.GetFileName(currentState.Path)}");
                 NotifyPolicyStateChanged();
                 return IpcResponse.Ok(request.Id, $"Wallpaper resumed: {currentState.Path}");
             }
@@ -726,7 +838,9 @@ public sealed class RuntimeHostApp : IDisposable
             return;
         }
 
-        if (isFullscreen == isFullscreenPaused &&
+        var shouldPauseForFullscreen = EfficiencyPolicyMatrix.ShouldPauseForFullscreen(currentEfficiencyProfile, isFullscreen);
+
+        if (shouldPauseForFullscreen == isFullscreenPaused &&
             ((ShouldBePaused && snapshotState.IsPaused) || (!ShouldBePaused && snapshotState.IsRunning)))
         {
             return;
@@ -739,7 +853,19 @@ public sealed class RuntimeHostApp : IDisposable
                 return;
             }
 
-            isFullscreenPaused = isFullscreen;
+            var previous = isFullscreenPaused;
+            isFullscreenPaused = shouldPauseForFullscreen;
+            if (previous != shouldPauseForFullscreen)
+            {
+                if (shouldPauseForFullscreen)
+                {
+                    auditTrail.Record("FullscreenEntered", "Fullscreen window active; auto-pause engaged.");
+                }
+                else
+                {
+                    auditTrail.Record("FullscreenExited", "Fullscreen window inactive; auto-pause released.");
+                }
+            }
             SynchronizeAutoPauseStateOnDispatcher();
         }).ConfigureAwait(false);
     }
@@ -760,7 +886,8 @@ public sealed class RuntimeHostApp : IDisposable
         bool shouldPauseForPower;
         try
         {
-            shouldPauseForPower = powerStatusProvider.GetPowerStatus().ShouldPauseWallpaper();
+            var powerStatus = powerStatusProvider.GetPowerStatus();
+            shouldPauseForPower = EfficiencyPolicyMatrix.ShouldPauseForPower(currentEfficiencyProfile, in powerStatus);
         }
         catch (Exception ex)
         {
@@ -781,7 +908,19 @@ public sealed class RuntimeHostApp : IDisposable
                 return;
             }
 
+            var previous = isPowerPaused;
             isPowerPaused = shouldPauseForPower;
+            if (previous != shouldPauseForPower)
+            {
+                if (shouldPauseForPower)
+                {
+                    auditTrail.Record("BatterySaverEngaged", "Power policy active; auto-pause engaged.");
+                }
+                else
+                {
+                    auditTrail.Record("BatterySaverReleased", "Normal power restored; auto-pause released.");
+                }
+            }
             SynchronizeAutoPauseStateOnDispatcher();
         }).ConfigureAwait(false);
     }
@@ -828,6 +967,7 @@ public sealed class RuntimeHostApp : IDisposable
             }
 
             var settings = await compositionRoot.SettingsService.LoadAsync().ConfigureAwait(false);
+            currentEfficiencyProfile = EfficiencyPolicyMatrix.ParseProfile(settings.EfficiencyProfile);
             if (!settings.RestoreLastWallpaper)
             {
                 Trace.WriteLine("Startup wallpaper restore skipped: RestoreLastWallpaper is disabled.");
@@ -884,9 +1024,11 @@ public sealed class RuntimeHostApp : IDisposable
                 var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
                 if (result.Success && Volatile.Read(ref commandSequence) == 0 && !IsShuttingDown)
                 {
+                    healthTracker.RecordSuccess();
                     ClearPauseReasons();
                     currentState = new RuntimeWallpaperState(normalizedType, fullPath, IpcConstants.PlaybackStateRunning);
                     NotifyPolicyStateChanged();
+                    auditTrail.Record("WallpaperRestored", $"Startup wallpaper restored: {Path.GetFileName(fullPath)}");
                     Trace.WriteLine($"Startup wallpaper restored: type={normalizedType}, path={fullPath}");
                 }
                 else if (result.Success)
@@ -896,6 +1038,13 @@ public sealed class RuntimeHostApp : IDisposable
                 }
                 else
                 {
+                    var reason = result.Message ?? "Startup restore failed";
+                    var tripped = healthTracker.RecordFailure(reason);
+                    auditTrail.Record("StartupRestoreFailed", $"Failed to restore startup wallpaper: {reason}");
+                    if (tripped)
+                    {
+                        auditTrail.Record("CircuitBreakerTripped", "Circuit breaker tripped after 3 consecutive failures. State moved to SafeStopped.");
+                    }
                     Trace.WriteLine($"Startup wallpaper restore failed: {result.Error} - {result.Message}");
                 }
             }).ConfigureAwait(false);
@@ -921,7 +1070,8 @@ public sealed class RuntimeHostApp : IDisposable
                 RestoreLastWallpaper = currentSettings.RestoreLastWallpaper,
                 LastWallpaperType = wallpaperType,
                 LastWallpaperPath = string.IsNullOrWhiteSpace(fullPath) ? null : Path.GetFullPath(fullPath),
-                Theme = currentSettings.Theme
+                Theme = currentSettings.Theme,
+                EfficiencyProfile = currentEfficiencyProfile.ToDisplayString()
             };
 
             var saved = await compositionRoot.SettingsService.SaveAsync(updatedSettings).ConfigureAwait(false);

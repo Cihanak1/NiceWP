@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
 
 namespace NiceWP.Infrastructure.Settings;
@@ -22,12 +23,16 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Theme { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EfficiencyProfile { get; set; }
+
     public static AppSettings CreateDefault() => new()
     {
         RestoreLastWallpaper = true,
         LastWallpaperType = IpcConstants.WallpaperTypeNone,
         LastWallpaperPath = null,
-        Theme = null
+        Theme = null,
+        EfficiencyProfile = null
     };
 
     /// <summary>
@@ -50,7 +55,8 @@ public sealed class AppSettings
             RestoreLastWallpaper = RestoreLastWallpaper,
             LastWallpaperType = normalizedType,
             LastWallpaperPath = normalizedPath,
-            Theme = NormalizeTheme(Theme)
+            Theme = NormalizeTheme(Theme),
+            EfficiencyProfile = NormalizeEfficiencyProfile(EfficiencyProfile)
         };
     }
 
@@ -87,5 +93,11 @@ public sealed class AppSettings
         }
 
         return null;
+    }
+
+    public static string? NormalizeEfficiencyProfile(string? profile)
+    {
+        var parsed = EfficiencyPolicyMatrix.ParseProfile(profile);
+        return parsed == NiceWP.Core.EfficiencyProfile.Balanced ? null : parsed.ToDisplayString();
     }
 }

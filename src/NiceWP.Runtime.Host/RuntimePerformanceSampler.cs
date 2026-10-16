@@ -28,7 +28,11 @@ public sealed record RuntimeHostStateSnapshot(
     bool PowerPauseActive = false,
     bool ManualPauseActive = false,
     bool SessionLockedPauseActive = false,
-    bool DisplayOffPauseActive = false)
+    bool DisplayOffPauseActive = false,
+    string EfficiencyProfile = "Balanced",
+    string RuntimeHealth = "Healthy",
+    string CurrentAction = "Running normally",
+    IReadOnlyList<NiceWP.Core.RuntimeAuditEvent>? RecentEvents = null)
 {
     public static readonly RuntimeHostStateSnapshot Empty = new(
         IpcConstants.WallpaperTypeNone,
@@ -53,7 +57,9 @@ public sealed class RuntimePerformanceSampler : IDisposable
     private readonly IGpuMetricsProvider gpuProvider;
     private readonly PerformanceRingBuffer ringBuffer;
     private readonly int sampleIntervalMs;
+    private readonly int backgroundSampleIntervalMs;
     private readonly int kernelMetricsInterval;
+    private DateTimeOffset lastActiveTelemetryRequestedUtc = DateTimeOffset.MinValue;
     private readonly DateTime startTimeUtc;
     private readonly object syncRoot = new();
     private CancellationTokenSource? cts;
@@ -64,8 +70,14 @@ public sealed class RuntimePerformanceSampler : IDisposable
     private int cachedHandleCount;
     private bool disposed;
 
+    public const int ForegroundSampleIntervalMs = 1000;
+    public const int DefaultBackgroundSampleIntervalMs = 5000;
+
     public int SampleIntervalMs => sampleIntervalMs;
+    public int BackgroundSampleIntervalMs => backgroundSampleIntervalMs;
     public int KernelMetricsInterval => kernelMetricsInterval;
+    public bool IsForegroundActive => (DateTimeOffset.UtcNow - lastActiveTelemetryRequestedUtc) <= TimeSpan.FromSeconds(10);
+    public int CurrentEffectiveSampleIntervalMs => IsForegroundActive ? sampleIntervalMs : backgroundSampleIntervalMs;
     public PerformanceRingBuffer RingBuffer => ringBuffer;
     public RuntimePerformanceSnapshot LatestSnapshot => latestSnapshot;
     public bool IsRunning => sampleLoopTask != null && !sampleLoopTask.IsCompleted;
@@ -76,12 +88,14 @@ public sealed class RuntimePerformanceSampler : IDisposable
         IGpuMetricsProvider? gpuProvider = null,
         int sampleIntervalMs = 1000,
         int ringBufferCapacity = 60,
-        int kernelMetricsInterval = 5)
+        int kernelMetricsInterval = 5,
+        int backgroundSampleIntervalMs = 5000)
     {
         this.process = process ?? Process.GetCurrentProcess();
         this.stateProvider = stateProvider ?? (() => RuntimeHostStateSnapshot.Empty);
         this.gpuProvider = gpuProvider ?? UnavailableGpuMetricsProvider.Instance;
         this.sampleIntervalMs = sampleIntervalMs > 0 ? sampleIntervalMs : 1000;
+        this.backgroundSampleIntervalMs = backgroundSampleIntervalMs > 0 ? backgroundSampleIntervalMs : 5000;
         this.kernelMetricsInterval = kernelMetricsInterval > 0 ? kernelMetricsInterval : 5;
         this.ringBuffer = new PerformanceRingBuffer(ringBufferCapacity > 0 ? ringBufferCapacity : 60);
         this.cpuCalculator = new CpuUsageCalculator(this.process);
@@ -164,7 +178,10 @@ public sealed class RuntimePerformanceSampler : IDisposable
         {
             try
             {
-                await Task.Delay(sampleIntervalMs, cancellationToken).ConfigureAwait(false);
+                var isForeground = (DateTimeOffset.UtcNow - lastActiveTelemetryRequestedUtc) <= TimeSpan.FromSeconds(10);
+                var delayMs = isForeground ? sampleIntervalMs : backgroundSampleIntervalMs;
+
+                await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
                 if (cancellationToken.IsCancellationRequested || disposed)
                 {
                     break;
@@ -210,6 +227,7 @@ public sealed class RuntimePerformanceSampler : IDisposable
                 privateMemory = process.PrivateMemorySize64;
 
                 var shouldRefreshKernelMetrics = sampleCounter % kernelMetricsInterval == 0 || cachedThreadCount == 0;
+
                 if (shouldRefreshKernelMetrics)
                 {
                     cachedThreadCount = process.Threads.Count;
@@ -289,6 +307,11 @@ public sealed class RuntimePerformanceSampler : IDisposable
                 SessionLockedPauseActive = state.SessionLockedPauseActive,
                 DisplayOffPauseActive = state.DisplayOffPauseActive,
 
+                EfficiencyProfile = state.EfficiencyProfile,
+                RuntimeHealth = state.RuntimeHealth,
+                CurrentAction = state.CurrentAction,
+                RecentEvents = state.RecentEvents ?? Array.Empty<NiceWP.Core.RuntimeAuditEvent>(),
+
                 GpuPercent = gpuUsage,
                 GpuMemoryBytes = gpuMemory,
                 GpuStatusMessage = gpuReason
@@ -323,9 +346,11 @@ public sealed class RuntimePerformanceSampler : IDisposable
 
     /// <summary>
     /// Returns the combined status containing the latest snapshot and rolling short-term statistics.
+    /// Also touches the active telemetry window to enable fast 1s sampling while UI is polling.
     /// </summary>
     public RuntimePerformanceStatus GetStatus()
     {
+        lastActiveTelemetryRequestedUtc = DateTimeOffset.UtcNow;
         lock (syncRoot)
         {
             var snap = latestSnapshot;

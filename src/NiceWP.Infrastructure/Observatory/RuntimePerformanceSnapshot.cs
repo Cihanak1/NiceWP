@@ -46,6 +46,12 @@ public sealed class RuntimePerformanceSnapshot
     public bool SessionLockedPauseActive { get; init; }
     public bool DisplayOffPauseActive { get; init; }
 
+    // Adaptive Efficiency & Health Guardrails
+    public string EfficiencyProfile { get; init; } = "Balanced";
+    public string RuntimeHealth { get; init; } = "Healthy";
+    public string CurrentAction { get; init; } = "Running normally";
+    public IReadOnlyList<NiceWP.Core.RuntimeAuditEvent> RecentEvents { get; init; } = Array.Empty<NiceWP.Core.RuntimeAuditEvent>();
+
     // GPU Metrics (null when unavailable)
     public double? GpuPercent { get; init; }
     public long? GpuMemoryBytes { get; init; }
