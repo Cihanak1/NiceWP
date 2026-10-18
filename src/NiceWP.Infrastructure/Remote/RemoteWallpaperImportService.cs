@@ -17,9 +17,17 @@ public sealed record RemoteImportResult(
 /// <summary>
 /// Safely downloads, validates, stores, and integrates remote wallpapers into NiceWP library.
 /// Ensures zero direct streaming by the Runtime Host; all remote media is downloaded and verified locally first.
+/// Supports direct media URLs as well as static wallpaper page URL discovery.
 /// </summary>
 public sealed class RemoteWallpaperImportService
 {
+    private const string BrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    private const string BrowserAccept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8";
+    private const string BrowserAcceptLanguage = "en-US,en;q=0.9";
+
+    public const string ErrorNoWallpaperFoundOnPage = "No supported wallpaper was found on this page.";
+    public const string ErrorDirectDownloadNotFound = "Could not find a direct download link on this page. Please use the direct image/video URL.";
+
     private static readonly Lazy<HttpClient> SharedHttpClient = new(() =>
     {
         var handler = new SocketsHttpHandler
@@ -29,10 +37,14 @@ public sealed class RemoteWallpaperImportService
             ConnectTimeout = RemoteImportConstants.DefaultTimeout,
             PooledConnectionLifetime = TimeSpan.FromMinutes(5)
         };
-        return new HttpClient(handler, disposeHandler: true)
+        var client = new HttpClient(handler, disposeHandler: true)
         {
             Timeout = RemoteImportConstants.DefaultTimeout
         };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+        client.DefaultRequestHeaders.Accept.ParseAdd(BrowserAccept);
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd(BrowserAcceptLanguage);
+        return client;
     });
 
     private readonly WallpaperLibraryService libraryService;
@@ -109,8 +121,9 @@ public sealed class RemoteWallpaperImportService
     }
 
     /// <summary>
-    /// Downloads a remote image or video from an HTTP/HTTPS URL, validates it against SSRF, size limits,
-    /// and binary media structure, moves it to NiceWP-managed local storage, and adds it to the library.
+    /// Imports a wallpaper from an HTTP/HTTPS URL (either direct media or wallpaper page).
+    /// Validates inputs against SSRF, size limits, and binary media structure,
+    /// moves it to NiceWP-managed local storage, and adds it to the library.
     /// </summary>
     public async Task<RemoteImportResult> ImportAsync(
         string? url,
@@ -123,11 +136,11 @@ public sealed class RemoteWallpaperImportService
             return new RemoteImportResult(false, ErrorMessage: urlError);
         }
 
-        var sanitizedUrl = NetworkSafetyValidator.SanitizeUrl(currentUri);
-        var sourceHost = currentUri.Host;
+        var sanitizedPageUrl = NetworkSafetyValidator.SanitizeUrl(currentUri);
+        var pageHost = currentUri.Host;
 
         // 2. Duplicate detection: reuse local file if already imported from the exact same source
-        var existingItem = await libraryService.FindBySourceDisplayUrlAsync(sanitizedUrl, cancellationToken).ConfigureAwait(false);
+        var existingItem = await libraryService.FindBySourceDisplayUrlAsync(sanitizedPageUrl, cancellationToken).ConfigureAwait(false);
         if (existingItem != null && existingItem.FileExists())
         {
             progress?.Report(new RemoteDownloadProgress("Added to library.", 0, -1, 100));
@@ -146,239 +159,163 @@ public sealed class RemoteWallpaperImportService
 
         progress?.Report(new RemoteDownloadProgress("Connecting...", 0, -1, null));
 
-        HttpResponseMessage? response = null;
-        var redirectCount = 0;
-
         try
         {
-            // 5. Connect and resolve redirects with SSRF check on every hop
-            while (true)
+            // 5. Connect to initial URL
+            var connectResult = await ConnectAsync(currentUri, cancellationToken).ConfigureAwait(false);
+            if (!connectResult.Success || connectResult.Response == null)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                return new RemoteImportResult(false, ErrorMessage: connectResult.ErrorMessage);
+            }
 
-                var safetyResult = await NetworkSafetyValidator.ValidateSafetyAsync(currentUri, dnsResolver, cancellationToken).ConfigureAwait(false);
-                if (!safetyResult.Success)
-                {
-                    return new RemoteImportResult(false, ErrorMessage: safetyResult.ErrorMessage);
-                }
+            var response = connectResult.Response;
+            var finalUri = connectResult.FinalUri;
+            string? pageTitle = null;
+            var isDiscoveredFromHtml = false;
 
-                using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
-                try
-                {
-                    response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                {
-                    return new RemoteImportResult(false, ErrorMessage: "Download timed out.");
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (TimeoutException)
-                {
-                    return new RemoteImportResult(false, ErrorMessage: "Download timed out.");
-                }
-                catch (Exception ex)
-                {
-                    Trace.WriteLine($"HTTP request to '{currentUri}' failed: {ex.Message}");
-                    return new RemoteImportResult(false, ErrorMessage: NetworkSafetyValidator.ErrorCouldNotConnect);
-                }
+            // 6. Check if response is HTML
+            var mediaType = response.Content.Headers.ContentType?.MediaType?.ToLowerInvariant();
+            var pathIsHtml = finalUri.AbsolutePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
+                             finalUri.AbsolutePath.EndsWith(".htm", StringComparison.OrdinalIgnoreCase);
 
-                var statusCode = (int)response.StatusCode;
-                if (statusCode is >= 300 and <= 399)
-                {
-                    redirectCount++;
-                    if (redirectCount > RemoteImportConstants.MaxRedirects)
-                    {
-                        response.Dispose();
-                        return new RemoteImportResult(false, ErrorMessage: NetworkSafetyValidator.ErrorCouldNotConnect);
-                    }
+            var isHtml = mediaType is "text/html" or "application/xhtml+xml" ||
+                         (mediaType is null or "text/plain" && pathIsHtml);
 
-                    var location = response.Headers.Location;
+            if (isHtml)
+            {
+                isDiscoveredFromHtml = true;
+                progress?.Report(new RemoteDownloadProgress("Inspecting page...", 0, -1, null));
+
+                var contentLength = response.Content.Headers.ContentLength;
+                if (contentLength.HasValue && contentLength.Value > RemoteImportConstants.MaxHtmlDocumentSizeBytes)
+                {
                     response.Dispose();
-                    response = null;
+                    return new RemoteImportResult(false, ErrorMessage: "File is too large.");
+                }
 
-                    if (location == null)
+                // Read HTML document bounded by MaxHtmlDocumentSizeBytes
+                string html;
+                using (response)
+                await using (var htmlStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+                using (var memStream = new MemoryStream())
+                {
+                    var buffer = new byte[8192];
+                    long totalHtmlBytes = 0;
+                    int read;
+                    while ((read = await htmlStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
                     {
-                        return new RemoteImportResult(false, ErrorMessage: NetworkSafetyValidator.ErrorCouldNotConnect);
-                    }
-
-                    if (!location.IsAbsoluteUri)
-                    {
-                        if (!Uri.TryCreate(currentUri, location, out var resolvedRedirect))
+                        totalHtmlBytes += read;
+                        if (totalHtmlBytes > RemoteImportConstants.MaxHtmlDocumentSizeBytes)
                         {
-                            return new RemoteImportResult(false, ErrorMessage: NetworkSafetyValidator.ErrorInvalidUrl);
+                            return new RemoteImportResult(false, ErrorMessage: "File is too large.");
                         }
-                        currentUri = resolvedRedirect;
+                        memStream.Write(buffer, 0, read);
+                    }
+                    html = System.Text.Encoding.UTF8.GetString(memStream.ToArray());
+                }
+
+                // Check for bot challenge / Cloudflare page
+                if (html.Contains("challenges.cloudflare.com", StringComparison.OrdinalIgnoreCase) ||
+                    html.Contains("cf-mitigated", StringComparison.OrdinalIgnoreCase) ||
+                    html.Contains("Just a moment...", StringComparison.OrdinalIgnoreCase) ||
+                    html.Contains("Attention Required! | Cloudflare", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new RemoteImportResult(false, ErrorMessage: ErrorDirectDownloadNotFound);
+                }
+
+                // Discover wallpaper candidates
+                var candidate = HtmlWallpaperDiscoveryService.DiscoverWallpaper(html, finalUri);
+                if (candidate == null)
+                {
+                    return new RemoteImportResult(false, ErrorMessage: ErrorNoWallpaperFoundOnPage);
+                }
+
+                progress?.Report(new RemoteDownloadProgress("Wallpaper found.", 0, -1, null));
+
+                pageTitle = candidate.Title;
+                var mediaUri = candidate.MediaUri;
+
+                // Connect to discovered media URL
+                var mediaConnect = await ConnectAsync(mediaUri, cancellationToken).ConfigureAwait(false);
+                if (!mediaConnect.Success || mediaConnect.Response == null)
+                {
+                    return new RemoteImportResult(false, ErrorMessage: mediaConnect.ErrorMessage);
+                }
+
+                response = mediaConnect.Response;
+                finalUri = mediaConnect.FinalUri;
+            }
+
+            // 7. Stream media directly to temp file and validate
+            using (response)
+            {
+                var downloadResult = await DownloadAndValidateMediaAsync(response, tempFilePath, progress, cancellationToken).ConfigureAwait(false);
+                if (!downloadResult.Success)
+                {
+                    return new RemoteImportResult(false, ErrorMessage: downloadResult.ErrorMessage);
+                }
+
+                var detectedType = downloadResult.DetectedType;
+                var extension = MediaSignatureDetector.GetExtension(detectedType);
+                var wallpaperType = MediaSignatureDetector.GetWallpaperType(detectedType);
+
+                // 8. Move atomically to permanent library/remote storage
+                Directory.CreateDirectory(storageDirectory);
+                var finalFileName = $"{Guid.NewGuid():N}{extension}";
+                var finalFilePath = Path.Combine(storageDirectory, finalFileName);
+                File.Move(tempFilePath, finalFilePath);
+
+                // 9. Secondary validation via local media pipeline
+                var validation = WallpaperLibraryService.ValidateWallpaperFile(finalFilePath, out var normalizedFullPath, out _);
+                if (!validation.Success)
+                {
+                    try { File.Delete(finalFilePath); } catch { }
+                    return new RemoteImportResult(false, ErrorMessage: "Downloaded file is not valid media.");
+                }
+
+                // 10. Determine clean display name
+                string displayName;
+                if (isDiscoveredFromHtml && !string.IsNullOrWhiteSpace(pageTitle))
+                {
+                    displayName = $"{pageTitle}{extension}";
+                }
+                else
+                {
+                    var rawName = Path.GetFileNameWithoutExtension(finalUri.AbsolutePath);
+                    if (string.IsNullOrWhiteSpace(rawName))
+                    {
+                        displayName = $"Remote {wallpaperType} ({pageHost})";
                     }
                     else
                     {
-                        currentUri = location;
-                    }
-
-                    continue;
-                }
-
-                break;
-            }
-
-            if (response == null || !response.IsSuccessStatusCode)
-            {
-                response?.Dispose();
-                return new RemoteImportResult(false, ErrorMessage: NetworkSafetyValidator.ErrorCouldNotConnect);
-            }
-
-            // 6. Content-Length early rejection
-            var contentLength = response.Content.Headers.ContentLength;
-            var mediaTypeHint = response.Content.Headers.ContentType?.MediaType;
-            var isImageHint = mediaTypeHint != null && mediaTypeHint.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
-
-            if (contentLength.HasValue)
-            {
-                if (contentLength.Value > RemoteImportConstants.MaxGlobalStreamSizeBytes)
-                {
-                    response.Dispose();
-                    return new RemoteImportResult(false, ErrorMessage: "File is too large.");
-                }
-
-                if (isImageHint && contentLength.Value > RemoteImportConstants.MaxImageSizeBytes)
-                {
-                    response.Dispose();
-                    return new RemoteImportResult(false, ErrorMessage: "File is too large.");
-                }
-            }
-
-            // 7. Stream directly to disk using a bounded 64KB buffer
-            progress?.Report(new RemoteDownloadProgress("Downloading", 0, contentLength ?? -1, contentLength.HasValue && contentLength.Value > 0 ? 0 : null));
-
-            var maxAllowedBytes = isImageHint
-                ? RemoteImportConstants.MaxImageSizeBytes
-                : RemoteImportConstants.MaxGlobalStreamSizeBytes;
-
-            await using (var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
-            await using (var fileStream = new FileStream(tempFilePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: 65536, useAsync: true))
-            {
-                var buffer = new byte[65536];
-                long totalBytesRead = 0;
-                var lastReportTime = Stopwatch.GetTimestamp();
-                int? lastReportedPercentage = null;
-
-                int read;
-                while ((read = await responseStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
-                {
-                    totalBytesRead += read;
-                    if (totalBytesRead > maxAllowedBytes)
-                    {
-                        response.Dispose();
-                        return new RemoteImportResult(false, ErrorMessage: "File is too large.");
-                    }
-
-                    await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-
-                    // Throttled progress reporting (on percentage change or at least 200ms elapsed)
-                    if (progress != null)
-                    {
-                        int? percentage = null;
-                        if (contentLength.HasValue && contentLength.Value > 0)
-                        {
-                            percentage = (int)Math.Clamp((totalBytesRead * 100) / contentLength.Value, 0, 100);
-                        }
-
-                        var elapsedMs = (Stopwatch.GetTimestamp() - lastReportTime) * 1000 / Stopwatch.Frequency;
-                        if (percentage != lastReportedPercentage || elapsedMs >= 200)
-                        {
-                            lastReportTime = Stopwatch.GetTimestamp();
-                            lastReportedPercentage = percentage;
-                            progress.Report(new RemoteDownloadProgress("Downloading", totalBytesRead, contentLength ?? -1, percentage));
-                        }
+                        var cleanName = string.Join("_", rawName.Split(Path.GetInvalidFileNameChars())).Trim();
+                        displayName = string.IsNullOrWhiteSpace(cleanName)
+                            ? $"Remote {wallpaperType} ({pageHost})"
+                            : $"{cleanName}{extension}";
                     }
                 }
 
-                await fileStream.FlushAsync(cancellationToken).ConfigureAwait(false);
-            }
+                // 11. Add to library with sanitized remote metadata
+                var addResult = await libraryService.AddRemoteAsync(
+                    path: normalizedFullPath,
+                    displayName: displayName,
+                    sourceHost: pageHost,
+                    sourceDisplayUrl: sanitizedPageUrl,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
 
-            response.Dispose();
-            response = null;
-
-            // 8. Media validation: verify true file content independently of headers
-            progress?.Report(new RemoteDownloadProgress("Validating...", 0, -1, null));
-
-            var detectedType = MediaSignatureDetector.Detect(tempFilePath);
-            if (detectedType == DetectedMediaType.Unknown)
-            {
-                return new RemoteImportResult(false, ErrorMessage: "Downloaded file is not valid media.");
-            }
-
-            var extension = MediaSignatureDetector.GetExtension(detectedType);
-            var fileInfo = new FileInfo(tempFilePath);
-            var fileSize = fileInfo.Length;
-
-            if (detectedType is DetectedMediaType.Png or DetectedMediaType.Jpeg)
-            {
-                if (fileSize > RemoteImportConstants.MaxImageSizeBytes)
+                if (!addResult.Success || addResult.Item == null)
                 {
-                    return new RemoteImportResult(false, ErrorMessage: "File is too large.");
+                    try { File.Delete(finalFilePath); } catch { }
+                    return new RemoteImportResult(false, ErrorMessage: "Failed to persist wallpaper library.");
                 }
+
+                progress?.Report(new RemoteDownloadProgress("Added to library.", 0, -1, 100));
+
+                return new RemoteImportResult(
+                    Success: true,
+                    Item: addResult.Item,
+                    AlreadyExisted: addResult.AlreadyExisted);
             }
-            else if (detectedType == DetectedMediaType.Mp4)
-            {
-                if (fileSize > RemoteImportConstants.MaxVideoSizeBytes)
-                {
-                    return new RemoteImportResult(false, ErrorMessage: "File is too large.");
-                }
-            }
-
-            // 9. Move atomically to permanent library/remote storage
-            Directory.CreateDirectory(storageDirectory);
-            var finalFileName = $"{Guid.NewGuid():N}{extension}";
-            var finalFilePath = Path.Combine(storageDirectory, finalFileName);
-
-            File.Move(tempFilePath, finalFilePath);
-
-            // 10. Secondary validation via local media pipeline
-            var validation = WallpaperLibraryService.ValidateWallpaperFile(finalFilePath, out var normalizedFullPath, out var wallpaperType);
-            if (!validation.Success)
-            {
-                try { File.Delete(finalFilePath); } catch { }
-                return new RemoteImportResult(false, ErrorMessage: "Downloaded file is not valid media.");
-            }
-
-            // 11. Determine clean display name
-            var rawName = Path.GetFileNameWithoutExtension(currentUri.AbsolutePath);
-            string displayName;
-            if (string.IsNullOrWhiteSpace(rawName))
-            {
-                displayName = $"Remote {wallpaperType} ({sourceHost})";
-            }
-            else
-            {
-                var cleanName = string.Join("_", rawName.Split(Path.GetInvalidFileNameChars())).Trim();
-                displayName = string.IsNullOrWhiteSpace(cleanName)
-                    ? $"Remote {wallpaperType} ({sourceHost})"
-                    : $"{cleanName}{extension}";
-            }
-
-            // 12. Add to library with sanitized remote metadata
-            var addResult = await libraryService.AddRemoteAsync(
-                path: normalizedFullPath,
-                displayName: displayName,
-                sourceHost: sourceHost,
-                sourceDisplayUrl: sanitizedUrl,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-
-            if (!addResult.Success || addResult.Item == null)
-            {
-                try { File.Delete(finalFilePath); } catch { }
-                return new RemoteImportResult(false, ErrorMessage: "Failed to persist wallpaper library.");
-            }
-
-            progress?.Report(new RemoteDownloadProgress("Added to library.", 0, -1, 100));
-
-            return new RemoteImportResult(
-                Success: true,
-                Item: addResult.Item,
-                AlreadyExisted: addResult.AlreadyExisted);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -399,11 +336,210 @@ public sealed class RemoteWallpaperImportService
         }
         finally
         {
-            response?.Dispose();
             if (File.Exists(tempFilePath))
             {
                 try { File.Delete(tempFilePath); } catch { }
             }
         }
+    }
+
+    private async Task<(bool Success, HttpResponseMessage? Response, Uri FinalUri, string? ErrorMessage)> ConnectAsync(
+        Uri startUri,
+        CancellationToken cancellationToken)
+    {
+        var currentUri = startUri;
+        var redirectCount = 0;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var safetyResult = await NetworkSafetyValidator.ValidateSafetyAsync(currentUri, dnsResolver, cancellationToken).ConfigureAwait(false);
+            if (!safetyResult.Success)
+            {
+                return (false, null, currentUri, safetyResult.ErrorMessage);
+            }
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
+            request.Headers.TryAddWithoutValidation("User-Agent", BrowserUserAgent);
+            request.Headers.TryAddWithoutValidation("Accept", BrowserAccept);
+            request.Headers.TryAddWithoutValidation("Accept-Language", BrowserAcceptLanguage);
+
+            HttpResponseMessage response;
+            try
+            {
+                response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return (false, null, currentUri, "Download timed out.");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (TimeoutException)
+            {
+                return (false, null, currentUri, "Download timed out.");
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"HTTP request to '{currentUri}' failed: {ex.Message}");
+                return (false, null, currentUri, NetworkSafetyValidator.ErrorCouldNotConnect);
+            }
+
+            var statusCode = (int)response.StatusCode;
+            if (statusCode is >= 300 and <= 399)
+            {
+                redirectCount++;
+                if (redirectCount > RemoteImportConstants.MaxRedirects)
+                {
+                    response.Dispose();
+                    return (false, null, currentUri, NetworkSafetyValidator.ErrorCouldNotConnect);
+                }
+
+                var location = response.Headers.Location;
+                response.Dispose();
+
+                if (location == null)
+                {
+                    return (false, null, currentUri, NetworkSafetyValidator.ErrorCouldNotConnect);
+                }
+
+                if (!location.IsAbsoluteUri)
+                {
+                    if (!Uri.TryCreate(currentUri, location, out var resolvedRedirect))
+                    {
+                        return (false, null, currentUri, NetworkSafetyValidator.ErrorInvalidUrl);
+                    }
+                    currentUri = resolvedRedirect;
+                }
+                else
+                {
+                    currentUri = location;
+                }
+
+                continue;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                response.Dispose();
+                return (false, null, currentUri, ErrorDirectDownloadNotFound);
+            }
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                response.Dispose();
+                return (false, null, currentUri, "Remote resource was not found (404).");
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = $"Server returned error ({(int)response.StatusCode}).";
+                response.Dispose();
+                return (false, null, currentUri, err);
+            }
+
+            return (true, response, currentUri, null);
+        }
+    }
+
+    private static async Task<(bool Success, DetectedMediaType DetectedType, string? ErrorMessage)> DownloadAndValidateMediaAsync(
+        HttpResponseMessage response,
+        string tempFilePath,
+        IProgress<RemoteDownloadProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var contentLength = response.Content.Headers.ContentLength;
+        var mediaTypeHint = response.Content.Headers.ContentType?.MediaType;
+        var isImageHint = mediaTypeHint != null && mediaTypeHint.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+        if (contentLength.HasValue)
+        {
+            if (contentLength.Value > RemoteImportConstants.MaxGlobalStreamSizeBytes)
+            {
+                return (false, DetectedMediaType.Unknown, "File is too large.");
+            }
+
+            if (isImageHint && contentLength.Value > RemoteImportConstants.MaxImageSizeBytes)
+            {
+                return (false, DetectedMediaType.Unknown, "File is too large.");
+            }
+        }
+
+        var maxAllowedBytes = isImageHint
+            ? RemoteImportConstants.MaxImageSizeBytes
+            : RemoteImportConstants.MaxGlobalStreamSizeBytes;
+
+        progress?.Report(new RemoteDownloadProgress("Downloading", 0, contentLength ?? -1, contentLength.HasValue && contentLength.Value > 0 ? 0 : null));
+
+        await using (var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+        await using (var fileStream = new FileStream(tempFilePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: 65536, useAsync: true))
+        {
+            var buffer = new byte[65536];
+            long totalBytesRead = 0;
+            var lastReportTime = Stopwatch.GetTimestamp();
+            int? lastReportedPercentage = null;
+
+            int read;
+            while ((read = await responseStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                totalBytesRead += read;
+                if (totalBytesRead > maxAllowedBytes)
+                {
+                    return (false, DetectedMediaType.Unknown, "File is too large.");
+                }
+
+                await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+
+                if (progress != null)
+                {
+                    int? percentage = null;
+                    if (contentLength.HasValue && contentLength.Value > 0)
+                    {
+                        percentage = (int)Math.Clamp((totalBytesRead * 100) / contentLength.Value, 0, 100);
+                    }
+
+                    var elapsedMs = (Stopwatch.GetTimestamp() - lastReportTime) * 1000 / Stopwatch.Frequency;
+                    if (percentage != lastReportedPercentage || elapsedMs >= 200)
+                    {
+                        lastReportTime = Stopwatch.GetTimestamp();
+                        lastReportedPercentage = percentage;
+                        progress.Report(new RemoteDownloadProgress("Downloading", totalBytesRead, contentLength ?? -1, percentage));
+                    }
+                }
+            }
+
+            await fileStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        progress?.Report(new RemoteDownloadProgress("Validating...", 0, -1, null));
+
+        var detectedType = MediaSignatureDetector.Detect(tempFilePath);
+        if (detectedType == DetectedMediaType.Unknown)
+        {
+            return (false, DetectedMediaType.Unknown, "Downloaded file is not valid media.");
+        }
+
+        var fileInfo = new FileInfo(tempFilePath);
+        var fileSize = fileInfo.Length;
+
+        if (detectedType is DetectedMediaType.Png or DetectedMediaType.Jpeg)
+        {
+            if (fileSize > RemoteImportConstants.MaxImageSizeBytes)
+            {
+                return (false, DetectedMediaType.Unknown, "File is too large.");
+            }
+        }
+        else if (detectedType == DetectedMediaType.Mp4)
+        {
+            if (fileSize > RemoteImportConstants.MaxVideoSizeBytes)
+            {
+                return (false, DetectedMediaType.Unknown, "File is too large.");
+            }
+        }
+
+        return (true, detectedType, null);
     }
 }

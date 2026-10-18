@@ -556,6 +556,386 @@ public sealed class RemoteWallpaperImportTests : IDisposable
         Assert.Single(library.Items);
     }
 
+    // 16. HTML page with og:image discovers and downloads image
+    [Fact]
+    public async Task ImportAsync_HtmlPageWithOgImage_DiscoversAndDownloadsWallpaper()
+    {
+        var html = @"<!DOCTYPE html>
+<html>
+<head>
+  <title>Dodge Charger RT 4K Wallpaper | 4K Wallpapers</title>
+  <meta property=""og:image"" content=""https://example.com/images/dodge_charger_4k.jpg"" />
+</head>
+<body><h1>Dodge Charger</h1></body>
+</html>";
+
+        var testHandler = new TestHttpMessageHandler
+        {
+            Handler = req =>
+            {
+                if (req.RequestUri!.AbsolutePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(html, Encoding.UTF8, "text/html")
+                    };
+                }
+
+                if (req.RequestUri.AbsoluteUri.Contains("dodge_charger_4k.jpg"))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new ByteArrayContent(ValidJpegBytes)
+                        {
+                            Headers = { { "Content-Type", "image/jpeg" } }
+                        }
+                    };
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+        };
+
+        var httpClient = new HttpClient(testHandler);
+        var service = new RemoteWallpaperImportService(
+            libraryService,
+            httpClient,
+            PublicDnsResolver,
+            tempDirectory,
+            storageDirectory);
+
+        var pageUrl = "https://example.com/black-dark/dodge-charger-27543.html";
+        var result = await service.ImportAsync(pageUrl);
+
+        Assert.True(result.Success, $"Import failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Item);
+        Assert.Equal("example.com", result.Item.SourceHost);
+        Assert.Equal(pageUrl, result.Item.SourceDisplayUrl);
+        Assert.Contains("Dodge Charger RT 4K Wallpaper", result.Item.DisplayName);
+        Assert.True(File.Exists(result.Item.FilePath));
+    }
+
+    // 17. HTML page with video/source tag discovers and downloads live video
+    [Fact]
+    public async Task ImportAsync_HtmlPageWithVideoTag_DiscoversAndDownloadsVideo()
+    {
+        var html = @"<!DOCTYPE html>
+<html>
+<head><title>Cyberpunk Live Wallpaper</title></head>
+<body>
+  <video autoplay loop muted>
+    <source src=""https://example.com/videos/cyberpunk_4k.mp4"" type=""video/mp4"" />
+  </video>
+</body>
+</html>";
+
+        var testHandler = new TestHttpMessageHandler
+        {
+            Handler = req =>
+            {
+                if (req.RequestUri!.AbsolutePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(html, Encoding.UTF8, "text/html")
+                    };
+                }
+
+                if (req.RequestUri.AbsoluteUri.Contains("cyberpunk_4k.mp4"))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new ByteArrayContent(ValidMp4Bytes)
+                        {
+                            Headers = { { "Content-Type", "video/mp4" } }
+                        }
+                    };
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+        };
+
+        var httpClient = new HttpClient(testHandler);
+        var service = new RemoteWallpaperImportService(
+            libraryService,
+            httpClient,
+            PublicDnsResolver,
+            tempDirectory,
+            storageDirectory);
+
+        var result = await service.ImportAsync("https://example.com/live/cyberpunk.html");
+
+        Assert.True(result.Success, $"Import failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Item);
+        Assert.Equal(IpcConstants.WallpaperTypeVideo, result.Item.Type);
+        Assert.True(File.Exists(result.Item.FilePath));
+    }
+
+    // 18. HTML page with multiple resolutions prefers highest desktop resolution (4K)
+    [Fact]
+    public async Task ImportAsync_HtmlPageWithMultipleResolutions_PrefersHighestResolution()
+    {
+        var html = @"<!DOCTYPE html>
+<html>
+<head>
+  <title>Mountain Peak</title>
+  <meta property=""og:image"" content=""https://example.com/mountain_preview.jpg"" />
+</head>
+<body>
+  <div class=""downloads"">
+    <a href=""https://example.com/mountain_1080p.jpg"">1080p (1920x1080)</a>
+    <a href=""https://example.com/mountain_4k.jpg"">4K UHD (3840x2160)</a>
+    <a href=""https://example.com/mountain_720p.jpg"">720p HD</a>
+  </div>
+</body>
+</html>";
+
+        string? downloadedUri = null;
+
+        var testHandler = new TestHttpMessageHandler
+        {
+            Handler = req =>
+            {
+                if (req.RequestUri!.AbsolutePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(html, Encoding.UTF8, "text/html")
+                    };
+                }
+
+                downloadedUri = req.RequestUri.AbsoluteUri;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(ValidJpegBytes)
+                    {
+                        Headers = { { "Content-Type", "image/jpeg" } }
+                    }
+                };
+            }
+        };
+
+        var httpClient = new HttpClient(testHandler);
+        var service = new RemoteWallpaperImportService(
+            libraryService,
+            httpClient,
+            PublicDnsResolver,
+            tempDirectory,
+            storageDirectory);
+
+        var result = await service.ImportAsync("https://example.com/wallpapers/mountain.html");
+
+        Assert.True(result.Success, $"Import failed: {result.ErrorMessage}");
+        Assert.Equal("https://example.com/mountain_4k.jpg", downloadedUri);
+    }
+
+    // 19. HTML page with no wallpaper links returns descriptive error
+    [Fact]
+    public async Task ImportAsync_HtmlPageWithNoWallpaper_ReturnsDescriptiveError()
+    {
+        var html = @"<!DOCTYPE html>
+<html>
+<head><title>Articles - Tech Blog</title></head>
+<body><h1>Hello World</h1><p>No wallpapers or media here.</p></body>
+</html>";
+
+        var testHandler = new TestHttpMessageHandler
+        {
+            Handler = req => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(html, Encoding.UTF8, "text/html")
+            }
+        };
+
+        var httpClient = new HttpClient(testHandler);
+        var service = new RemoteWallpaperImportService(
+            libraryService,
+            httpClient,
+            PublicDnsResolver,
+            tempDirectory,
+            storageDirectory);
+
+        var result = await service.ImportAsync("https://example.com/blog/article-123.html");
+
+        Assert.False(result.Success);
+        Assert.Equal("No supported wallpaper was found on this page.", result.ErrorMessage);
+    }
+
+    // 20. Relative link in HTML page resolves correctly to absolute URL
+    [Fact]
+    public async Task ImportAsync_HtmlPageWithRelativeLinks_ResolvesAbsoluteUrl()
+    {
+        var html = @"<!DOCTYPE html>
+<html>
+<head>
+  <title>Lake Sunset</title>
+  <meta property=""og:image"" content=""/assets/wallpapers/lake_sunset.png"" />
+</head>
+<body></body>
+</html>";
+
+        string? requestedMediaUrl = null;
+
+        var testHandler = new TestHttpMessageHandler
+        {
+            Handler = req =>
+            {
+                if (req.RequestUri!.AbsolutePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(html, Encoding.UTF8, "text/html")
+                    };
+                }
+
+                requestedMediaUrl = req.RequestUri.AbsoluteUri;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(ValidPngBytes)
+                    {
+                        Headers = { { "Content-Type", "image/png" } }
+                    }
+                };
+            }
+        };
+
+        var httpClient = new HttpClient(testHandler);
+        var service = new RemoteWallpaperImportService(
+            libraryService,
+            httpClient,
+            PublicDnsResolver,
+            tempDirectory,
+            storageDirectory);
+
+        var result = await service.ImportAsync("https://example.com/gallery/view.html");
+
+        Assert.True(result.Success, $"Import failed: {result.ErrorMessage}");
+        Assert.Equal("https://example.com/assets/wallpapers/lake_sunset.png", requestedMediaUrl);
+    }
+
+    // 21. Discovered media URL pointing to SSRF/private IP is rejected
+    [Fact]
+    public async Task ImportAsync_HtmlPageDiscoveredUrlIsSsrf_RejectsPrivateAddress()
+    {
+        var html = @"<!DOCTYPE html>
+<html>
+<head>
+  <meta property=""og:image"" content=""http://192.168.1.1/secret.png"" />
+</head>
+<body></body>
+</html>";
+
+        var testHandler = new TestHttpMessageHandler
+        {
+            Handler = req => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(html, Encoding.UTF8, "text/html")
+            }
+        };
+
+        var httpClient = new HttpClient(testHandler);
+        var service = new RemoteWallpaperImportService(
+            libraryService,
+            httpClient,
+            PublicDnsResolver,
+            tempDirectory,
+            storageDirectory);
+
+        var result = await service.ImportAsync("https://example.com/page.html");
+
+        Assert.False(result.Success);
+        Assert.Equal(NetworkSafetyValidator.ErrorLocalPrivateNotAllowed, result.ErrorMessage);
+    }
+
+    // 22. HTML document exceeding 2 MB limit is rejected
+    [Fact]
+    public async Task ImportAsync_HtmlDocumentExceedingSizeLimit_RejectsAsTooLarge()
+    {
+        var testHandler = new TestHttpMessageHandler
+        {
+            Handler = req => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(new EndlessChunkStream(3 * 1024 * 1024))
+                {
+                    Headers = { { "Content-Type", "text/html" } }
+                }
+            }
+        };
+
+        var httpClient = new HttpClient(testHandler);
+        var service = new RemoteWallpaperImportService(
+            libraryService,
+            httpClient,
+            PublicDnsResolver,
+            tempDirectory,
+            storageDirectory);
+
+        var result = await service.ImportAsync("https://example.com/giant-page.html");
+
+        Assert.False(result.Success);
+        Assert.Equal("File is too large.", result.ErrorMessage);
+    }
+
+    // 23. HTTP 403 Forbidden returns direct download guidance error
+    [Fact]
+    public async Task ImportAsync_ForbiddenResponse_ReturnsGuidanceError()
+    {
+        var testHandler = new TestHttpMessageHandler
+        {
+            Handler = req => new HttpResponseMessage(HttpStatusCode.Forbidden)
+        };
+
+        var httpClient = new HttpClient(testHandler);
+        var service = new RemoteWallpaperImportService(
+            libraryService,
+            httpClient,
+            PublicDnsResolver,
+            tempDirectory,
+            storageDirectory);
+
+        var result = await service.ImportAsync("https://example.com/protected.html");
+
+        Assert.False(result.Success);
+        Assert.Equal(RemoteWallpaperImportService.ErrorDirectDownloadNotFound, result.ErrorMessage);
+    }
+
+    // 24. Cloudflare challenge page HTML returns direct download guidance error
+    [Fact]
+    public async Task ImportAsync_CloudflareChallengePageHtml_ReturnsGuidanceError()
+    {
+        var challengeHtml = @"<!DOCTYPE html>
+<html>
+<head><title>Just a moment...</title></head>
+<body>
+  <div id=""cf-wrapper"">
+    <script src=""https://challenges.cloudflare.com/turnstile/v0/api.js""></script>
+  </div>
+</body>
+</html>";
+
+        var testHandler = new TestHttpMessageHandler
+        {
+            Handler = req => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(challengeHtml, Encoding.UTF8, "text/html")
+            }
+        };
+
+        var httpClient = new HttpClient(testHandler);
+        var service = new RemoteWallpaperImportService(
+            libraryService,
+            httpClient,
+            PublicDnsResolver,
+            tempDirectory,
+            storageDirectory);
+
+        var result = await service.ImportAsync("https://example.com/cf-page.html");
+
+        Assert.False(result.Success);
+        Assert.Equal(RemoteWallpaperImportService.ErrorDirectDownloadNotFound, result.ErrorMessage);
+    }
+
     #region Helper Types
 
     private sealed class TestHttpMessageHandler : HttpMessageHandler

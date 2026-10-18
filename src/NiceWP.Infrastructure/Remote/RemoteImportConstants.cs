@@ -21,6 +21,11 @@ public static class RemoteImportConstants
     public const long MaxGlobalStreamSizeBytes = 1024L * 1024L * 1024L;
 
     /// <summary>
+    /// Maximum allowed size for an HTML document during page discovery (2 MB).
+    /// </summary>
+    public const long MaxHtmlDocumentSizeBytes = 2 * 1024 * 1024;
+
+    /// <summary>
     /// Maximum allowed HTTP redirects before aborting.
     /// </summary>
     public const int MaxRedirects = 5;
