@@ -110,7 +110,27 @@ public sealed class WallpaperLibraryService
     /// Validates and adds a local image or video wallpaper to the library.
     /// If the normalized path already exists in the library (case-insensitive), returns the existing item without creating a duplicate.
     /// </summary>
-    public async Task<WallpaperLibraryAddResult> AddAsync(string? path, CancellationToken cancellationToken = default)
+    public Task<WallpaperLibraryAddResult> AddAsync(string? path, CancellationToken cancellationToken = default) =>
+        AddCoreAsync(path, displayName: null, isRemoteImported: false, sourceHost: null, sourceDisplayUrl: null, cancellationToken: cancellationToken);
+
+    /// <summary>
+    /// Validates and adds a remote wallpaper to the library with optional display name and remote metadata.
+    /// </summary>
+    public Task<WallpaperLibraryAddResult> AddRemoteAsync(
+        string? path,
+        string? displayName = null,
+        string? sourceHost = null,
+        string? sourceDisplayUrl = null,
+        CancellationToken cancellationToken = default) =>
+        AddCoreAsync(path, displayName: displayName, isRemoteImported: true, sourceHost: sourceHost, sourceDisplayUrl: sourceDisplayUrl, cancellationToken: cancellationToken);
+
+    private async Task<WallpaperLibraryAddResult> AddCoreAsync(
+        string? path,
+        string? displayName,
+        bool isRemoteImported,
+        string? sourceHost,
+        string? sourceDisplayUrl,
+        CancellationToken cancellationToken)
     {
         var validation = ValidateWallpaperFile(path, out var fullPath, out var wallpaperType);
         if (!validation.Success)
@@ -141,10 +161,13 @@ public sealed class WallpaperLibraryService
                 Id = CreateUniqueId(library),
                 Type = wallpaperType,
                 FilePath = fullPath,
-                DisplayName = Path.GetFileName(fullPath),
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? Path.GetFileName(fullPath) : displayName.Trim(),
                 AddedAtUtc = DateTimeOffset.UtcNow,
                 IsFavorite = false,
-                LastUsedAtUtc = null
+                LastUsedAtUtc = null,
+                IsRemoteImported = isRemoteImported,
+                SourceHost = string.IsNullOrWhiteSpace(sourceHost) ? null : sourceHost.Trim(),
+                SourceDisplayUrl = string.IsNullOrWhiteSpace(sourceDisplayUrl) ? null : sourceDisplayUrl.Trim()
             };
 
             library.Items.Add(newItem);
@@ -495,6 +518,12 @@ public sealed class WallpaperLibraryService
     {
         var library = await LoadAsync(cancellationToken).ConfigureAwait(false);
         return library.ContainsPath(path);
+    }
+
+    public async Task<WallpaperLibraryItem?> FindBySourceDisplayUrlAsync(string? sourceDisplayUrl, CancellationToken cancellationToken = default)
+    {
+        var library = await LoadAsync(cancellationToken).ConfigureAwait(false);
+        return library.FindBySourceDisplayUrl(sourceDisplayUrl);
     }
 
     public static WallpaperResult ValidateWallpaperFile(string? path, out string fullPath, out string wallpaperType)

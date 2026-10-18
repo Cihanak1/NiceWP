@@ -49,6 +49,19 @@ public sealed class WallpaperLibrary
 
     public bool ContainsPath(string? path) => FindByPath(path) != null;
 
+    public WallpaperLibraryItem? FindBySourceDisplayUrl(string? sourceDisplayUrl)
+    {
+        if (string.IsNullOrWhiteSpace(sourceDisplayUrl) || Items == null)
+        {
+            return null;
+        }
+
+        var trimmedUrl = sourceDisplayUrl.Trim();
+        return Items.FirstOrDefault(item =>
+            item != null &&
+            string.Equals(item.SourceDisplayUrl, trimmedUrl, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
     /// Returns a sanitized copy of the library with valid version, normalized items, and no duplicate IDs or paths.
     /// If the library version is unsupported or Items is null, returns an empty Version 1 library.
@@ -163,7 +176,10 @@ public sealed class WallpaperLibrary
             DisplayName = displayName,
             AddedAtUtc = addedAtUtc,
             IsFavorite = rawItem.IsFavorite,
-            LastUsedAtUtc = rawItem.LastUsedAtUtc?.ToUniversalTime()
+            LastUsedAtUtc = rawItem.LastUsedAtUtc?.ToUniversalTime(),
+            IsRemoteImported = rawItem.IsRemoteImported,
+            SourceHost = string.IsNullOrWhiteSpace(rawItem.SourceHost) ? null : rawItem.SourceHost.Trim(),
+            SourceDisplayUrl = string.IsNullOrWhiteSpace(rawItem.SourceDisplayUrl) ? null : rawItem.SourceDisplayUrl.Trim()
         };
         return true;
     }

@@ -19,6 +19,7 @@ using NiceWP.Infrastructure.Library;
 using NiceWP.Infrastructure.Observatory;
 using NiceWP.Infrastructure.Settings;
 using NiceWP.Infrastructure.Tray;
+using NiceWP.Infrastructure.Remote;
 using Windows.Storage;
 
 namespace NiceWP.App;
@@ -355,6 +356,209 @@ public sealed partial class DesktopTestWindow : Window
             {
                 UpdateLibraryActionState();
             }
+        }
+    }
+
+    private async void OnAddFromUrlClicked(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+
+        var contentPanel = new StackPanel { Spacing = 12, MinWidth = 360, MaxWidth = 460 };
+
+        var secBrush = Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var sb) && sb is Brush sBrush
+            ? sBrush
+            : null;
+
+        var critBrush = Application.Current.Resources.TryGetValue("SystemFillColorCriticalBrush", out var cb) && cb is Brush cBrush
+            ? cBrush
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 232, 17, 35));
+
+        var urlLabel = new TextBlock
+        {
+            Text = "Wallpaper URL",
+            Style = Application.Current.Resources.TryGetValue("BaseTextBlockStyle", out var baseStyle) && baseStyle is Style bs ? bs : null
+        };
+
+        var urlBox = new TextBox
+        {
+            PlaceholderText = "https://example.com/wallpaper.jpg",
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+
+        var applyCheckBox = new CheckBox
+        {
+            Content = "Apply after download",
+            IsChecked = true
+        };
+
+        var progressBar = new ProgressBar
+        {
+            Visibility = Visibility.Collapsed,
+            Minimum = 0,
+            Maximum = 100,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+
+        var statusBlock = new TextBlock
+        {
+            Text = "NiceWP only accesses the network when you explicitly import a remote wallpaper.\nRemote media is downloaded locally and validated before use.",
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = secBrush
+        };
+
+        var errorBlock = new TextBlock
+        {
+            Visibility = Visibility.Collapsed,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = critBrush,
+            Margin = new Thickness(0, 4, 0, 0)
+        };
+
+        urlBox.TextChanged += (_, _) =>
+        {
+            if (errorBlock.Visibility == Visibility.Visible)
+            {
+                errorBlock.Visibility = Visibility.Collapsed;
+            }
+        };
+
+        contentPanel.Children.Add(urlLabel);
+        contentPanel.Children.Add(urlBox);
+        contentPanel.Children.Add(applyCheckBox);
+        contentPanel.Children.Add(progressBar);
+        contentPanel.Children.Add(statusBlock);
+        contentPanel.Children.Add(errorBlock);
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = this.Content.XamlRoot,
+            Title = "Add from URL",
+            PrimaryButtonText = "Download",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            Content = contentPanel
+        };
+
+        CancellationTokenSource? downloadCts = null;
+        var isDownloading = false;
+
+        dialog.PrimaryButtonClick += async (_, dArgs) =>
+        {
+            dArgs.Cancel = true;
+
+            if (isDownloading) return;
+
+            var rawUrl = urlBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(rawUrl))
+            {
+                errorBlock.Text = "Invalid URL.";
+                errorBlock.Visibility = Visibility.Visible;
+                return;
+            }
+
+            errorBlock.Visibility = Visibility.Collapsed;
+            urlBox.IsEnabled = false;
+            applyCheckBox.IsEnabled = false;
+            dialog.IsPrimaryButtonEnabled = false;
+            progressBar.Visibility = Visibility.Visible;
+            progressBar.IsIndeterminate = true;
+            statusBlock.Text = "Connecting...";
+
+            isDownloading = true;
+            downloadCts = new CancellationTokenSource();
+
+            var progress = new Progress<RemoteDownloadProgress>(p =>
+            {
+                if (closed) return;
+                statusBlock.Text = p.DisplayText;
+                if (p.Percentage.HasValue)
+                {
+                    progressBar.IsIndeterminate = false;
+                    progressBar.Value = p.Percentage.Value;
+                }
+                else
+                {
+                    progressBar.IsIndeterminate = true;
+                }
+            });
+
+            try
+            {
+                var shouldApply = applyCheckBox.IsChecked == true;
+                var result = await libraryController.ImportFromUrlAsync(rawUrl, shouldApply, progress, downloadCts.Token);
+                if (closed) return;
+
+                if (result.Success)
+                {
+                    dialog.Hide();
+                    RenderLibraryItems();
+                    if (shouldApply && result.Entry != null)
+                    {
+                        await SyncRuntimeStatusAsync();
+                    }
+                    StatusText.Text = result.Message ?? "Added to library.";
+                }
+                else if (result.Message == "Download cancelled.")
+                {
+                    dialog.Hide();
+                    StatusText.Text = "Download cancelled.";
+                }
+                else
+                {
+                    progressBar.Visibility = Visibility.Collapsed;
+                    urlBox.IsEnabled = true;
+                    applyCheckBox.IsEnabled = true;
+                    dialog.IsPrimaryButtonEnabled = true;
+                    errorBlock.Text = result.Message ?? "Could not connect to server.";
+                    errorBlock.Visibility = Visibility.Visible;
+                    isDownloading = false;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                if (!closed)
+                {
+                    dialog.Hide();
+                    StatusText.Text = "Download cancelled.";
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Remote import UI error: {ex}");
+                if (!closed)
+                {
+                    progressBar.Visibility = Visibility.Collapsed;
+                    urlBox.IsEnabled = true;
+                    applyCheckBox.IsEnabled = true;
+                    dialog.IsPrimaryButtonEnabled = true;
+                    errorBlock.Text = "Could not connect to server.";
+                    errorBlock.Visibility = Visibility.Visible;
+                    isDownloading = false;
+                }
+            }
+        };
+
+        dialog.CloseButtonClick += (_, _) =>
+        {
+            if (isDownloading && downloadCts != null)
+            {
+                try { downloadCts.Cancel(); } catch { }
+            }
+        };
+
+        try
+        {
+            await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to show Add from URL dialog: {ex}");
+        }
+        finally
+        {
+            downloadCts?.Dispose();
         }
     }
 
@@ -1364,6 +1568,7 @@ public sealed partial class DesktopTestWindow : Window
         var hasWallpaper = !string.IsNullOrWhiteSpace(activeWallpaperPath);
 
         AddWallpaperButton.IsEnabled = isIdle;
+        AddFromUrlButton.IsEnabled = isIdle;
         LibraryListView.IsEnabled = isIdle;
         LibrarySearchBox.IsEnabled = isIdle;
         LibraryFilterComboBox.IsEnabled = isIdle;

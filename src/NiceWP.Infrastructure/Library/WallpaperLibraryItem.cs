@@ -19,6 +19,15 @@ public sealed class WallpaperLibraryItem
 
     public DateTimeOffset? LastUsedAtUtc { get; set; }
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsRemoteImported { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceHost { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceDisplayUrl { get; set; }
+
     /// <summary>
     /// Computes at runtime whether the underlying wallpaper file currently exists on disk.
     /// </summary>

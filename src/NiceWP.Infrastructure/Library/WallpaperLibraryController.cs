@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
+using NiceWP.Infrastructure.Remote;
 
 namespace NiceWP.Infrastructure.Library;
 
@@ -38,7 +39,10 @@ public sealed record WallpaperLibraryEntryView(
     DateTimeOffset AddedAtUtc,
     bool IsMissing,
     bool IsFavorite = false,
-    DateTimeOffset? LastUsedAtUtc = null)
+    DateTimeOffset? LastUsedAtUtc = null,
+    bool IsRemoteImported = false,
+    string? SourceHost = null,
+    string? SourceDisplayUrl = null)
 {
     public string StatusText => IsMissing ? "Missing" : string.Empty;
 
@@ -54,10 +58,21 @@ public sealed record WallpaperLibraryEntryView(
 
     public bool IsVideo => string.Equals(Type, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
 
-    public string ToolTipText =>
-        IsMissing
-            ? $"{DisplayName}\n{FilePath}\nStatus: File not found on disk"
-            : $"{DisplayName}\n{FilePath}";
+    public string ToolTipText
+    {
+        get
+        {
+            if (IsMissing)
+            {
+                return $"{DisplayName}\n{FilePath}\nStatus: File not found on disk";
+            }
+            if (IsRemoteImported && !string.IsNullOrWhiteSpace(SourceHost))
+            {
+                return $"{DisplayName}\n{FilePath}\nSource: {SourceHost}";
+            }
+            return $"{DisplayName}\n{FilePath}";
+        }
+    }
 
     public string DisplayLabel =>
         IsMissing
@@ -82,7 +97,10 @@ public sealed record WallpaperLibraryEntryView(
             AddedAtUtc: item.AddedAtUtc,
             IsMissing: !item.FileExists(),
             IsFavorite: item.IsFavorite,
-            LastUsedAtUtc: item.LastUsedAtUtc);
+            LastUsedAtUtc: item.LastUsedAtUtc,
+            IsRemoteImported: item.IsRemoteImported,
+            SourceHost: item.SourceHost,
+            SourceDisplayUrl: item.SourceDisplayUrl);
     }
 }
 
@@ -125,6 +143,8 @@ public sealed class WallpaperLibraryController
 
     public WallpaperLibraryService Service { get; }
 
+    public RemoteWallpaperImportService RemoteImportService { get; }
+
     public RuntimeIpcClient IpcClient => ipcClient;
 
     public IReadOnlyList<WallpaperLibraryEntryView> Items => visibleItems;
@@ -155,9 +175,11 @@ public sealed class WallpaperLibraryController
         RuntimeIpcClient? ipcClient = null,
         RuntimeHostLauncher? hostLauncher = null,
         Func<CancellationToken, Task<IpcResponse>>? ensureHostRunningAsync = null,
-        Action<string>? openFileLocationAction = null)
+        Action<string>? openFileLocationAction = null,
+        RemoteWallpaperImportService? remoteImportService = null)
     {
         Service = service ?? new WallpaperLibraryService();
+        RemoteImportService = remoteImportService ?? new RemoteWallpaperImportService(Service);
         this.ipcClient = ipcClient ?? hostLauncher?.IpcClient ?? new RuntimeIpcClient();
         var launcher = hostLauncher ?? new RuntimeHostLauncher(this.ipcClient);
         this.ensureHostRunningAsync = ensureHostRunningAsync
@@ -456,6 +478,108 @@ public sealed class WallpaperLibraryController
             return new WallpaperLibraryActionResult(
                 Success: false,
                 Message: "Failed to load library.",
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.RendererFailed);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
+    }
+
+    /// <summary>
+    /// Downloads, validates, and adds a remote wallpaper from an HTTP/HTTPS URL into the library,
+    /// then optionally applies it via the Runtime Host.
+    /// </summary>
+    public async Task<WallpaperLibraryActionResult> ImportFromUrlAsync(
+        string? url,
+        bool applyAfterDownload = true,
+        IProgress<RemoteDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: MapUserStatusMessage(WallpaperError.Busy),
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.Busy);
+        }
+
+        try
+        {
+            var importResult = await RemoteImportService.ImportAsync(url, progress, cancellationToken).ConfigureAwait(false);
+            if (!importResult.Success || importResult.Item == null)
+            {
+                if (importResult.Cancelled)
+                {
+                    return new WallpaperLibraryActionResult(
+                        Success: false,
+                        Message: "Download cancelled.",
+                        Entry: null,
+                        AlreadyExisted: false,
+                        Error: WallpaperError.None);
+                }
+
+                return new WallpaperLibraryActionResult(
+                    Success: false,
+                    Message: importResult.ErrorMessage ?? "Could not connect to server.",
+                    Entry: null,
+                    AlreadyExisted: false,
+                    Error: WallpaperError.InvalidPath);
+            }
+
+            await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            SelectItem(importResult.Item.Id);
+
+            var entry = SelectedItem ?? WallpaperLibraryEntryView.FromItem(importResult.Item);
+
+            if (applyAfterDownload && entry.CanApply)
+            {
+                progress?.Report(new RemoteDownloadProgress("Applying...", 0, -1, 100));
+
+                var applyResult = await ApplyItemCoreAsync(importResult.Item, cancellationToken).ConfigureAwait(false);
+                if (!applyResult.Success)
+                {
+                    // Item was successfully downloaded and added to library, but apply failed.
+                    // Keep item in library so user can apply it later.
+                    return new WallpaperLibraryActionResult(
+                        Success: true,
+                        Message: "Wallpaper downloaded but could not be applied.",
+                        Entry: entry,
+                        AlreadyExisted: importResult.AlreadyExisted,
+                        Error: WallpaperError.None);
+                }
+            }
+
+            var message = importResult.AlreadyExisted
+                ? $"Wallpaper is already in library: {entry.DisplayName}"
+                : $"Added to library: {entry.DisplayName}";
+
+            return new WallpaperLibraryActionResult(
+                Success: true,
+                Message: message,
+                Entry: entry,
+                AlreadyExisted: importResult.AlreadyExisted,
+                Error: WallpaperError.None);
+        }
+        catch (OperationCanceledException)
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Download cancelled.",
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.None);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to import wallpaper from URL: {ex}");
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Could not connect to server.",
                 Entry: null,
                 AlreadyExisted: false,
                 Error: WallpaperError.RendererFailed);
