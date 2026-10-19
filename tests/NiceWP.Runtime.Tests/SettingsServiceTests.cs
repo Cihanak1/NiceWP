@@ -192,8 +192,11 @@ public sealed class SettingsServiceTests : IDisposable
             Assert.True(root.TryGetProperty("RestoreLastWallpaper", out _));
             Assert.True(root.TryGetProperty("LastWallpaperType", out _));
             Assert.True(root.TryGetProperty("LastWallpaperPath", out _));
+            Assert.True(root.TryGetProperty("RotationMode", out _));
+            Assert.True(root.TryGetProperty("RotationOrder", out _));
+            Assert.True(root.TryGetProperty("RotationIntervalMinutes", out _));
             Assert.False(root.TryGetProperty("Autostart", out _));
-            Assert.Equal(3, root.EnumerateObject().Count());
+            Assert.Equal(6, root.EnumerateObject().Count());
         }
 
         var loaded = await service.LoadAsync();

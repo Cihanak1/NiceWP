@@ -26,13 +26,26 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? EfficiencyProfile { get; set; }
 
+    public string RotationMode { get; set; } = RotationModeExtensions.ModeOff;
+
+    public string RotationOrder { get; set; } = RotationOrderExtensions.OrderSequential;
+
+    public int RotationIntervalMinutes { get; set; } = 30;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LastRotationItemId { get; set; }
+
     public static AppSettings CreateDefault() => new()
     {
         RestoreLastWallpaper = true,
         LastWallpaperType = IpcConstants.WallpaperTypeNone,
         LastWallpaperPath = null,
         Theme = null,
-        EfficiencyProfile = null
+        EfficiencyProfile = null,
+        RotationMode = RotationModeExtensions.ModeOff,
+        RotationOrder = RotationOrderExtensions.OrderSequential,
+        RotationIntervalMinutes = 30,
+        LastRotationItemId = null
     };
 
     /// <summary>
@@ -56,7 +69,11 @@ public sealed class AppSettings
             LastWallpaperType = normalizedType,
             LastWallpaperPath = normalizedPath,
             Theme = NormalizeTheme(Theme),
-            EfficiencyProfile = NormalizeEfficiencyProfile(EfficiencyProfile)
+            EfficiencyProfile = NormalizeEfficiencyProfile(EfficiencyProfile),
+            RotationMode = NormalizeRotationMode(RotationMode),
+            RotationOrder = NormalizeRotationOrder(RotationOrder),
+            RotationIntervalMinutes = NormalizeRotationIntervalMinutes(RotationIntervalMinutes),
+            LastRotationItemId = string.IsNullOrWhiteSpace(LastRotationItemId) ? null : LastRotationItemId.Trim()
         };
     }
 
@@ -100,4 +117,16 @@ public sealed class AppSettings
         var parsed = EfficiencyPolicyMatrix.ParseProfile(profile);
         return parsed == NiceWP.Core.EfficiencyProfile.Balanced ? null : parsed.ToDisplayString();
     }
+
+    public static string NormalizeRotationMode(string? mode) =>
+        RotationModeExtensions.ParseMode(mode).ToConfigString();
+
+    public static string NormalizeRotationOrder(string? order) =>
+        RotationOrderExtensions.ParseOrder(order).ToConfigString();
+
+    public static int NormalizeRotationIntervalMinutes(int minutes) => minutes switch
+    {
+        5 or 15 or 30 or 60 or 180 or 360 or 720 or 1440 => minutes,
+        _ => 30
+    };
 }

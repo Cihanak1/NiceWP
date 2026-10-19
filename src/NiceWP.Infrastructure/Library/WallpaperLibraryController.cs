@@ -2,6 +2,7 @@ using System.Diagnostics;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
 using NiceWP.Infrastructure.Remote;
+using NiceWP.Infrastructure.Rotation;
 
 namespace NiceWP.Infrastructure.Library;
 
@@ -130,7 +131,7 @@ public sealed record WallpaperLibraryApplyResult(
 /// <summary>
 /// Coordinates local wallpaper library state, selection, add, remove, and apply flows for the UI.
 /// </summary>
-public sealed class WallpaperLibraryController
+public sealed class WallpaperLibraryController : IDisposable
 {
     public const int MaxRecentItems = 8;
 
@@ -144,6 +145,8 @@ public sealed class WallpaperLibraryController
     public WallpaperLibraryService Service { get; }
 
     public RemoteWallpaperImportService RemoteImportService { get; }
+
+    public WallpaperRotationService Rotation { get; }
 
     public RuntimeIpcClient IpcClient => ipcClient;
 
@@ -176,7 +179,8 @@ public sealed class WallpaperLibraryController
         RuntimeHostLauncher? hostLauncher = null,
         Func<CancellationToken, Task<IpcResponse>>? ensureHostRunningAsync = null,
         Action<string>? openFileLocationAction = null,
-        RemoteWallpaperImportService? remoteImportService = null)
+        RemoteWallpaperImportService? remoteImportService = null,
+        WallpaperRotationService? rotationService = null)
     {
         Service = service ?? new WallpaperLibraryService();
         RemoteImportService = remoteImportService ?? new RemoteWallpaperImportService(Service);
@@ -185,6 +189,38 @@ public sealed class WallpaperLibraryController
         this.ensureHostRunningAsync = ensureHostRunningAsync
             ?? (cancellationToken => launcher.EnsureHostRunningAsync(cancellationToken: cancellationToken));
         this.openFileLocationAction = openFileLocationAction ?? DefaultOpenFileLocation;
+
+        Rotation = rotationService ?? new WallpaperRotationService(
+            getItems: GetLibraryItemsSnapshot,
+            applyItem: (item, ct) => ApplyItemAsync(item, ct),
+            getHostStatus: ct => this.ipcClient.GetStatusAsync(cancellationToken: ct),
+            pauseHost: ct => this.ipcClient.PauseWallpaperAsync(cancellationToken: ct),
+            resumeHost: ct => this.ipcClient.ResumeWallpaperAsync(cancellationToken: ct));
+    }
+
+    private IReadOnlyList<WallpaperLibraryItem> GetLibraryItemsSnapshot()
+    {
+        lock (allItems)
+        {
+            return allItems.Select(v => new WallpaperLibraryItem
+            {
+                Id = v.Id,
+                DisplayName = v.DisplayName,
+                Type = v.Type,
+                FilePath = v.FilePath,
+                AddedAtUtc = v.AddedAtUtc,
+                IsFavorite = v.IsFavorite,
+                LastUsedAtUtc = v.LastUsedAtUtc,
+                IsRemoteImported = v.IsRemoteImported,
+                SourceHost = v.SourceHost,
+                SourceDisplayUrl = v.SourceDisplayUrl
+            }).ToList();
+        }
+    }
+
+    public void Dispose()
+    {
+        Rotation.Dispose();
     }
 
     private static void DefaultOpenFileLocation(string fullPath)
@@ -244,6 +280,7 @@ public sealed class WallpaperLibraryController
             }
 
             ApplyFilterAndSort();
+            Rotation.NotifyLibraryChanged();
         }
 
         return updated;
@@ -270,6 +307,7 @@ public sealed class WallpaperLibraryController
             }
 
             ApplyFilterAndSort();
+            Rotation.NotifyLibraryChanged();
         }
 
         return updated;
@@ -1158,6 +1196,8 @@ public sealed class WallpaperLibraryController
             Trace.WriteLine($"Failed to query status after applying wallpaper: {ex}");
         }
 
+        Rotation.NotifyCurrentWallpaper(activePath, item.Id);
+
         return new WallpaperLibraryApplyResult(
             Success: true,
             Message: string.Empty,
@@ -1283,5 +1323,7 @@ public sealed class WallpaperLibraryController
         {
             SelectedItemId = null;
         }
+
+        Rotation.NotifyLibraryChanged();
     }
 }

@@ -348,6 +348,18 @@ public sealed class RuntimeHostApp : IDisposable
         }
 
         var state = currentState;
+        string pauseReasons = "None";
+        if (state.IsPaused)
+        {
+            var reasons = new List<string>();
+            if (isManualPaused) reasons.Add("Manual");
+            if (isFullscreenPaused) reasons.Add("Fullscreen");
+            if (isPowerPaused) reasons.Add("Power");
+            if (isSessionLockedPaused) reasons.Add("SessionLocked");
+            if (isDisplayOffPaused) reasons.Add("DisplayOff");
+            pauseReasons = reasons.Count > 0 ? string.Join(", ", reasons) : "Unknown";
+        }
+
         return IpcResponse.Status(
             requestId: request.Id,
             isRunning: !IsShuttingDown,
@@ -355,7 +367,8 @@ public sealed class RuntimeHostApp : IDisposable
             wallpaperType: state.Type,
             activePath: state.Path,
             playbackState: state.PlaybackState,
-            isPaused: state.IsPaused);
+            isPaused: state.IsPaused,
+            pauseReasons: pauseReasons);
     }
 
     private async Task<IpcResponse> HandleGetPerformanceStatusAsync(IpcRequest request)

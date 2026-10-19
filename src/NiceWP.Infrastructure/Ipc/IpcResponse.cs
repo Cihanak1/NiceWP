@@ -13,6 +13,7 @@ public sealed class IpcResponse
     public string WallpaperType { get; set; } = IpcConstants.WallpaperTypeNone;
     public string? ActivePath { get; set; }
     public bool IsPaused { get; set; }
+    public string? PauseReasons { get; set; }
     public string PlaybackState { get; set; } = IpcConstants.PlaybackStateNone;
     public Observatory.RuntimePerformanceStatus? Performance { get; set; }
 
@@ -48,6 +49,7 @@ public sealed class IpcResponse
             WallpaperType = performance?.Snapshot?.WallpaperType ?? IpcConstants.WallpaperTypeNone,
             ActivePath = performance?.Snapshot?.ActiveWallpaperPath,
             IsPaused = string.Equals(performance?.Snapshot?.WallpaperState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase),
+            PauseReasons = performance?.Snapshot?.PauseReasons,
             PlaybackState = performance?.Snapshot?.WallpaperState ?? IpcConstants.PlaybackStateNone,
             Performance = performance
         };
@@ -60,7 +62,8 @@ public sealed class IpcResponse
         string? activePath,
         string? message = null,
         string? playbackState = null,
-        bool? isPaused = null)
+        bool? isPaused = null,
+        string? pauseReasons = null)
     {
         var resolvedPlaybackState = string.IsNullOrWhiteSpace(playbackState)
             ? (hasActiveWallpaper
@@ -79,6 +82,7 @@ public sealed class IpcResponse
             WallpaperType = wallpaperType,
             ActivePath = activePath,
             IsPaused = resolvedIsPaused,
+            PauseReasons = pauseReasons,
             PlaybackState = resolvedPlaybackState
         };
     }

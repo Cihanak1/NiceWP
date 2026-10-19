@@ -219,12 +219,21 @@
                                 <TextBlock Text="Source resolution · last measurement" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Text="Available in Performance" TextWrapping="Wrap" x:Name="ActiveResolutionText" />
                             </StackPanel>
+                            <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Rotation &amp; Playlist" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="ActiveRotationStateText" Text="Rotation: Off" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                <TextBlock x:Name="ActiveRotationPositionText" Text="Position: - / -" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="ActiveRotationCountdownText" Text="Next change: Inactive" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
-                    <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="152" ItemHeight="48">
-                        <Button x:Name="SelectImageButton" Content="Choose File…" Click="OnSelectImage" />
+                    <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="136" ItemHeight="44">
+                        <Button x:Name="PreviousWallpaperButton" Content="Previous" Click="OnPreviousWallpaperClicked" AutomationProperties.Name="Previous wallpaper" ToolTipService.ToolTip="Previous wallpaper" />
                         <Button x:Name="PauseResumeWallpaperButton" Content="Pause" Click="OnPauseResumeWallpaper" IsEnabled="False" Style="{StaticResource AccentButtonStyle}" />
+                        <Button x:Name="NextWallpaperButton" Content="Next" Click="OnNextWallpaperClicked" AutomationProperties.Name="Next wallpaper" ToolTipService.ToolTip="Next wallpaper" />
                         <Button x:Name="StopActiveWallpaperButton" Content="Stop" Click="OnStopActiveWallpaper" IsEnabled="False" />
+                        <Button x:Name="SelectImageButton" Content="Choose File…" Click="OnSelectImage" />
                         <Button x:Name="RefreshActiveStatusButton" Content="Refresh" Click="OnRefreshStatus" />
                     </VariableSizedWrapGrid>
                 </StackPanel>
@@ -488,6 +497,48 @@
                         <StackPanel Spacing="8">
                             <TextBlock Text="Wallpaper Behavior" TextWrapping="Wrap" FontSize="16" FontWeight="SemiBold" />
                             <CheckBox x:Name="RestoreLastWallpaperCheckBox" Content="Restore last wallpaper" Checked="OnRestoreLastWallpaperChanged" Unchecked="OnRestoreLastWallpaperChanged" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Wallpaper Rotation" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="Automatically cycle through wallpapers in your library or favorites." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Text="Rotation" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="RotationModeComboBox" SelectionChanged="OnRotationModeSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Rotation mode">
+                                        <ComboBoxItem Content="Off" Tag="Off" />
+                                        <ComboBoxItem Content="All Library" Tag="All" />
+                                        <ComboBoxItem Content="Favorites" Tag="Favorites" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="Order" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="RotationOrderComboBox" SelectionChanged="OnRotationOrderSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Rotation order">
+                                        <ComboBoxItem Content="Sequential" Tag="Sequential" />
+                                        <ComboBoxItem Content="Shuffle" Tag="Shuffle" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock Text="Change every" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="RotationIntervalComboBox" SelectionChanged="OnRotationIntervalSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Rotation interval">
+                                        <ComboBoxItem Content="5 minutes" Tag="5" />
+                                        <ComboBoxItem Content="15 minutes" Tag="15" />
+                                        <ComboBoxItem Content="30 minutes" Tag="30" />
+                                        <ComboBoxItem Content="1 hour" Tag="60" />
+                                        <ComboBoxItem Content="3 hours" Tag="180" />
+                                        <ComboBoxItem Content="6 hours" Tag="360" />
+                                        <ComboBoxItem Content="12 hours" Tag="720" />
+                                        <ComboBoxItem Content="24 hours" Tag="1440" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock x:Name="RotationSettingsStatusText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">

@@ -20,6 +20,7 @@ using NiceWP.Infrastructure.Observatory;
 using NiceWP.Infrastructure.Settings;
 using NiceWP.Infrastructure.Tray;
 using NiceWP.Infrastructure.Remote;
+using NiceWP.Infrastructure.Rotation;
 using Windows.Storage;
 
 namespace NiceWP.App;
@@ -48,6 +49,7 @@ public sealed partial class DesktopTestWindow : Window
     private bool isSyncingAutostart;
     private bool isSyncingAppSettings;
     private DispatcherTimer? performanceTimer;
+    private DispatcherTimer? rotationCountdownTimer;
     private bool isPerformancePageActive;
     private bool isRefreshingPerformance;
     private RuntimePerformanceStatus? latestPerformanceStatus;
@@ -75,6 +77,8 @@ public sealed partial class DesktopTestWindow : Window
         libraryController = new WallpaperLibraryController(
             ipcClient: runtimeClient.IpcClient,
             hostLauncher: runtimeClient.Launcher);
+        libraryController.Rotation.WallpaperRotated += OnRotationWallpaperRotated;
+        libraryController.Rotation.StatusChanged += OnRotationStatusChanged;
 
         controller = new TrayLifecycleController(
             runtimeClient.IpcClient,
@@ -83,6 +87,7 @@ public sealed partial class DesktopTestWindow : Window
             hideWindowAction: () =>
             {
                 StopPerformancePolling();
+                StopRotationCountdownTimer();
                 AppWindow.Hide();
             },
             exitAppAction: PerformAppExit,
@@ -132,11 +137,18 @@ public sealed partial class DesktopTestWindow : Window
                 ApplyThemePreference(settings.Theme);
                 SelectThemeComboBoxItem(settings.Theme);
                 SelectEfficiencyProfileComboBoxItem(settings.EfficiencyProfile);
+                SelectRotationModeComboBoxItem(settings.RotationMode);
+                SelectRotationOrderComboBoxItem(settings.RotationOrder);
+                SelectRotationIntervalComboBoxItem(settings.RotationIntervalMinutes);
+                UpdateRotationSettingsStatus(settings.RotationMode, settings.RotationOrder, settings.RotationIntervalMinutes);
             }
             finally
             {
                 isSyncingAppSettings = false;
             }
+
+            await libraryController.Rotation.InitializeAsync(settings);
+            UpdateRotationDetailsUI();
         }
         catch (Exception exception)
         {
@@ -1091,14 +1103,23 @@ public sealed partial class DesktopTestWindow : Window
             StopPerformancePolling();
         }
 
-        if (page == "Active" && controller != null)
+        if (page == "Active")
         {
-            await SyncRuntimeStatusAsync();
+            StartRotationCountdownTimer();
+            UpdateRotationDetailsUI();
+            if (controller != null)
+            {
+                await SyncRuntimeStatusAsync();
+            }
         }
-        else if (page == "Settings")
+        else
         {
-            RefreshAutostartState();
-            await LoadAppSettingsAsync();
+            StopRotationCountdownTimer();
+            if (page == "Settings")
+            {
+                RefreshAutostartState();
+                await LoadAppSettingsAsync();
+            }
         }
     }
 
@@ -1549,6 +1570,8 @@ public sealed partial class DesktopTestWindow : Window
         LibraryFilterComboBox.IsEnabled = isIdle;
         LibrarySortComboBox.IsEnabled = isIdle;
         SelectImageButton.IsEnabled = isIdle;
+        PreviousWallpaperButton.IsEnabled = isIdle;
+        NextWallpaperButton.IsEnabled = isIdle;
         PauseResumeWallpaperButton.IsEnabled = isIdle && hasWallpaper;
         StopActiveWallpaperButton.IsEnabled = isIdle && hasWallpaper;
         RefreshActiveStatusButton.IsEnabled = isIdle;
@@ -1639,6 +1662,7 @@ public sealed partial class DesktopTestWindow : Window
             ActivePreviewImage,
             (isImage || isVideo) && !isMissingOnDisk ? activeWallpaperPath : null,
             isVideo: isVideo);
+        UpdateRotationDetailsUI();
         UpdateLibraryActionState();
     }
 
@@ -1818,6 +1842,326 @@ public sealed partial class DesktopTestWindow : Window
         UpdateEfficiencyProfileDescription("Balanced");
     }
 
+    private void SelectRotationModeComboBoxItem(string? mode)
+    {
+        if (RotationModeComboBox == null) return;
+        var expectedTag = RotationModeExtensions.ParseMode(mode).ToString();
+        for (var i = 0; i < RotationModeComboBox.Items.Count; i++)
+        {
+            if (RotationModeComboBox.Items[i] is ComboBoxItem item &&
+                string.Equals(item.Tag as string, expectedTag, StringComparison.OrdinalIgnoreCase))
+            {
+                RotationModeComboBox.SelectedIndex = i;
+                return;
+            }
+        }
+        RotationModeComboBox.SelectedIndex = 0;
+    }
+
+    private void SelectRotationOrderComboBoxItem(string? order)
+    {
+        if (RotationOrderComboBox == null) return;
+        var expectedTag = RotationOrderExtensions.ParseOrder(order).ToString();
+        for (var i = 0; i < RotationOrderComboBox.Items.Count; i++)
+        {
+            if (RotationOrderComboBox.Items[i] is ComboBoxItem item &&
+                string.Equals(item.Tag as string, expectedTag, StringComparison.OrdinalIgnoreCase))
+            {
+                RotationOrderComboBox.SelectedIndex = i;
+                return;
+            }
+        }
+        RotationOrderComboBox.SelectedIndex = 0;
+    }
+
+    private void SelectRotationIntervalComboBoxItem(int minutes)
+    {
+        if (RotationIntervalComboBox == null) return;
+        var normalized = AppSettings.NormalizeRotationIntervalMinutes(minutes);
+        var expectedTag = normalized.ToString();
+        for (var i = 0; i < RotationIntervalComboBox.Items.Count; i++)
+        {
+            if (RotationIntervalComboBox.Items[i] is ComboBoxItem item &&
+                string.Equals(item.Tag as string, expectedTag, StringComparison.OrdinalIgnoreCase))
+            {
+                RotationIntervalComboBox.SelectedIndex = i;
+                return;
+            }
+        }
+        RotationIntervalComboBox.SelectedIndex = 2; // Default 30 min
+    }
+
+    private void UpdateRotationSettingsStatus(string? mode, string? order, int minutes)
+    {
+        if (RotationSettingsStatusText == null) return;
+        var parsedMode = RotationModeExtensions.ParseMode(mode);
+        var parsedOrder = RotationOrderExtensions.ParseOrder(order);
+        var normalizedMinutes = AppSettings.NormalizeRotationIntervalMinutes(minutes);
+
+        if (parsedMode == RotationMode.Off)
+        {
+            RotationSettingsStatusText.Text = "Rotation is disabled.";
+        }
+        else
+        {
+            var intervalText = normalizedMinutes switch
+            {
+                >= 60 => $"{normalizedMinutes / 60} hour(s)",
+                _ => $"{normalizedMinutes} minutes"
+            };
+            var modeName = parsedMode == RotationMode.Favorites ? "Favorites" : "All Library";
+            RotationSettingsStatusText.Text = $"Active: {modeName} • {parsedOrder.ToDisplayString()} every {intervalText}.";
+        }
+    }
+
+    private async void OnRotationModeSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        if (RotationModeComboBox.SelectedItem is not ComboBoxItem selectedItem) return;
+
+        var mode = selectedItem.Tag as string ?? "Off";
+        var order = (RotationOrderComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Sequential";
+        var intervalMinutes = int.TryParse((RotationIntervalComboBox?.SelectedItem as ComboBoxItem)?.Tag as string, out var mins) ? mins : 30;
+
+        UpdateRotationSettingsStatus(mode, order, intervalMinutes);
+
+        try
+        {
+            var current = await settingsService.LoadAsync();
+            current.RotationMode = mode;
+            await settingsService.SaveAsync(current);
+            await libraryController.Rotation.UpdateSettingsAsync(mode, order, intervalMinutes);
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Error saving rotation mode: {exception}");
+        }
+    }
+
+    private async void OnRotationOrderSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        if (RotationOrderComboBox.SelectedItem is not ComboBoxItem selectedItem) return;
+
+        var mode = (RotationModeComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Off";
+        var order = selectedItem.Tag as string ?? "Sequential";
+        var intervalMinutes = int.TryParse((RotationIntervalComboBox?.SelectedItem as ComboBoxItem)?.Tag as string, out var mins) ? mins : 30;
+
+        UpdateRotationSettingsStatus(mode, order, intervalMinutes);
+
+        try
+        {
+            var current = await settingsService.LoadAsync();
+            current.RotationOrder = order;
+            await settingsService.SaveAsync(current);
+            await libraryController.Rotation.UpdateSettingsAsync(mode, order, intervalMinutes);
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Error saving rotation order: {exception}");
+        }
+    }
+
+    private async void OnRotationIntervalSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        if (RotationIntervalComboBox.SelectedItem is not ComboBoxItem selectedItem) return;
+
+        var mode = (RotationModeComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Off";
+        var order = (RotationOrderComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Sequential";
+        var intervalMinutes = int.TryParse(selectedItem.Tag as string, out var mins) ? mins : 30;
+
+        UpdateRotationSettingsStatus(mode, order, intervalMinutes);
+
+        try
+        {
+            var current = await settingsService.LoadAsync();
+            current.RotationIntervalMinutes = intervalMinutes;
+            await settingsService.SaveAsync(current);
+            await libraryController.Rotation.UpdateSettingsAsync(mode, order, intervalMinutes);
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Error saving rotation interval: {exception}");
+        }
+    }
+
+    private void StartRotationCountdownTimer()
+    {
+        if (closed) return;
+        if (rotationCountdownTimer == null)
+        {
+            rotationCountdownTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            rotationCountdownTimer.Tick += (_, _) => UpdateRotationCountdownUI();
+        }
+        if (!rotationCountdownTimer.IsEnabled)
+        {
+            rotationCountdownTimer.Start();
+        }
+        UpdateRotationCountdownUI();
+    }
+
+    private void StopRotationCountdownTimer()
+    {
+        if (rotationCountdownTimer != null && rotationCountdownTimer.IsEnabled)
+        {
+            rotationCountdownTimer.Stop();
+        }
+    }
+
+    private void UpdateRotationDetailsUI(WallpaperRotationStatus? status = null)
+    {
+        if (closed) return;
+        status ??= libraryController?.Rotation?.GetStatus();
+        if (status == null) return;
+
+        if (ActiveRotationStateText != null)
+        {
+            ActiveRotationStateText.Text = $"Rotation: {status.FormattedState}";
+        }
+
+        if (ActiveRotationPositionText != null)
+        {
+            ActiveRotationPositionText.Text = $"Position: {status.FormattedPosition}";
+        }
+
+        UpdateRotationCountdownUI(status);
+    }
+
+    private void UpdateRotationCountdownUI(WallpaperRotationStatus? status = null)
+    {
+        if (ActiveRotationCountdownText == null || closed) return;
+        status ??= libraryController?.Rotation?.GetStatus();
+        if (status == null || !status.IsActive)
+        {
+            ActiveRotationCountdownText.Text = "Next change: Inactive";
+            return;
+        }
+
+        if (status.IsOverdue)
+        {
+            ActiveRotationCountdownText.Text = "Next change: Overdue (paused)";
+            return;
+        }
+
+        if (status.NextDueTimeUtc.HasValue)
+        {
+            var remaining = status.NextDueTimeUtc.Value - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                ActiveRotationCountdownText.Text = "Next change: Imminent";
+            }
+            else
+            {
+                var formatted = remaining.TotalHours >= 1
+                    ? $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m {remaining.Seconds:D2}s"
+                    : $"{remaining.Minutes:D2}m {remaining.Seconds:D2}s";
+                ActiveRotationCountdownText.Text = $"Next change in {formatted}";
+            }
+        }
+        else
+        {
+            ActiveRotationCountdownText.Text = "Next change: Inactive";
+        }
+    }
+
+    private async void OnPreviousWallpaperClicked(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            StatusText.Text = "Selecting previous wallpaper...";
+            var result = await libraryController.Rotation.RotatePreviousAsync(trigger: "Previous");
+            if (result.Success && result.Item != null)
+            {
+                StatusText.Text = $"Applied wallpaper: {result.Item.DisplayName}";
+                await SyncRuntimeStatusAsync();
+            }
+            else
+            {
+                StatusText.Text = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error navigating to previous wallpaper: {ex}");
+            StatusText.Text = "Failed to select previous wallpaper.";
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+                UpdateRotationDetailsUI();
+            }
+        }
+    }
+
+    private async void OnNextWallpaperClicked(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            StatusText.Text = "Selecting next wallpaper...";
+            var result = await libraryController.Rotation.RotateNextAsync(trigger: "Next");
+            if (result.Success && result.Item != null)
+            {
+                StatusText.Text = $"Applied wallpaper: {result.Item.DisplayName}";
+                await SyncRuntimeStatusAsync();
+            }
+            else
+            {
+                StatusText.Text = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error navigating to next wallpaper: {ex}");
+            StatusText.Text = "Failed to select next wallpaper.";
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+                UpdateRotationDetailsUI();
+            }
+        }
+    }
+
+    private void OnRotationWallpaperRotated(object? sender, WallpaperRotationResult result)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (closed) return;
+            if (result.Success && result.Item != null)
+            {
+                StatusText.Text = $"Rotated wallpaper: {result.Item.DisplayName}";
+                _ = SyncRuntimeStatusAsync();
+                RenderLibraryItems();
+            }
+            UpdateRotationDetailsUI();
+        });
+    }
+
+    private void OnRotationStatusChanged(object? sender, WallpaperRotationStatus status)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (closed) return;
+            UpdateRotationDetailsUI(status);
+        });
+    }
+
     private void RestoreAndShowWindow()
     {
         DispatcherQueue.TryEnqueue(() =>
@@ -1844,6 +2188,11 @@ public sealed partial class DesktopTestWindow : Window
             {
                 StartPerformancePolling();
             }
+            if (ActivePage?.Visibility == Visibility.Visible)
+            {
+                StartRotationCountdownTimer();
+                UpdateRotationDetailsUI();
+            }
         });
     }
 
@@ -1851,6 +2200,9 @@ public sealed partial class DesktopTestWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            StopPerformancePolling();
+            StopRotationCountdownTimer();
+            libraryController.Dispose();
             trayIcon.Dispose();
             App.ReleaseSingleInstance();
             closed = true;
@@ -1939,12 +2291,19 @@ public sealed partial class DesktopTestWindow : Window
         if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
             StopPerformancePolling();
+            StopRotationCountdownTimer();
             return;
         }
 
         if (isPerformancePageActive)
         {
             StartPerformancePolling();
+        }
+
+        if (ActivePage?.Visibility == Visibility.Visible)
+        {
+            StartRotationCountdownTimer();
+            UpdateRotationDetailsUI();
         }
 
         RefreshAutostartState();
@@ -1955,6 +2314,7 @@ public sealed partial class DesktopTestWindow : Window
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         StopPerformancePolling();
+        StopRotationCountdownTimer();
         controller.OnWindowCloseRequested(out var cancelClose);
         args.Cancel = cancelClose;
     }
@@ -1962,7 +2322,9 @@ public sealed partial class DesktopTestWindow : Window
     private void OnClosed(object sender, WindowEventArgs args)
     {
         StopPerformancePolling();
+        StopRotationCountdownTimer();
         closed = true;
+        libraryController.Dispose();
         trayIcon.Dispose();
         App.ReleaseSingleInstance();
         Trace.WriteLine("Control window closed; runtime host continues in background.");
