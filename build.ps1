@@ -6,13 +6,15 @@ param(
     [ValidateSet("x64", "x86", "ARM64")]
     [string]$Platform = "x64",
 
-    [string]$OutputDir = ".artifacts\dist\NiceWP-win-x64",
+    [string]$OutputDir = ".artifacts\dist\NiceWP-0.0.15-win-x64",
 
     [switch]$SkipRestore,
 
     [switch]$RunTests,
 
-    [switch]$CreateZip
+    [switch]$CreateZip,
+
+    [switch]$CreateInstaller
 )
 
 $ErrorActionPreference = "Stop"
@@ -133,6 +135,48 @@ if ($CreateZip) {
     }
     Compress-Archive -Path (Join-Path $ResolvedOutputDir "*") -DestinationPath $ZipPath -Force
     Write-Host "Zip Archive   : $ZipPath" -ForegroundColor Green
+}
+
+if ($CreateInstaller) {
+    Write-Host "[Installer] Compiling Inno Setup installer..." -ForegroundColor Yellow
+    $IsccPath = $null
+    $KnownPaths = @(
+        "C:\Program Files (x86)\Inno Setup 6\iscc.exe",
+        "C:\Program Files\Inno Setup 6\iscc.exe"
+    )
+    foreach ($candidate in $KnownPaths) {
+        if (Test-Path $candidate) {
+            $IsccPath = $candidate
+            break
+        }
+    }
+    if (-not $IsccPath) {
+        $cmd = Get-Command iscc.exe -ErrorAction SilentlyContinue
+        if ($cmd) {
+            $IsccPath = $cmd.Source
+        }
+    }
+    if (-not $IsccPath) {
+        throw "Inno Setup compiler (iscc.exe) not found. Please install Inno Setup 6 or add it to PATH."
+    }
+
+    $IssScript = Join-Path $RepoRoot "packaging\NiceWP.iss"
+    if (-not (Test-Path $IssScript)) {
+        throw "Installer script not found: $IssScript"
+    }
+
+    $InstallerOutputDir = Join-Path $RepoRoot ".artifacts\installer"
+    if (-not (Test-Path $InstallerOutputDir)) {
+        New-Item -ItemType Directory -Path $InstallerOutputDir -Force | Out-Null
+    }
+
+    & $IsccPath $IssScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
+    }
+
+    $InstallerExe = Join-Path $InstallerOutputDir "NiceWP-0.0.15-win-x64-Setup.exe"
+    Write-Host "Installer Exe : $InstallerExe" -ForegroundColor Green
 }
 
 Write-Host "-------------------------------------"

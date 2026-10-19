@@ -134,7 +134,12 @@ internal static class TrayInterop
     {
         try
         {
-            var hwnd = FindWindow(null, "NiceWP Wallpaper Prototype");
+            var hwnd = FindWindow(null, "NiceWP");
+            if (hwnd == IntPtr.Zero)
+            {
+                hwnd = FindWindow(null, "NiceWP Wallpaper Prototype");
+            }
+
             if (hwnd != IntPtr.Zero)
             {
                 PostMessage(hwnd, WmActivateApp, IntPtr.Zero, IntPtr.Zero);

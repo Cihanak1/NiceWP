@@ -46,8 +46,9 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Grid x:Name="LibraryPage" RowSpacing="12">
+            <Grid x:Name="LibraryPage" RowSpacing="12" AllowDrop="True" DragOver="OnLibraryDragOver" DragLeave="OnLibraryDragLeave" Drop="OnLibraryDrop">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -75,17 +76,31 @@
                             <ComboBoxItem Content="Name Z-A" Tag="NameDesc" />
                         </ComboBox>
                         <Button x:Name="AddWallpaperButton" Content="Add Wallpaper" Click="OnAddWallpaper" Style="{StaticResource AccentButtonStyle}" Margin="0,0,8,8" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                        <Button x:Name="AddFolderButton" Content="Add Folder" Click="OnAddFolderClicked" Margin="0,0,8,8" HorizontalAlignment="Stretch" VerticalAlignment="Center" ToolTipService.ToolTip="Import all wallpapers from a folder" />
                         <Button x:Name="AddFromUrlButton" Content="Add from URL" Click="OnAddFromUrlClicked" Margin="0,0,8,8" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                        <Button x:Name="SelectModeButton" Content="Select" Click="OnToggleSelectModeClicked" Margin="0,0,8,8" HorizontalAlignment="Stretch" VerticalAlignment="Center" ToolTipService.ToolTip="Select multiple wallpapers" />
                     </VariableSizedWrapGrid>
                 </Border>
-                <Border x:Name="LibraryEmptyText" Visibility="Collapsed" Grid.Row="2" Padding="32" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="0,8,0,0">
+                <Border x:Name="BulkActionStrip" Visibility="Collapsed" Grid.Row="2" Padding="12,8" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="BulkSelectAllButton" Content="Select All" Click="OnBulkSelectAllClicked" />
+                        <Button x:Name="BulkClearSelectionButton" Content="Clear" Click="OnBulkClearSelectionClicked" />
+                        <Border Width="1" Height="20" Background="{ThemeResource ControlStrokeBrush}" Margin="4,0" />
+                        <Button x:Name="BulkFavoriteButton" Content="Favorite" Click="OnBulkFavoriteClicked" ToolTipService.ToolTip="Add selected to favorites" />
+                        <Button x:Name="BulkUnfavoriteButton" Content="Unfavorite" Click="OnBulkUnfavoriteClicked" ToolTipService.ToolTip="Remove selected from favorites" />
+                        <Button x:Name="BulkRemoveButton" Content="Remove" Click="OnBulkRemoveClicked" Style="{StaticResource SubtleButtonStyle}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" ToolTipService.ToolTip="Remove selected from library" />
+                        <Border Width="1" Height="20" Background="{ThemeResource ControlStrokeBrush}" Margin="4,0" />
+                        <Button x:Name="BulkDoneButton" Content="Done" Click="OnBulkDoneClicked" Style="{StaticResource AccentButtonStyle}" />
+                    </StackPanel>
+                </Border>
+                <Border x:Name="LibraryEmptyText" Visibility="Collapsed" Grid.Row="3" Padding="32" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="0,8,0,0">
                     <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="420">
                         <SymbolIcon Symbol="Pictures" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock x:Name="EmptyTitleText" Text="No wallpapers in library" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                         <TextBlock x:Name="EmptySubtitleText" Text="Use Add Wallpaper or Add from URL to add an image or MP4." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </Border>
-                <GridView x:Name="LibraryListView" Grid.Row="2" SelectionMode="None" Visibility="Collapsed" SizeChanged="OnGallerySizeChanged" Loaded="OnGalleryLoaded" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <GridView x:Name="LibraryListView" Grid.Row="3" SelectionMode="None" Visibility="Collapsed" SizeChanged="OnGallerySizeChanged" Loaded="OnGalleryLoaded" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <GridView.ItemsPanel>
                         <ItemsPanelTemplate>
                             <ItemsWrapGrid Orientation="Horizontal" ItemWidth="256" />
@@ -146,7 +161,8 @@
                                         <Button x:Name="CardFavoriteButton" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12" Padding="4" MinWidth="32" MinHeight="32" Width="32" Height="32" CornerRadius="6" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderThickness="1" Click="OnToggleFavorite" Loaded="OnFavoriteButtonLoaded" DataContextChanged="OnFavoriteButtonDataContextChanged" AutomationProperties.Name="Favorite" BorderBrush="{ThemeResource ControlStrokeBrush}">
                                             <FontIcon x:Name="CardFavoriteIcon" Glyph="" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         </Button>
-                                        <Border x:Name="CardStateBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12" Padding="8,4" CornerRadius="4" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+                                        <CheckBox x:Name="CardSelectCheckBox" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12" Visibility="Collapsed" Click="OnCardSelectCheckBoxClicked" Loaded="OnCardSelectCheckBoxLoaded" DataContextChanged="OnCardSelectCheckBoxDataContextChanged" AutomationProperties.Name="Select wallpaper" />
+                                        <Border x:Name="CardStateBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12,48,12,12" Padding="8,4" CornerRadius="4" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
                                             <TextBlock x:Name="CardStateBadgeText" Text="Missing" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" CharacterSpacing="60" />
                                         </Border>
                                     </Grid>
@@ -172,6 +188,13 @@
                         </DataTemplate>
                     </GridView.ItemTemplate>
                 </GridView>
+                <Border x:Name="DropOverlayBorder" Grid.RowSpan="4" Visibility="Collapsed" Background="#E618181B" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="2" CornerRadius="12" Margin="-8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Canvas.ZIndex="999" IsHitTestVisible="False">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+                        <FontIcon Glyph="&#xE898;" FontSize="48" Foreground="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="Drop wallpapers here" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
+                        <TextBlock Text="Images (.png, .jpg) and videos (.mp4) supported" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" />
+                    </StackPanel>
+                </Border>
             </Grid>
             <ScrollViewer x:Name="ActivePage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled" SizeChanged="OnActiveLayoutSizeChanged" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="12" MaxWidth="1120" HorizontalAlignment="Stretch" x:Name="ActiveContentPanel">

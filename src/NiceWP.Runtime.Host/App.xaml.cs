@@ -10,6 +10,7 @@ namespace NiceWP.Runtime.Host;
 public partial class App : Application
 {
     private RuntimeHostApp? hostApp;
+    private Window? anchorWindow;
 
     public App()
     {
@@ -32,6 +33,20 @@ public partial class App : Application
         var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         var dispatcher = new WinUIHostDispatcher(dispatcherQueue);
 
+        // Keep an unactivated anchor window so WinUI 3 does not terminate when a wallpaper window is closed.
+        try
+        {
+            anchorWindow = new Window { Title = "NiceWP.Runtime.Host.Anchor" };
+            if (anchorWindow.AppWindow != null)
+            {
+                anchorWindow.AppWindow.IsShownInSwitchers = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Anchor window initialization warning: {ex.Message}");
+        }
+
         hostApp = new RuntimeHostApp(
             dispatcher: dispatcher,
             onShutdown: () =>
@@ -39,6 +54,7 @@ public partial class App : Application
                 try
                 {
                     hostApp?.Dispose();
+                    anchorWindow?.Close();
                 }
                 catch (Exception ex)
                 {
@@ -51,6 +67,7 @@ public partial class App : Application
         {
             Trace.WriteLine("NiceWP.Runtime.Host is already running. Exiting.");
             hostApp.Dispose();
+            anchorWindow?.Close();
             Environment.Exit(0);
             return;
         }

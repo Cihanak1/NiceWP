@@ -21,6 +21,7 @@ using NiceWP.Infrastructure.Settings;
 using NiceWP.Infrastructure.Tray;
 using NiceWP.Infrastructure.Remote;
 using NiceWP.Infrastructure.Rotation;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 
 namespace NiceWP.App;
@@ -53,9 +54,11 @@ public sealed partial class DesktopTestWindow : Window
     private bool isPerformancePageActive;
     private bool isRefreshingPerformance;
     private RuntimePerformanceStatus? latestPerformanceStatus;
+    private bool libraryRenderDeferred;
 
     public DesktopTestWindow(bool isStartup = false)
     {
+        libraryRenderDeferred = isStartup;
         InitializeComponent();
         StatusText.RegisterPropertyChangedCallback(TextBlock.TextProperty, (_, _) => UpdateFeedbackVisuals());
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1060, 720));
@@ -267,6 +270,20 @@ public sealed partial class DesktopTestWindow : Window
         return await picker.PickSingleFileAsync();
     }
 
+    private async Task<string?> PickWallpaperFolderAsync()
+    {
+        var picker = new Windows.Storage.Pickers.FolderPicker();
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        if (hwnd == IntPtr.Zero)
+        {
+            hwnd = (IntPtr)AppWindow.Id.Value;
+        }
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        picker.FileTypeFilter.Add("*");
+        var folder = await picker.PickSingleFolderAsync();
+        return folder?.Path;
+    }
+
     private async void OnSelectImage(object sender, RoutedEventArgs args)
     {
         if (IsInteractionBusy || closed) return;
@@ -367,6 +384,245 @@ public sealed partial class DesktopTestWindow : Window
             if (!closed)
             {
                 UpdateLibraryActionState();
+            }
+        }
+    }
+
+    private async void OnAddFolderClicked(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            var folderPath = await PickWallpaperFolderAsync();
+            if (string.IsNullOrWhiteSpace(folderPath) || closed) return;
+
+            var result = await libraryController.AddFolderAsync(folderPath, recursive: false);
+            if (closed) return;
+
+            RenderLibraryItems();
+            StatusText.Text = result.Message ?? string.Empty;
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+            if (!closed)
+            {
+                StatusText.Text = "Failed to load library.";
+            }
+        }
+        finally
+        {
+            libraryBusy = false;
+            if (!closed)
+            {
+                UpdateLibraryActionState();
+            }
+        }
+    }
+
+    private void OnToggleSelectModeClicked(object sender, RoutedEventArgs args)
+    {
+        if (closed) return;
+        if (libraryController.IsSelectionMode)
+        {
+            libraryController.ExitSelectionMode();
+        }
+        else
+        {
+            libraryController.EnterSelectionMode();
+        }
+        UpdateMultiSelectUI();
+        RenderLibraryItems();
+    }
+
+    private void OnBulkSelectAllClicked(object sender, RoutedEventArgs args)
+    {
+        if (closed) return;
+        libraryController.SelectAllVisible();
+        UpdateMultiSelectUI();
+    }
+
+    private void OnBulkClearSelectionClicked(object sender, RoutedEventArgs args)
+    {
+        if (closed) return;
+        libraryController.ClearSelection();
+        UpdateMultiSelectUI();
+    }
+
+    private async void OnBulkFavoriteClicked(object sender, RoutedEventArgs args)
+    {
+        if (closed || libraryController.SelectedCount == 0 || IsInteractionBusy) return;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            var result = await libraryController.BulkSetFavoriteSelectedAsync(true);
+            RenderLibraryItems();
+            UpdateMultiSelectUI();
+            StatusText.Text = result.Message ?? string.Empty;
+        }
+        finally
+        {
+            libraryBusy = false;
+            UpdateLibraryActionState();
+        }
+    }
+
+    private async void OnBulkUnfavoriteClicked(object sender, RoutedEventArgs args)
+    {
+        if (closed || libraryController.SelectedCount == 0 || IsInteractionBusy) return;
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            var result = await libraryController.BulkSetFavoriteSelectedAsync(false);
+            RenderLibraryItems();
+            UpdateMultiSelectUI();
+            StatusText.Text = result.Message ?? string.Empty;
+        }
+        finally
+        {
+            libraryBusy = false;
+            UpdateLibraryActionState();
+        }
+    }
+
+    private async void OnBulkRemoveClicked(object sender, RoutedEventArgs args)
+    {
+        if (closed || libraryController.SelectedCount == 0 || IsInteractionBusy) return;
+
+        var count = libraryController.SelectedCount;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = $"Remove {count} {(count == 1 ? "wallpaper" : "wallpapers")}?",
+            Content = $"This will remove {count} {(count == 1 ? "wallpaper" : "wallpapers")} from NiceWP. Your physical files will not be deleted from disk.",
+            PrimaryButtonText = "Remove",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close
+        };
+
+        var dialogResult = await dialog.ShowAsync();
+        if (dialogResult != ContentDialogResult.Primary) return;
+
+        libraryBusy = true;
+        UpdateLibraryActionState();
+        try
+        {
+            var result = await libraryController.BulkRemoveSelectedAsync();
+            RenderLibraryItems();
+            UpdateMultiSelectUI();
+            StatusText.Text = result.Message ?? string.Empty;
+        }
+        finally
+        {
+            libraryBusy = false;
+            UpdateLibraryActionState();
+        }
+    }
+
+    private void OnBulkDoneClicked(object sender, RoutedEventArgs args)
+    {
+        if (closed) return;
+        libraryController.ExitSelectionMode();
+        UpdateMultiSelectUI();
+        RenderLibraryItems();
+    }
+
+    private void OnCardSelectCheckBoxLoaded(object sender, RoutedEventArgs args) =>
+        ConfigureCardSelectCheckBox(sender as CheckBox);
+
+    private void OnCardSelectCheckBoxDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args) =>
+        ConfigureCardSelectCheckBox(sender as CheckBox);
+
+    private void ConfigureCardSelectCheckBox(CheckBox? checkBox)
+    {
+        if (checkBox == null || checkBox.DataContext is not WallpaperLibraryEntryView entry) return;
+        checkBox.Visibility = libraryController.IsSelectionMode ? Visibility.Visible : Visibility.Collapsed;
+        checkBox.IsChecked = libraryController.IsItemSelected(entry.Id);
+        AutomationProperties.SetName(checkBox, $"Select {entry.DisplayName}");
+    }
+
+    private void OnCardSelectCheckBoxClicked(object sender, RoutedEventArgs args)
+    {
+        if (sender is CheckBox cb && cb.DataContext is WallpaperLibraryEntryView entry)
+        {
+            libraryController.SelectItemForMultiSelect(entry.Id, cb.IsChecked == true);
+            UpdateMultiSelectUI();
+        }
+    }
+
+    private void OnLibraryDragOver(object sender, DragEventArgs e)
+    {
+        if (e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            e.AcceptedOperation = DataPackageOperation.Copy;
+            e.DragUIOverride.Caption = "Add to NiceWP library";
+            e.DragUIOverride.IsCaptionVisible = true;
+            e.DragUIOverride.IsContentVisible = true;
+            DropOverlayBorder.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            e.AcceptedOperation = DataPackageOperation.None;
+        }
+    }
+
+    private void OnLibraryDragLeave(object sender, DragEventArgs e)
+    {
+        DropOverlayBorder.Visibility = Visibility.Collapsed;
+    }
+
+    private async void OnLibraryDrop(object sender, DragEventArgs e)
+    {
+        DropOverlayBorder.Visibility = Visibility.Collapsed;
+        if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+
+        var items = await e.DataView.GetStorageItemsAsync();
+        if (items == null || items.Count == 0 || closed) return;
+
+        var paths = new List<string>();
+        foreach (var item in items)
+        {
+            if (item is Windows.Storage.StorageFile file)
+            {
+                paths.Add(file.Path);
+            }
+            else if (item is Windows.Storage.StorageFolder folder)
+            {
+                var scanned = WallpaperFolderScanner.Scan(folder.Path, recursive: false);
+                paths.AddRange(scanned);
+            }
+        }
+
+        if (paths.Count > 0)
+        {
+            libraryBusy = true;
+            UpdateLibraryActionState();
+            try
+            {
+                var result = await libraryController.AddFilesBatchAsync(paths);
+                if (closed) return;
+                RenderLibraryItems();
+                StatusText.Text = result.Message ?? string.Empty;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Error adding dropped wallpapers: {ex.Message}");
+                if (!closed)
+                {
+                    StatusText.Text = "Failed to load library.";
+                }
+            }
+            finally
+            {
+                libraryBusy = false;
+                if (!closed)
+                {
+                    UpdateLibraryActionState();
+                }
             }
         }
     }
@@ -1493,11 +1749,12 @@ public sealed partial class DesktopTestWindow : Window
 
     private void RenderLibraryItems()
     {
-        if (closed) return;
+        if (closed || libraryRenderDeferred) return;
 
         var items = libraryController.Items;
         var totalCount = libraryController.AllItems.Count;
         var count = items.Count;
+        var favoriteCount = libraryController.AllItems.Count(item => item.IsFavorite);
         var missingCount = 0;
         for (var i = 0; i < count; i++)
         {
@@ -1510,33 +1767,51 @@ public sealed partial class DesktopTestWindow : Window
         var isFilteredOrSearched = libraryController.Filter != WallpaperLibraryFilter.All ||
             !string.IsNullOrWhiteSpace(libraryController.SearchText);
 
-        if (totalCount == 0)
+        if (libraryController.IsSelectionMode)
+        {
+            var selected = libraryController.SelectedCount;
+            LibraryCountText.Text = selected == 1 ? "1 wallpaper selected" : $"{selected} wallpapers selected";
+        }
+        else if (totalCount == 0)
         {
             LibraryCountText.Text = "0 wallpapers in collection";
             EmptyTitleText.Text = "No wallpapers in library";
-            EmptySubtitleText.Text = "Use Add Wallpaper to add an image or MP4.";
+            EmptySubtitleText.Text = "Use Add Wallpaper, Add Folder, or drag & drop files here.";
         }
         else if (isFilteredOrSearched)
         {
-            LibraryCountText.Text = count switch
+            var parts = new List<string>(3)
             {
-                0 => $"0 of {totalCount} wallpapers found",
-                1 => missingCount > 0 ? $"1 of {totalCount} wallpapers found (1 missing on disk)" : $"1 of {totalCount} wallpapers found",
-                _ => missingCount > 0 ? $"{count} of {totalCount} wallpapers found ({missingCount} missing on disk)" : $"{count} of {totalCount} wallpapers found"
+                $"Showing {count} of {totalCount} wallpapers"
             };
+            if (favoriteCount > 0)
+            {
+                parts.Add($"{favoriteCount} favorites");
+            }
+            if (missingCount > 0)
+            {
+                parts.Add($"{missingCount} missing on disk");
+            }
+
+            LibraryCountText.Text = string.Join(" • ", parts);
             EmptyTitleText.Text = "No matching wallpapers";
             EmptySubtitleText.Text = "Try adjusting your search or filter.";
         }
         else
         {
-            LibraryCountText.Text = count switch
+            var parts = new List<string>(3)
             {
-                0 => "0 wallpapers in collection",
-                1 => missingCount > 0 ? "1 wallpaper in collection (1 missing on disk)" : "1 wallpaper in collection",
-                _ => missingCount > 0 ? $"{count} wallpapers in collection ({missingCount} missing on disk)" : $"{count} wallpapers in collection"
+                $"{totalCount} {(totalCount == 1 ? "wallpaper" : "wallpapers")}",
+                $"{favoriteCount} {(favoriteCount == 1 ? "favorite" : "favorites")}"
             };
+            if (missingCount > 0)
+            {
+                parts.Add($"{missingCount} missing");
+            }
+
+            LibraryCountText.Text = string.Join(" • ", parts);
             EmptyTitleText.Text = "No wallpapers in library";
-            EmptySubtitleText.Text = "Use Add Wallpaper to add an image or MP4.";
+            EmptySubtitleText.Text = "Use Add Wallpaper, Add Folder, or drag & drop files here.";
         }
 
         if (HasLibrarySnapshotChanged(items))
@@ -1589,7 +1864,18 @@ public sealed partial class DesktopTestWindow : Window
         var hasWallpaper = !string.IsNullOrWhiteSpace(activeWallpaperPath);
 
         AddWallpaperButton.IsEnabled = isIdle;
+        AddFolderButton.IsEnabled = isIdle;
         AddFromUrlButton.IsEnabled = isIdle;
+        SelectModeButton.IsEnabled = isIdle;
+        SelectModeButton.Content = libraryController.IsSelectionMode ? "Done" : "Select";
+        BulkActionStrip.Visibility = libraryController.IsSelectionMode ? Visibility.Visible : Visibility.Collapsed;
+
+        var hasSelection = libraryController.SelectedCount > 0;
+        BulkFavoriteButton.IsEnabled = isIdle && hasSelection;
+        BulkUnfavoriteButton.IsEnabled = isIdle && hasSelection;
+        BulkRemoveButton.IsEnabled = isIdle && hasSelection;
+        BulkRemoveButton.Content = hasSelection ? $"Remove ({libraryController.SelectedCount})" : "Remove";
+
         LibraryListView.IsEnabled = isIdle;
         LibrarySearchBox.IsEnabled = isIdle;
         LibraryFilterComboBox.IsEnabled = isIdle;
@@ -1628,6 +1914,43 @@ public sealed partial class DesktopTestWindow : Window
                 if (cardBorder.FindName("CardRemoveButton") is Button removeButton)
                 {
                     removeButton.IsEnabled = currentEntry.CanRemove && isIdle;
+                }
+
+                if (cardBorder.FindName("CardSelectCheckBox") is CheckBox selectCheckBox)
+                {
+                    selectCheckBox.Visibility = libraryController.IsSelectionMode ? Visibility.Visible : Visibility.Collapsed;
+                    selectCheckBox.IsChecked = libraryController.IsItemSelected(currentEntry.Id);
+                }
+            }
+        }
+    }
+
+    private void UpdateMultiSelectUI()
+    {
+        if (closed) return;
+        var isIdle = !IsInteractionBusy;
+        var hasSelection = libraryController.SelectedCount > 0;
+        BulkActionStrip.Visibility = libraryController.IsSelectionMode ? Visibility.Visible : Visibility.Collapsed;
+        SelectModeButton.Content = libraryController.IsSelectionMode ? "Done" : "Select";
+        BulkFavoriteButton.IsEnabled = isIdle && hasSelection;
+        BulkUnfavoriteButton.IsEnabled = isIdle && hasSelection;
+        BulkRemoveButton.IsEnabled = isIdle && hasSelection;
+        BulkRemoveButton.Content = hasSelection ? $"Remove ({libraryController.SelectedCount})" : "Remove";
+
+        if (libraryController.IsSelectionMode)
+        {
+            var selected = libraryController.SelectedCount;
+            LibraryCountText.Text = selected == 1 ? "1 wallpaper selected" : $"{selected} wallpapers selected";
+        }
+
+        foreach (var cardBorder in realizedCardBorders)
+        {
+            if (cardBorder.DataContext is WallpaperLibraryEntryView entry)
+            {
+                if (cardBorder.FindName("CardSelectCheckBox") is CheckBox selectCheckBox)
+                {
+                    selectCheckBox.Visibility = libraryController.IsSelectionMode ? Visibility.Visible : Visibility.Collapsed;
+                    selectCheckBox.IsChecked = libraryController.IsItemSelected(entry.Id);
                 }
             }
         }
@@ -2204,6 +2527,12 @@ public sealed partial class DesktopTestWindow : Window
                 TrayInterop.ShowWindow(hwnd, TrayInterop.SW_SHOW);
             }
             TrayInterop.SetForegroundWindow(hwnd);
+
+            if (libraryRenderDeferred)
+            {
+                libraryRenderDeferred = false;
+                RenderLibraryItems();
+            }
 
             RefreshAutostartState();
             _ = LoadAppSettingsAsync();

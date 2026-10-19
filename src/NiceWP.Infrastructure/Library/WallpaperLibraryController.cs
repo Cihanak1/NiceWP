@@ -173,6 +173,65 @@ public sealed class WallpaperLibraryController : IDisposable
 
     public bool CanApplySelected => !IsBusy && SelectedItem is { CanApply: true };
 
+    private readonly HashSet<string> selectedItemIds = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool IsSelectionMode { get; private set; }
+
+    public IReadOnlySet<string> SelectedItemIds => selectedItemIds;
+
+    public int SelectedCount => selectedItemIds.Count;
+
+    public void EnterSelectionMode()
+    {
+        IsSelectionMode = true;
+    }
+
+    public void ExitSelectionMode()
+    {
+        IsSelectionMode = false;
+        selectedItemIds.Clear();
+    }
+
+    public void ToggleItemSelection(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+        var trimmed = id.Trim();
+        if (!selectedItemIds.Add(trimmed))
+        {
+            selectedItemIds.Remove(trimmed);
+        }
+    }
+
+    public void SelectItemForMultiSelect(string? id, bool isSelected)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+        var trimmed = id.Trim();
+        if (isSelected)
+        {
+            selectedItemIds.Add(trimmed);
+        }
+        else
+        {
+            selectedItemIds.Remove(trimmed);
+        }
+    }
+
+    public void SelectAllVisible()
+    {
+        foreach (var item in visibleItems)
+        {
+            selectedItemIds.Add(item.Id);
+        }
+    }
+
+    public void ClearSelection()
+    {
+        selectedItemIds.Clear();
+    }
+
+    public bool IsItemSelected(string? id) =>
+        !string.IsNullOrWhiteSpace(id) && selectedItemIds.Contains(id.Trim());
+
     public WallpaperLibraryController(
         WallpaperLibraryService? service = null,
         RuntimeIpcClient? ipcClient = null,
@@ -527,6 +586,135 @@ public sealed class WallpaperLibraryController : IDisposable
     }
 
     /// <summary>
+    /// Validates and adds multiple wallpaper files to the library in a single atomic operation,
+    /// refreshes the projected list, and selects the first added item if available.
+    /// </summary>
+    public async Task<WallpaperLibraryActionResult> AddFilesBatchAsync(
+        IEnumerable<string?> paths,
+        IProgress<(int processed, int total)>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: MapUserStatusMessage(WallpaperError.Busy),
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.Busy);
+        }
+
+        try
+        {
+            var batchResult = await Service.AddBatchAsync(paths, progress, cancellationToken).ConfigureAwait(false);
+            if (!batchResult.Success)
+            {
+                var error = batchResult.Error == WallpaperError.None ? WallpaperError.InvalidPath : batchResult.Error;
+                return new WallpaperLibraryActionResult(
+                    Success: false,
+                    Message: MapUserStatusMessage(error, batchResult.Message),
+                    Entry: null,
+                    AlreadyExisted: false,
+                    Error: error);
+            }
+
+            await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+
+            if (batchResult.AddedItems.Count > 0)
+            {
+                SelectItem(batchResult.AddedItems[0].Id);
+                Rotation.NotifyLibraryChanged();
+            }
+
+            string message;
+            if (batchResult.AddedCount > 0)
+            {
+                var details = new List<string>(2);
+                if (batchResult.AlreadyExistedCount > 0)
+                {
+                    details.Add($"{batchResult.AlreadyExistedCount} already in library");
+                }
+                if (batchResult.SkippedCount > 0)
+                {
+                    details.Add($"{batchResult.SkippedCount} skipped");
+                }
+
+                message = details.Count > 0
+                    ? $"Added {batchResult.AddedCount} {(batchResult.AddedCount == 1 ? "wallpaper" : "wallpapers")} ({string.Join(", ", details)})."
+                    : $"Added {batchResult.AddedCount} {(batchResult.AddedCount == 1 ? "wallpaper" : "wallpapers")} to library.";
+            }
+            else if (batchResult.AlreadyExistedCount > 0)
+            {
+                message = batchResult.AlreadyExistedCount == 1
+                    ? "Wallpaper is already in library."
+                    : $"All {batchResult.AlreadyExistedCount} wallpapers are already in library.";
+            }
+            else
+            {
+                message = "No valid wallpapers were added.";
+            }
+
+            return new WallpaperLibraryActionResult(
+                Success: batchResult.AddedCount > 0 || batchResult.AlreadyExistedCount > 0,
+                Message: message,
+                Entry: SelectedItem,
+                AlreadyExisted: batchResult.AddedCount == 0 && batchResult.AlreadyExistedCount > 0,
+                Error: WallpaperError.None);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to add wallpapers in batch: {ex}");
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Failed to load library.",
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.RendererFailed);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
+    }
+
+    /// <summary>
+    /// Scans a local directory for supported wallpapers with junction/symlink loop protection and adds them to the library in a single atomic operation.
+    /// </summary>
+    public async Task<WallpaperLibraryActionResult> AddFolderAsync(
+        string? folderPath,
+        bool recursive = false,
+        IProgress<(int processed, int total)>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Folder not found.",
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.FileNotFound);
+        }
+
+        var files = await Task.Run(() => WallpaperFolderScanner.Scan(folderPath, recursive: recursive, cancellationToken: cancellationToken), cancellationToken).ConfigureAwait(false);
+        if (files.Count == 0)
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "No supported images or MP4 videos found in folder.",
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.UnsupportedFormat);
+        }
+
+        return await AddFilesBatchAsync(files, progress, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Downloads, validates, and adds a remote wallpaper from an HTTP/HTTPS URL into the library,
     /// then optionally applies it via the Runtime Host.
     /// </summary>
@@ -688,6 +876,118 @@ public sealed class WallpaperLibraryController : IDisposable
         catch (Exception ex)
         {
             Trace.WriteLine($"Failed to remove wallpaper from library: {ex}");
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Failed to load library.",
+                Error: WallpaperError.RendererFailed);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
+    }
+
+    /// <summary>
+    /// Removes all currently selected items from library.json in a single atomic operation without deleting physical files on disk.
+    /// </summary>
+    public async Task<WallpaperLibraryActionResult> BulkRemoveSelectedAsync(CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: MapUserStatusMessage(WallpaperError.Busy),
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.Busy);
+        }
+
+        try
+        {
+            if (selectedItemIds.Count == 0)
+            {
+                return new WallpaperLibraryActionResult(
+                    Success: false,
+                    Message: "No wallpapers selected.",
+                    Error: WallpaperError.InvalidPath);
+            }
+
+            var idsToRemove = selectedItemIds.ToList();
+            var count = await Service.RemoveBatchAsync(idsToRemove, cancellationToken).ConfigureAwait(false);
+
+            selectedItemIds.Clear();
+            SelectedItemId = null;
+
+            await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            Rotation.NotifyLibraryChanged();
+
+            return new WallpaperLibraryActionResult(
+                Success: true,
+                Message: $"Removed {count} {(count == 1 ? "wallpaper" : "wallpapers")} from library.",
+                Error: WallpaperError.None);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to remove wallpapers in bulk: {ex}");
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: "Failed to load library.",
+                Error: WallpaperError.RendererFailed);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref busyFlag, 0);
+        }
+    }
+
+    /// <summary>
+    /// Sets the favorite status for all currently selected items in a single atomic operation.
+    /// </summary>
+    public async Task<WallpaperLibraryActionResult> BulkSetFavoriteSelectedAsync(bool isFavorite, CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
+        {
+            return new WallpaperLibraryActionResult(
+                Success: false,
+                Message: MapUserStatusMessage(WallpaperError.Busy),
+                Entry: null,
+                AlreadyExisted: false,
+                Error: WallpaperError.Busy);
+        }
+
+        try
+        {
+            if (selectedItemIds.Count == 0)
+            {
+                return new WallpaperLibraryActionResult(
+                    Success: false,
+                    Message: "No wallpapers selected.",
+                    Error: WallpaperError.InvalidPath);
+            }
+
+            var idsToUpdate = selectedItemIds.ToList();
+            var count = await Service.SetFavoriteBatchAsync(idsToUpdate, isFavorite, cancellationToken).ConfigureAwait(false);
+
+            await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            Rotation.NotifyLibraryChanged();
+
+            var actionName = isFavorite ? "favorited" : "unfavorited";
+            return new WallpaperLibraryActionResult(
+                Success: true,
+                Message: $"{count} {(count == 1 ? "wallpaper" : "wallpapers")} {actionName}.",
+                Error: WallpaperError.None);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to update favorites in bulk: {ex}");
             return new WallpaperLibraryActionResult(
                 Success: false,
                 Message: "Failed to load library.",

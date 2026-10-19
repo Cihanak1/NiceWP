@@ -1027,14 +1027,35 @@ public sealed class RuntimeHostApp : IDisposable
                 return;
             }
 
-            await dispatcher.InvokeAsync(async () =>
+            const int maxRestoreAttempts = 3;
+            var result = new WallpaperResult(WallpaperError.RendererFailed, "Startup restore not started.");
+            for (var attempt = 1; attempt <= maxRestoreAttempts; attempt++)
             {
                 if (IsShuttingDown || Volatile.Read(ref commandSequence) != 0)
                 {
                     return;
                 }
 
-                var result = await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
+                result = await dispatcher.InvokeAsync(async () =>
+                {
+                    if (IsShuttingDown || Volatile.Read(ref commandSequence) != 0)
+                    {
+                        return new WallpaperResult(WallpaperError.Stopped, "Aborted");
+                    }
+                    return await compositionRoot.WallpaperService.StartAsync(fullPath).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+
+                if (result.Success || result.Error != WallpaperError.DesktopHostUnavailable || attempt == maxRestoreAttempts)
+                {
+                    break;
+                }
+
+                Trace.WriteLine($"Startup wallpaper restore attempt {attempt} failed (desktop host not ready); retrying with backoff...");
+                await Task.Delay(attempt * 50).ConfigureAwait(false);
+            }
+
+            await dispatcher.InvokeAsync(() =>
+            {
                 if (result.Success && Volatile.Read(ref commandSequence) == 0 && !IsShuttingDown)
                 {
                     healthTracker.RecordSuccess();

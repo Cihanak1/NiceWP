@@ -17,6 +17,23 @@ public sealed record WallpaperLibraryAddResult(
     string? Message = null);
 
 /// <summary>
+/// Represents the result of attempting to add multiple wallpaper files to <see cref="WallpaperLibraryService"/>.
+/// </summary>
+public sealed record WallpaperLibraryBatchAddResult(
+    int AddedCount,
+    int AlreadyExistedCount,
+    int SkippedCount,
+    IReadOnlyList<WallpaperLibraryItem> AddedItems,
+    IReadOnlyList<WallpaperLibraryItem> ExistingItems,
+    IReadOnlyList<string> SkippedPaths,
+    WallpaperError Error = WallpaperError.None,
+    string? Message = null)
+{
+    public int TotalProcessed => AddedCount + AlreadyExistedCount + SkippedCount;
+    public bool Success => Error == WallpaperError.None;
+}
+
+/// <summary>
 /// Represents the result of attempting to relink a wallpaper file in <see cref="WallpaperLibraryService"/>.
 /// </summary>
 public sealed record WallpaperLibraryRelinkResult(
@@ -124,6 +141,125 @@ public sealed class WallpaperLibraryService
         CancellationToken cancellationToken = default) =>
         AddCoreAsync(path, displayName: displayName, isRemoteImported: true, sourceHost: sourceHost, sourceDisplayUrl: sourceDisplayUrl, cancellationToken: cancellationToken);
 
+    /// <summary>
+    /// Validates and adds a collection of local image or video wallpaper files to the library in a single atomic operation.
+    /// Deduplicates paths case-insensitively both against the existing library and within the batch.
+    /// Skips unsupported formats or inaccessible files without failing the entire batch.
+    /// </summary>
+    public async Task<WallpaperLibraryBatchAddResult> AddBatchAsync(
+        IEnumerable<string?> paths,
+        IProgress<(int processed, int total)>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+
+        var pathList = paths.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()).ToList();
+        if (pathList.Count == 0)
+        {
+            return new WallpaperLibraryBatchAddResult(
+                AddedCount: 0,
+                AlreadyExistedCount: 0,
+                SkippedCount: 0,
+                AddedItems: Array.Empty<WallpaperLibraryItem>(),
+                ExistingItems: Array.Empty<WallpaperLibraryItem>(),
+                SkippedPaths: Array.Empty<string>());
+        }
+
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var library = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in library.Items)
+            {
+                if (!string.IsNullOrWhiteSpace(item.FilePath))
+                {
+                    seenPaths.Add(Path.GetFullPath(item.FilePath));
+                }
+            }
+
+            var addedItems = new List<WallpaperLibraryItem>();
+            var existingItems = new List<WallpaperLibraryItem>();
+            var skippedPaths = new List<string>();
+
+            var total = pathList.Count;
+            var processed = 0;
+
+            foreach (var path in pathList)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var validation = ValidateWallpaperFile(path, out var fullPath, out var wallpaperType);
+                if (!validation.Success)
+                {
+                    skippedPaths.Add(path);
+                    processed++;
+                    progress?.Report((processed, total));
+                    continue;
+                }
+
+                if (seenPaths.Contains(fullPath))
+                {
+                    var existing = library.FindByPath(fullPath);
+                    if (existing != null && !existingItems.Any(e => string.Equals(e.Id, existing.Id, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        existingItems.Add(existing);
+                    }
+                    processed++;
+                    progress?.Report((processed, total));
+                    continue;
+                }
+
+                var newItem = new WallpaperLibraryItem
+                {
+                    Id = CreateUniqueId(library),
+                    Type = wallpaperType,
+                    FilePath = fullPath,
+                    DisplayName = Path.GetFileName(fullPath),
+                    AddedAtUtc = DateTimeOffset.UtcNow,
+                    IsFavorite = false,
+                    LastUsedAtUtc = null
+                };
+
+                library.Items.Add(newItem);
+                seenPaths.Add(fullPath);
+                addedItems.Add(newItem);
+
+                processed++;
+                progress?.Report((processed, total));
+            }
+
+            if (addedItems.Count > 0)
+            {
+                var saved = await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+                if (!saved)
+                {
+                    return new WallpaperLibraryBatchAddResult(
+                        AddedCount: 0,
+                        AlreadyExistedCount: existingItems.Count,
+                        SkippedCount: skippedPaths.Count,
+                        AddedItems: Array.Empty<WallpaperLibraryItem>(),
+                        ExistingItems: existingItems,
+                        SkippedPaths: skippedPaths,
+                        Error: WallpaperError.RendererFailed,
+                        Message: "Failed to persist wallpaper library.");
+                }
+            }
+
+            return new WallpaperLibraryBatchAddResult(
+                AddedCount: addedItems.Count,
+                AlreadyExistedCount: existingItems.Count,
+                SkippedCount: skippedPaths.Count,
+                AddedItems: addedItems,
+                ExistingItems: existingItems,
+                SkippedPaths: skippedPaths);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     private async Task<WallpaperLibraryAddResult> AddCoreAsync(
         string? path,
         string? displayName,
@@ -216,6 +352,41 @@ public sealed class WallpaperLibraryService
             }
 
             return await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Removes multiple library entries by ID in a single atomic persistence operation without deleting or modifying physical files on disk.
+    /// </summary>
+    public async Task<int> RemoveBatchAsync(IEnumerable<string?> ids, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        var idSet = new HashSet<string>(
+            ids.Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (idSet.Count == 0)
+        {
+            return 0;
+        }
+
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var library = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            var removedCount = library.Items.RemoveAll(item => idSet.Contains(item.Id));
+            if (removedCount == 0)
+            {
+                return 0;
+            }
+
+            var saved = await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+            return saved ? removedCount : 0;
         }
         finally
         {
@@ -402,6 +573,50 @@ public sealed class WallpaperLibraryService
 
             item.IsFavorite = isFavorite;
             return await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Updates the favorite state for multiple library entries by ID in a single atomic persistence operation.
+    /// </summary>
+    public async Task<int> SetFavoriteBatchAsync(IEnumerable<string?> ids, bool isFavorite, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        var idSet = new HashSet<string>(
+            ids.Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (idSet.Count == 0)
+        {
+            return 0;
+        }
+
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var library = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            var updatedCount = 0;
+            foreach (var item in library.Items)
+            {
+                if (idSet.Contains(item.Id) && item.IsFavorite != isFavorite)
+                {
+                    item.IsFavorite = isFavorite;
+                    updatedCount++;
+                }
+            }
+
+            if (updatedCount == 0)
+            {
+                return 0;
+            }
+
+            var saved = await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+            return saved ? updatedCount : 0;
         }
         finally
         {
