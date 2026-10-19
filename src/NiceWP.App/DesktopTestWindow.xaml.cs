@@ -1111,8 +1111,18 @@ public sealed partial class DesktopTestWindow : Window
         if (sender is VariableSizedWrapGrid panel)
         {
             var width = Math.Max(1, args.NewSize.Width);
-            panel.ItemWidth = Math.Floor(width / Math.Max(1, (int)(width / 240)));
+            var preferredWidth = panel == LibraryControlStrip ? 160 : 240;
+            var columns = Math.Max(1, (int)(width / preferredWidth));
+            panel.ItemWidth = Math.Floor(width / columns);
+            if (panel == LibraryControlStrip)
+                VariableSizedWrapGrid.SetColumnSpan(LibrarySearchBox, columns > 1 ? 2 : 1);
         }
+    }
+
+    private void OnCardPreviewSizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        if (sender is Grid preview && args.NewSize.Width > 0)
+            preview.Height = args.NewSize.Width * 9 / 16;
     }
 
     private void ResizeGallery()
@@ -1120,7 +1130,9 @@ public sealed partial class DesktopTestWindow : Window
         if (LibraryListView.ItemsPanelRoot is ItemsWrapGrid panel)
         {
             var width = Math.Max(1, LibraryListView.ActualWidth - 16);
-            panel.ItemWidth = Math.Floor(width / Math.Max(1, (int)(width / 280)));
+            var columns = Math.Max(1, (int)Math.Ceiling(width / 416));
+            if (columns > 1 && width / columns < 320) columns--;
+            panel.ItemWidth = Math.Floor(width / columns);
         }
     }
 
@@ -1206,6 +1218,8 @@ public sealed partial class DesktopTestWindow : Window
             {
                 badge.Visibility = Visibility.Collapsed;
             }
+            badgeText.Style = (Style)Application.Current.Resources[
+                isActive ? "ActiveChipTextStyle" : "NeutralChipTextStyle"];
             ToolTipService.SetToolTip(badge, currentEntry.IsRemoteImported && !currentEntry.IsMissing
                 ? "Downloaded and validated locally." : badgeText.Text);
         }
@@ -1255,20 +1269,6 @@ public sealed partial class DesktopTestWindow : Window
         if (icon != null)
         {
             icon.Glyph = isFav ? "\uE735" : "\uE734";
-            if (isFav)
-            {
-                if (Application.Current.Resources.TryGetValue("AccentTextFillColorPrimaryBrush", out var brush) && brush is Brush accentBrush)
-                {
-                    icon.Foreground = accentBrush;
-                }
-            }
-            else
-            {
-                if (Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var brush) && brush is Brush secondaryBrush)
-                {
-                    icon.Foreground = secondaryBrush;
-                }
-            }
         }
 
         ToolTipService.SetToolTip(button, isFav ? "Remove from favorites" : "Add to favorites");
