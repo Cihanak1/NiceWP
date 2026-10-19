@@ -1107,6 +1107,7 @@ public sealed partial class DesktopTestWindow : Window
         {
             StartRotationCountdownTimer();
             UpdateRotationDetailsUI();
+            AdjustActiveLayout();
             if (controller != null)
             {
                 await SyncRuntimeStatusAsync();
@@ -1137,6 +1138,30 @@ public sealed partial class DesktopTestWindow : Window
             panel.ItemWidth = Math.Floor(width / columns);
             if (panel == LibraryControlStrip)
                 VariableSizedWrapGrid.SetColumnSpan(LibrarySearchBox, columns > 1 ? 2 : 1);
+        }
+    }
+
+    private void OnActiveLayoutSizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        AdjustActiveLayout();
+    }
+
+    private void AdjustActiveLayout()
+    {
+        if (ActivePage == null || ActivePreviewFrame == null || ActivePage.ActualHeight <= 0) return;
+        var availableWidth = ActiveContentPanel?.ActualWidth > 0 ? ActiveContentPanel.ActualWidth : ActivePage.ActualWidth;
+        if (availableWidth <= 0) return;
+
+        // Keep controls first; scale a 16:9 preview to the actual scroll viewport.
+        var maxHeight = Math.Clamp(ActivePage.ActualHeight * 0.4, 150, 360);
+        var targetWidth = Math.Round(Math.Min(availableWidth, maxHeight * 16.0 / 9.0));
+        var targetHeight = Math.Round(targetWidth * 9.0 / 16.0);
+
+        if (Math.Abs(ActivePreviewFrame.Width - targetWidth) > 1.0 ||
+            Math.Abs(ActivePreviewFrame.Height - targetHeight) > 1.0)
+        {
+            ActivePreviewFrame.Width = targetWidth;
+            ActivePreviewFrame.Height = targetHeight;
         }
     }
 

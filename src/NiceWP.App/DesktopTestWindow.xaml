@@ -173,69 +173,60 @@
                     </GridView.ItemTemplate>
                 </GridView>
             </Grid>
-            <ScrollViewer x:Name="ActivePage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Spacing="16" MaxWidth="1120" HorizontalAlignment="Stretch">
+            <ScrollViewer x:Name="ActivePage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled" SizeChanged="OnActiveLayoutSizeChanged" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="12" MaxWidth="1120" HorizontalAlignment="Stretch" x:Name="ActiveContentPanel">
                     <StackPanel Spacing="8">
                         <TextBlock Text="Active Wallpaper" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
-                        <TextBlock Text="Your current desktop wallpaper." FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                     <StackPanel x:Name="ActiveEmptyState" Spacing="8" Margin="0,16,0,8">
                         <TextBlock Text="No wallpaper active" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
                         <TextBlock Text="Apply a wallpaper from Library or choose a file below." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                     <Border x:Name="ActiveDetailsPanel" Visibility="Collapsed" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
-                        <StackPanel Spacing="16">
-                            <StackPanel Spacing="16">
-                                <Grid Height="240" CornerRadius="4" Background="{ThemeResource ControlAltFillColorSecondaryBrush}" HorizontalAlignment="Stretch">
-                                    <SymbolIcon x:Name="ActivePlaceholderIcon" Symbol="SlideShow" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <Image x:Name="ActivePreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
-                                </Grid>
-                                <StackPanel Spacing="8" VerticalAlignment="Center">
-                                    <TextBlock x:Name="PathText" Text="No wallpaper active" FontSize="24" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" TextWrapping="Wrap" />
-                                    <TextBlock x:Name="ActiveFullPathText" Text="Select a wallpaper from the Library or choose a file below." FontSize="12" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="ActiveMissingWarningText" Text="The wallpaper file is missing." TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                </StackPanel>
+                        <StackPanel Spacing="8" VerticalAlignment="Center">
+                            <TextBlock x:Name="PathText" Text="No wallpaper active" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" TextWrapping="NoWrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock x:Name="WallpaperTypeText" Text="None" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="12" />
+                                <TextBlock Text="·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PlaybackStatusText" Text="None" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="12" />
+                                <TextBlock Text="·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{Binding SelectedItem.Tag, ElementName=EfficiencyProfileComboBox}" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
-                            <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
-                            <Grid ColumnSpacing="24" RowSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" MinWidth="64" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Type" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                <TextBlock x:Name="WallpaperTypeText" Grid.Row="0" Grid.Column="1" Text="None" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Status" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                <TextBlock x:Name="PlaybackStatusText" Grid.Row="1" Grid.Column="1" Text="None" FontWeight="SemiBold" TextWrapping="Wrap" />
-                            </Grid>
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Efficiency" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Text="{Binding SelectedItem.Tag, ElementName=EfficiencyProfileComboBox}" TextWrapping="Wrap" FontWeight="SemiBold" />
-                            </StackPanel>
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Source resolution · last measurement" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Text="Available in Performance" TextWrapping="Wrap" x:Name="ActiveResolutionText" />
-                            </StackPanel>
-                            <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Rotation &amp; Playlist" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock x:Name="ActiveRotationStateText" Text="Rotation: Off" TextWrapping="Wrap" FontWeight="SemiBold" />
-                                <TextBlock x:Name="ActiveRotationPositionText" Text="Position: - / -" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock x:Name="ActiveRotationCountdownText" Text="Next change: Inactive" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            </StackPanel>
+                            <TextBlock x:Name="ActiveFullPathText" Text="Select a wallpaper from the Library or choose a file below." FontSize="12" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                            <TextBlock x:Name="ActiveMissingWarningText" Text="The wallpaper file is missing." TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </Border>
-                    <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="136" ItemHeight="44">
-                        <Button x:Name="PreviousWallpaperButton" Content="Previous" Click="OnPreviousWallpaperClicked" AutomationProperties.Name="Previous wallpaper" ToolTipService.ToolTip="Previous wallpaper" />
-                        <Button x:Name="PauseResumeWallpaperButton" Content="Pause" Click="OnPauseResumeWallpaper" IsEnabled="False" Style="{StaticResource AccentButtonStyle}" />
-                        <Button x:Name="NextWallpaperButton" Content="Next" Click="OnNextWallpaperClicked" AutomationProperties.Name="Next wallpaper" ToolTipService.ToolTip="Next wallpaper" />
-                        <Button x:Name="StopActiveWallpaperButton" Content="Stop" Click="OnStopActiveWallpaper" IsEnabled="False" />
+                    <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="112" ItemHeight="44">
+                        <Button x:Name="PreviousWallpaperButton" Content="Previous" Click="OnPreviousWallpaperClicked" AutomationProperties.Name="Previous wallpaper" ToolTipService.ToolTip="Previous wallpaper" Margin="0,0,8,8" HorizontalAlignment="Stretch" />
+                        <Button x:Name="PauseResumeWallpaperButton" Content="Pause" Click="OnPauseResumeWallpaper" IsEnabled="False" Style="{StaticResource AccentButtonStyle}" Margin="0,0,8,8" HorizontalAlignment="Stretch" />
+                        <Button x:Name="NextWallpaperButton" Content="Next" Click="OnNextWallpaperClicked" AutomationProperties.Name="Next wallpaper" ToolTipService.ToolTip="Next wallpaper" Margin="0,0,8,8" HorizontalAlignment="Stretch" />
+                        <Button x:Name="StopActiveWallpaperButton" Content="Stop" Click="OnStopActiveWallpaper" IsEnabled="False" Margin="0,0,8,8" HorizontalAlignment="Stretch" />
+                    </VariableSizedWrapGrid>
+                    <Grid ColumnSpacing="16" RowSpacing="8" Visibility="{Binding Visibility, ElementName=ActiveDetailsPanel}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="ActiveRotationStateText" Text="Rotation: Off" TextWrapping="Wrap" FontWeight="SemiBold" Grid.Row="0" Grid.ColumnSpan="2" FontSize="12" />
+                        <TextBlock x:Name="ActiveRotationPositionText" Text="Position: - / -" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Grid.Row="1" />
+                        <TextBlock x:Name="ActiveRotationCountdownText" Text="Next change: Inactive" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Grid.Row="1" Grid.Column="1" />
+                    </Grid>
+                    <Grid Height="200" CornerRadius="4" Background="{ThemeResource ControlAltFillColorSecondaryBrush}" HorizontalAlignment="Left" x:Name="ActivePreviewFrame" Width="356" MaxHeight="360" Visibility="{Binding Visibility, ElementName=ActiveDetailsPanel}">
+                        <SymbolIcon x:Name="ActivePlaceholderIcon" Symbol="SlideShow" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Image x:Name="ActivePreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                    </Grid>
+                    <StackPanel Spacing="8" Visibility="{Binding Visibility, ElementName=ActiveDetailsPanel}">
+                        <TextBlock Text="Source resolution · last measurement" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="Available in Performance" TextWrapping="Wrap" x:Name="ActiveResolutionText" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button x:Name="SelectImageButton" Content="Choose File…" Click="OnSelectImage" />
                         <Button x:Name="RefreshActiveStatusButton" Content="Refresh" Click="OnRefreshStatus" />
-                    </VariableSizedWrapGrid>
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
             <ScrollViewer x:Name="PerformancePage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
