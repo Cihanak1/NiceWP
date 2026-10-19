@@ -363,58 +363,22 @@ public sealed partial class DesktopTestWindow : Window
     {
         if (IsInteractionBusy || closed) return;
 
-        var contentPanel = new StackPanel { Spacing = 12, MinWidth = 360, MaxWidth = 460 };
-
-        var secBrush = Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var sb) && sb is Brush sBrush
-            ? sBrush
-            : null;
-
-        var critBrush = Application.Current.Resources.TryGetValue("SystemFillColorCriticalBrush", out var cb) && cb is Brush cBrush
-            ? cBrush
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 232, 17, 35));
-
-        var urlLabel = new TextBlock
+        var contentPanel = (StackPanel)((DataTemplate)Navigation.Resources["RemoteImportTemplate"]).LoadContent();
+        var urlBox = (TextBox)contentPanel.FindName("RemoteUrlBox");
+        var applyCheckBox = (CheckBox)contentPanel.FindName("RemoteApplyCheckBox");
+        var progressBar = (ProgressBar)contentPanel.FindName("RemoteProgressBar");
+        var statusBlock = (TextBlock)contentPanel.FindName("RemoteStatusText");
+        var errorBlock = (TextBlock)contentPanel.FindName("RemoteErrorText");
+        errorBlock.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) =>
         {
-            Text = "Wallpaper URL",
-            Style = Application.Current.Resources.TryGetValue("BaseTextBlockStyle", out var baseStyle) && baseStyle is Style bs ? bs : null
-        };
-
-        var urlBox = new TextBox
-        {
-            PlaceholderText = "https://example.com/wallpaper.jpg",
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-
-        var applyCheckBox = new CheckBox
-        {
-            Content = "Apply after download",
-            IsChecked = true
-        };
-
-        var progressBar = new ProgressBar
-        {
-            Visibility = Visibility.Collapsed,
-            Minimum = 0,
-            Maximum = 100,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-
-        var statusBlock = new TextBlock
-        {
-            Text = "NiceWP only accesses the network when you explicitly import a remote wallpaper.\nRemote media is downloaded locally and validated before use.",
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = secBrush
-        };
-
-        var errorBlock = new TextBlock
-        {
-            Visibility = Visibility.Collapsed,
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = critBrush,
-            Margin = new Thickness(0, 4, 0, 0)
-        };
+            var hasError = errorBlock.Visibility == Visibility.Visible;
+            statusBlock.Visibility = hasError ? Visibility.Collapsed : Visibility.Visible;
+            if (hasError)
+            {
+                statusBlock.Text = string.Empty;
+                progressBar.Visibility = Visibility.Collapsed;
+            }
+        });
 
         urlBox.TextChanged += (_, _) =>
         {
@@ -424,17 +388,11 @@ public sealed partial class DesktopTestWindow : Window
             }
         };
 
-        contentPanel.Children.Add(urlLabel);
-        contentPanel.Children.Add(urlBox);
-        contentPanel.Children.Add(applyCheckBox);
-        contentPanel.Children.Add(progressBar);
-        contentPanel.Children.Add(statusBlock);
-        contentPanel.Children.Add(errorBlock);
-
         var dialog = new ContentDialog
         {
             XamlRoot = this.Content.XamlRoot,
-            Title = "Add from URL",
+            Title = "Import Remote Wallpaper",
+            RequestedTheme = Navigation.RequestedTheme,
             PrimaryButtonText = "Download",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
@@ -472,6 +430,7 @@ public sealed partial class DesktopTestWindow : Window
             var progress = new Progress<RemoteDownloadProgress>(p =>
             {
                 if (closed) return;
+                if (!isDownloading || errorBlock.Visibility == Visibility.Visible) return;
                 statusBlock.Text = p.DisplayText;
                 if (p.Percentage.HasValue)
                 {
@@ -1147,16 +1106,21 @@ public sealed partial class DesktopTestWindow : Window
 
     private void OnGallerySizeChanged(object sender, SizeChangedEventArgs args) => ResizeGallery();
 
+    private void OnResponsivePanelSizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        if (sender is VariableSizedWrapGrid panel)
+        {
+            var width = Math.Max(1, args.NewSize.Width);
+            panel.ItemWidth = Math.Floor(width / Math.Max(1, (int)(width / 240)));
+        }
+    }
+
     private void ResizeGallery()
     {
         if (LibraryListView.ItemsPanelRoot is ItemsWrapGrid panel)
         {
-            var availableWidth = Math.Max(1, LibraryListView.ActualWidth - 8);
-            var columns = Math.Max(1, (int)(availableWidth / 252));
-            var computedWidth = Math.Floor(availableWidth / columns);
-            panel.ItemWidth = columns == 1
-                ? Math.Min(availableWidth, 420)
-                : Math.Clamp(computedWidth, 220, 320);
+            var width = Math.Max(1, LibraryListView.ActualWidth - 16);
+            panel.ItemWidth = Math.Floor(width / Math.Max(1, (int)(width / 280)));
         }
     }
 
@@ -1226,24 +1190,35 @@ public sealed partial class DesktopTestWindow : Window
             if (currentEntry.IsMissing)
             {
                 badge.Visibility = Visibility.Visible;
-                badgeText.Text = isActive ? "Active · Missing" : "Missing";
+                badgeText.Text = isActive ? "ACTIVE · MISSING" : "MISSING";
             }
             else if (isActive)
             {
                 badge.Visibility = Visibility.Visible;
-                badgeText.Text = "Active";
+                badgeText.Text = "ACTIVE";
+            }
+            else if (currentEntry.IsRemoteImported)
+            {
+                badge.Visibility = Visibility.Visible;
+                badgeText.Text = "REMOTE · LOCAL COPY";
             }
             else
             {
                 badge.Visibility = Visibility.Collapsed;
             }
+            ToolTipService.SetToolTip(badge, currentEntry.IsRemoteImported && !currentEntry.IsMissing
+                ? "Downloaded and validated locally." : badgeText.Text);
         }
 
+        ToolTipService.SetToolTip(cardBorder, currentEntry.IsRemoteImported
+            ? $"{currentEntry.DisplayName}\nREMOTE · LOCAL COPY\nDownloaded and validated locally."
+            : currentEntry.ToolTipText);
         var isIdle = !IsInteractionBusy;
         if (cardBorder.FindName("CardApplyButton") is Button applyButton)
         {
             applyButton.Visibility = currentEntry.IsMissing ? Visibility.Collapsed : Visibility.Visible;
             applyButton.IsEnabled = currentEntry.CanApply && isIdle;
+            applyButton.Content = isActive ? "Reapply" : "Apply";
         }
 
         if (cardBorder.FindName("CardLocateButton") is Button locateButton)
@@ -1631,6 +1606,12 @@ public sealed partial class DesktopTestWindow : Window
         ActiveDetailsPanel.Visibility = hasWallpaper ? Visibility.Visible : Visibility.Collapsed;
 
         WallpaperTypeText.Text = hasWallpaper ? activeWallpaperType : "None";
+        var measured = latestPerformanceStatus?.Snapshot;
+        ActiveResolutionText.Text = hasWallpaper && measured != null &&
+            string.Equals(measured.ActiveWallpaperPath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase)
+                ? FormatDimensions(isVideo ? measured.VideoWidth : measured.SourceWidth,
+                    isVideo ? measured.VideoHeight : measured.SourceHeight)
+                : "Available in Performance";
 
         var resolvedPaused = isPaused ||
             string.Equals(playbackState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase);
@@ -2132,16 +2113,20 @@ public sealed partial class DesktopTestWindow : Window
         PerfDisplayPowerPolicyText.Text = snap.DisplayOffPauseActive ? "Active (Auto-paused by display off)" : "Inactive (Display active)";
 
         PerfEfficiencyProfileText.Text = snap.EfficiencyProfile ?? "Balanced";
-        PerfRuntimeHealthText.Text = snap.RuntimeHealth ?? "Healthy";
+        PerfRuntimeHealthText.Text = snap.RuntimeHealth ?? "Unknown";
+        PerfRuntimeHealthText.Style = (Style)Application.Current.Resources[
+            snap.RuntimeHealth == "Healthy" ? "HealthHealthyStyle"
+            : snap.RuntimeHealth == "Degraded" ? "HealthWarningStyle"
+            : snap.RuntimeHealth == "SafeStopped" ? "HealthAttentionStyle" : "HealthNeutralStyle"];
         PerfCurrentActionText.Text = snap.CurrentAction ?? "Operating normally";
 
         if (snap.RecentEvents != null && snap.RecentEvents.Count > 0)
         {
-            PerfRecentEventsCountText.Text = $"{snap.RecentEvents.Count} recent events";
+            PerfRecentEventsCountText.Text = $"Latest {Math.Min(6, snap.RecentEvents.Count)} of {snap.RecentEvents.Count}";
             var sb = new StringBuilder();
-            foreach (var evt in snap.RecentEvents)
+            foreach (var evt in snap.RecentEvents.OrderByDescending(item => item.TimestampUtc).Take(6))
             {
-                sb.AppendLine($"[{evt.TimestampUtc:HH:mm:ss}] {evt.EventType}: {evt.Message}");
+                sb.AppendLine($"{evt.EventType} · {evt.TimestampUtc.ToLocalTime():HH:mm:ss}\n{evt.Message}\n");
             }
             PerfRecentEventsListText.Text = sb.ToString().TrimEnd();
         }
@@ -2220,6 +2205,7 @@ public sealed partial class DesktopTestWindow : Window
 
         PerfEfficiencyProfileText.Text = "Unknown";
         PerfRuntimeHealthText.Text = "Unavailable";
+        PerfRuntimeHealthText.Style = (Style)Application.Current.Resources["HealthNeutralStyle"];
         PerfCurrentActionText.Text = "Runtime host disconnected";
         PerfRecentEventsCountText.Text = "0 events";
         PerfRecentEventsListText.Text = "Unavailable.";

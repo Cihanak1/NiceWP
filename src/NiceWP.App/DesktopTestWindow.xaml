@@ -1,26 +1,32 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Window
-    x:Class="NiceWP.App.DesktopTestWindow"
-    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="NiceWP">
-    <NavigationView
-        x:Name="Navigation"
-        PaneDisplayMode="Auto"
-        OpenPaneLength="220"
-        CompactModeThresholdWidth="640"
-        ExpandedModeThresholdWidth="960"
-        IsBackButtonVisible="Collapsed"
-        IsSettingsVisible="False"
-        SelectionChanged="OnNavigationChanged"
-        Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+<?xml version='1.0' encoding='utf-8'?>
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="NiceWP.App.DesktopTestWindow" Title="NiceWP">
+    <NavigationView x:Name="Navigation" PaneDisplayMode="Auto" OpenPaneLength="208" CompactModeThresholdWidth="640" ExpandedModeThresholdWidth="960" IsBackButtonVisible="Collapsed" IsSettingsVisible="False" SelectionChanged="OnNavigationChanged" Background="{ThemeResource ControlCanvasBrush}">
+        <NavigationView.Resources>
+            <DataTemplate x:Key="RemoteImportTemplate">
+                <StackPanel Spacing="16" MaxWidth="480">
+                    <TextBlock Text="Paste a direct media or supported wallpaper page URL." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBox x:Name="RemoteUrlBox" Header="Wallpaper URL" PlaceholderText="https://…" HorizontalAlignment="Stretch" AutomationProperties.Name="Wallpaper URL" />
+                    <CheckBox x:Name="RemoteApplyCheckBox" Content="Apply after download" IsChecked="True" />
+                    <StackPanel Spacing="8">
+                        <ProgressBar x:Name="RemoteProgressBar" Minimum="0" Maximum="100" Visibility="Collapsed" AutomationProperties.Name="Download progress" />
+                        <Grid>
+                            <TextBlock x:Name="RemoteStatusText" FontSize="13" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock x:Name="RemoteErrorText" Visibility="Collapsed" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" AutomationProperties.LiveSetting="Assertive" />
+                        </Grid>
+                    </StackPanel>
+                    <Border BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="0,1,0,0" Padding="0,16,0,0">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Downloaded locally and validated before use." FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="NiceWP only accesses the network when you explicitly import a remote wallpaper." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </DataTemplate>
+        </NavigationView.Resources>
         <NavigationView.PaneHeader>
-            <StackPanel Margin="16,16,16,24" Spacing="4">
-                <TextBlock Text="NiceWP" FontSize="20" FontWeight="SemiBold" />
-                <TextBlock
-                    Text="Wallpaper Manager"
-                    FontSize="12"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <StackPanel Margin="16,16,16,24" Spacing="8">
+                <TextBlock Text="NiceWP" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="DESKTOP CONTROL" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" CharacterSpacing="100" />
             </StackPanel>
         </NavigationView.PaneHeader>
         <NavigationView.MenuItems>
@@ -29,121 +35,60 @@
             <NavigationViewItem x:Name="PerformanceNavigationItem" Content="Performance" Tag="Performance" Icon="ShowResults" />
             <NavigationViewItem x:Name="SettingsNavigationItem" Content="Settings" Tag="Settings" Icon="Setting" />
         </NavigationView.MenuItems>
-
         <Grid Margin="24,16,24,16" RowSpacing="12">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-
-            <!-- LIBRARY PAGE -->
             <Grid x:Name="LibraryPage" RowSpacing="16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-
-                <Grid ColumnSpacing="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Text="Library" Style="{ThemeResource TitleTextBlockStyle}" />
-                        <TextBlock
-                            x:Name="LibraryCountText"
-                            Text="Your wallpaper collection"
-                            FontSize="13"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="Library" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="LibraryCountText" Text="Your wallpaper collection" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <Button
-                            x:Name="AddWallpaperButton"
-                            Content="Add Wallpaper"
-                            Click="OnAddWallpaper"
-                            Style="{StaticResource AccentButtonStyle}" />
-                        <Button
-                            x:Name="AddFromUrlButton"
-                            Content="Add from URL"
-                            Click="OnAddFromUrlClicked" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="AddWallpaperButton" Content="Add Wallpaper" Click="OnAddWallpaper" Style="{StaticResource AccentButtonStyle}" />
+                        <Button x:Name="AddFromUrlButton" Content="Add from URL" Click="OnAddFromUrlClicked" />
                     </StackPanel>
-                </Grid>
-
-                <!-- Toolbar: Search, Filter, Sort -->
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12">
-                    <TextBox
-                        x:Name="LibrarySearchBox"
-                        Width="240"
-                        PlaceholderText="Search wallpapers"
-                        TextChanged="OnSearchTextChanged"
-                        VerticalAlignment="Center"
-                        AutomationProperties.Name="Search wallpapers" />
-                    <ComboBox
-                        x:Name="LibraryFilterComboBox"
-                        SelectionChanged="OnFilterSelectionChanged"
-                        VerticalAlignment="Center"
-                        MinWidth="120"
-                        AutomationProperties.Name="Filter wallpapers">
-                        <ComboBoxItem Content="All" Tag="All" IsSelected="True" />
-                        <ComboBoxItem Content="Images" Tag="Images" />
-                        <ComboBoxItem Content="Videos" Tag="Videos" />
-                        <ComboBoxItem Content="Favorites" Tag="Favorites" />
-                        <ComboBoxItem Content="Recent" Tag="Recent" />
-                    </ComboBox>
-                    <ComboBox
-                        x:Name="LibrarySortComboBox"
-                        SelectionChanged="OnSortSelectionChanged"
-                        VerticalAlignment="Center"
-                        MinWidth="130"
-                        AutomationProperties.Name="Sort wallpapers">
-                        <ComboBoxItem Content="Newest" Tag="Newest" IsSelected="True" />
-                        <ComboBoxItem Content="Oldest" Tag="Oldest" />
-                        <ComboBoxItem Content="Name A-Z" Tag="NameAsc" />
-                        <ComboBoxItem Content="Name Z-A" Tag="NameDesc" />
-                    </ComboBox>
                 </StackPanel>
-
-                <Border
-                    x:Name="LibraryEmptyText" Visibility="Collapsed"
-                    Grid.Row="2"
-                    Padding="32"
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Top"
-                    Margin="0,8,0,0">
+                <VariableSizedWrapGrid Grid.Row="1" Orientation="Horizontal" ItemHeight="72" ItemWidth="240" SizeChanged="OnResponsivePanelSizeChanged">
+                    <StackPanel Spacing="8" Margin="0,0,12,8">
+                        <TextBlock Text="Search" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBox x:Name="LibrarySearchBox" PlaceholderText="Search wallpapers" TextChanged="OnSearchTextChanged" VerticalAlignment="Center" AutomationProperties.Name="Search wallpapers" HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                    <StackPanel Spacing="8" Margin="0,0,12,8">
+                        <TextBlock Text="Filter" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <ComboBox x:Name="LibraryFilterComboBox" SelectionChanged="OnFilterSelectionChanged" VerticalAlignment="Center" AutomationProperties.Name="Filter wallpapers" HorizontalAlignment="Stretch">
+                            <ComboBoxItem Content="All" Tag="All" IsSelected="True" />
+                            <ComboBoxItem Content="Images" Tag="Images" />
+                            <ComboBoxItem Content="Videos" Tag="Videos" />
+                            <ComboBoxItem Content="Favorites" Tag="Favorites" />
+                            <ComboBoxItem Content="Recent" Tag="Recent" />
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Spacing="8" Margin="0,0,12,8">
+                        <TextBlock Text="Sort" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <ComboBox x:Name="LibrarySortComboBox" SelectionChanged="OnSortSelectionChanged" VerticalAlignment="Center" AutomationProperties.Name="Sort wallpapers" HorizontalAlignment="Stretch">
+                            <ComboBoxItem Content="Newest" Tag="Newest" IsSelected="True" />
+                            <ComboBoxItem Content="Oldest" Tag="Oldest" />
+                            <ComboBoxItem Content="Name A-Z" Tag="NameAsc" />
+                            <ComboBoxItem Content="Name Z-A" Tag="NameDesc" />
+                        </ComboBox>
+                    </StackPanel>
+                </VariableSizedWrapGrid>
+                <Border x:Name="LibraryEmptyText" Visibility="Collapsed" Grid.Row="2" Padding="32" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="0,8,0,0">
                     <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="420">
-                        <SymbolIcon
-                            Symbol="Pictures"
-                            HorizontalAlignment="Center"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock
-                            x:Name="EmptyTitleText"
-                            Text="No wallpapers in library"
-                            FontSize="16"
-                            FontWeight="SemiBold"
-                            HorizontalAlignment="Center"
-                            TextAlignment="Center"
-                            TextWrapping="Wrap" />
-                        <TextBlock
-                            x:Name="EmptySubtitleText"
-                            Text="Use Add Wallpaper or Add from URL to add an image or MP4."
-                            HorizontalAlignment="Center"
-                            TextAlignment="Center"
-                            TextWrapping="Wrap"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <SymbolIcon Symbol="Pictures" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="EmptyTitleText" Text="No wallpapers in library" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                        <TextBlock x:Name="EmptySubtitleText" Text="Use Add Wallpaper or Add from URL to add an image or MP4." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </Border>
-
-                <GridView
-                    x:Name="LibraryListView"
-                    Grid.Row="2"
-                    SelectionMode="None"
-                    Visibility="Collapsed"
-                    SizeChanged="OnGallerySizeChanged"
-                    Loaded="OnGalleryLoaded"
-                    ScrollViewer.HorizontalScrollMode="Disabled"
-                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <GridView x:Name="LibraryListView" Grid.Row="2" SelectionMode="None" Visibility="Collapsed" SizeChanged="OnGallerySizeChanged" Loaded="OnGalleryLoaded" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <GridView.ItemsPanel>
                         <ItemsPanelTemplate>
                             <ItemsWrapGrid Orientation="Horizontal" ItemWidth="256" />
@@ -160,143 +105,68 @@
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                         <DataTemplate>
-                            <Border
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Loaded="OnCardBorderLoaded"
-                                DataContextChanged="OnCardBorderDataContextChanged"
-                                ToolTipService.ToolTip="{Binding ToolTipText}">
+                            <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Loaded="OnCardBorderLoaded" DataContextChanged="OnCardBorderDataContextChanged" ToolTipService.ToolTip="{Binding ToolTipText}">
                                 <Border.ContextFlyout>
                                     <MenuFlyout Opening="OnCardMenuFlyoutOpening">
                                         <MenuFlyoutItem x:Name="MenuApplyItem" Text="Apply" Click="OnMenuApplyClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="&#xE768;" FontSize="14" />
+                                                <FontIcon Glyph="" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="MenuFavoriteItem" Text="Favorite" Click="OnMenuFavoriteClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon x:Name="MenuFavoriteIcon" Glyph="&#xE734;" FontSize="14" />
+                                                <FontIcon x:Name="MenuFavoriteIcon" Glyph="" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="MenuRenameItem" Text="Rename…" Click="OnMenuRenameClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="&#xE8AC;" FontSize="14" />
+                                                <FontIcon Glyph="" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem x:Name="MenuOpenLocationItem" Text="Open File Location" Click="OnMenuOpenLocationClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="&#xED25;" FontSize="14" />
+                                                <FontIcon Glyph="" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="MenuLocateFileItem" Text="Locate File…" Click="OnMenuLocateFileClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="&#xE721;" FontSize="14" />
+                                                <FontIcon Glyph="" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem x:Name="MenuRemoveItem" Text="Remove" Click="OnMenuRemoveClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                                <FontIcon Glyph="" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
-                                <StackPanel Spacing="12" Padding="12">
-                                    <Grid Height="124" CornerRadius="4" Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
-                                        <SymbolIcon
-                                            x:Name="CardPlaceholderIcon"
-                                            Symbol="Pictures"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                        <Image
-                                            x:Name="CardPreviewImage"
-                                            Stretch="UniformToFill"
-                                            Visibility="Collapsed" />
-                                        <Button
-                                            x:Name="CardFavoriteButton"
-                                            HorizontalAlignment="Left"
-                                            VerticalAlignment="Top"
-                                            Margin="8"
-                                            Padding="4"
-                                            MinWidth="32"
-                                            MinHeight="32"
-                                            Width="32"
-                                            Height="32"
-                                            CornerRadius="16"
-                                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                                            BorderThickness="0"
-                                            Click="OnToggleFavorite"
-                                            Loaded="OnFavoriteButtonLoaded"
-                                            DataContextChanged="OnFavoriteButtonDataContextChanged"
-                                            AutomationProperties.Name="Favorite">
-                                            <FontIcon
-                                                x:Name="CardFavoriteIcon"
-                                                Glyph="&#xE734;"
-                                                FontSize="14" />
+                                <StackPanel Spacing="12" Padding="0">
+                                    <Grid Height="176" CornerRadius="6" Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
+                                        <SymbolIcon x:Name="CardPlaceholderIcon" Symbol="Pictures" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <Image x:Name="CardPreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                                        <Button x:Name="CardFavoriteButton" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Padding="4" MinWidth="32" MinHeight="32" Width="32" Height="32" CornerRadius="6" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderThickness="0" Click="OnToggleFavorite" Loaded="OnFavoriteButtonLoaded" DataContextChanged="OnFavoriteButtonDataContextChanged" AutomationProperties.Name="Favorite">
+                                            <FontIcon x:Name="CardFavoriteIcon" Glyph="" FontSize="14" />
                                         </Button>
-                                        <Border
-                                            x:Name="CardStateBadge"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Top"
-                                            Margin="8"
-                                            Padding="8,4"
-                                            CornerRadius="4"
-                                            Visibility="Collapsed"
-                                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
-                                            <TextBlock
-                                                x:Name="CardStateBadgeText"
-                                                Text="Missing"
-                                                FontSize="11"
-                                                FontWeight="SemiBold" />
+                                        <Border x:Name="CardStateBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Padding="8,4" CornerRadius="4" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+                                            <TextBlock x:Name="CardStateBadgeText" Text="Missing" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" />
                                         </Border>
                                     </Grid>
-
-                                    <StackPanel Spacing="4">
-                                        <TextBlock
-                                            Text="{Binding DisplayName}"
-                                            FontWeight="SemiBold"
-                                            TextWrapping="Wrap" MinHeight="40" MaxLines="2"
-                                            TextTrimming="CharacterEllipsis"
-                                            ToolTipService.ToolTip="{Binding ToolTipText}" />
+                                    <StackPanel Spacing="8" Margin="16,0,16,0">
+                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextWrapping="Wrap" MinHeight="40" MaxLines="2" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding ToolTipText}" />
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock
-                                                Text="{Binding Type}"
-                                                FontSize="12"
-                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding Type}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </StackPanel>
-
-                                    <Grid ColumnSpacing="8">
+                                    <Grid ColumnSpacing="8" Margin="16,0,16,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <Button
-                                            x:Name="CardApplyButton" Style="{StaticResource AccentButtonStyle}"
-                                            Content="Apply"
-                                            HorizontalAlignment="Stretch"
-                                            IsEnabled="{Binding CanApply}"
-                                            Click="OnApplyWallpaper"
-                                            Loaded="OnApplyButtonLoaded"
-                                            DataContextChanged="OnApplyButtonDataContextChanged" />
-                                        <Button
-                                            x:Name="CardLocateButton" Style="{StaticResource AccentButtonStyle}"
-                                            Content="Locate File"
-                                            HorizontalAlignment="Stretch"
-                                            Visibility="Collapsed"
-                                            Click="OnLocateWallpaper"
-                                            Loaded="OnLocateButtonLoaded"
-                                            DataContextChanged="OnLocateButtonDataContextChanged" />
-                                        <Button
-                                            x:Name="CardRemoveButton"
-                                            Grid.Column="1"
-                                            Content="Remove"
-                                            HorizontalAlignment="Stretch"
-                                            Click="OnRemoveWallpaper"
-                                            Loaded="OnRemoveButtonLoaded"
-                                            DataContextChanged="OnRemoveButtonDataContextChanged" />
+                                        <Button x:Name="CardApplyButton" Style="{StaticResource AccentButtonStyle}" Content="Apply" HorizontalAlignment="Stretch" IsEnabled="{Binding CanApply}" Click="OnApplyWallpaper" Loaded="OnApplyButtonLoaded" DataContextChanged="OnApplyButtonDataContextChanged" />
+                                        <Button x:Name="CardLocateButton" Style="{StaticResource AccentButtonStyle}" Content="Locate File" HorizontalAlignment="Stretch" Visibility="Collapsed" Click="OnLocateWallpaper" Loaded="OnLocateButtonLoaded" DataContextChanged="OnLocateButtonDataContextChanged" />
+                                        <Button x:Name="CardRemoveButton" Grid.Column="1" Content="Remove" HorizontalAlignment="Stretch" Click="OnRemoveWallpaper" Loaded="OnRemoveButtonLoaded" DataContextChanged="OnRemoveButtonDataContextChanged" Style="{StaticResource SubtleButtonStyle}" ToolTipService.ToolTip="Remove from library" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -304,78 +174,30 @@
                     </GridView.ItemTemplate>
                 </GridView>
             </Grid>
-
-            <!-- ACTIVE WALLPAPER PAGE -->
             <ScrollViewer x:Name="ActivePage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Spacing="16" MaxWidth="720" HorizontalAlignment="Left">
-                    <StackPanel Spacing="4">
+                <StackPanel Spacing="16" MaxWidth="1120" HorizontalAlignment="Stretch">
+                    <StackPanel Spacing="8">
                         <TextBlock Text="Active Wallpaper" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
-                        <TextBlock
-                            Text="Your current desktop wallpaper."
-                            FontSize="13"
-                            TextWrapping="Wrap"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="Your current desktop wallpaper." FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
-
                     <StackPanel x:Name="ActiveEmptyState" Spacing="8" Margin="0,16,0,8">
                         <TextBlock Text="No wallpaper active" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock Text="Apply a wallpaper from Library or choose a file below." TextWrapping="Wrap"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="Apply a wallpaper from Library or choose a file below." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
-                    <Border x:Name="ActiveDetailsPanel" Visibility="Collapsed"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
+                    <Border x:Name="ActiveDetailsPanel" Visibility="Collapsed" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="16">
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-
-                                <Grid
-                                    Width="112"
-                                    Height="92"
-                                    CornerRadius="4"
-                                    Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
-                                    <SymbolIcon
-                                        x:Name="ActivePlaceholderIcon"
-                                        Symbol="SlideShow"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <Image
-                                        x:Name="ActivePreviewImage"
-                                        Stretch="UniformToFill"
-                                        Visibility="Collapsed" />
+                            <StackPanel Spacing="16">
+                                <Grid Height="240" CornerRadius="4" Background="{ThemeResource ControlAltFillColorSecondaryBrush}" HorizontalAlignment="Stretch">
+                                    <SymbolIcon x:Name="ActivePlaceholderIcon" Symbol="SlideShow" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <Image x:Name="ActivePreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
                                 </Grid>
-
-                                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                    <TextBlock
-                                        x:Name="PathText"
-                                        Text="No wallpaper active"
-                                        FontSize="18"
-                                        FontWeight="SemiBold"
-                                        TextTrimming="CharacterEllipsis"
-                                        MaxLines="1" />
-                                    <TextBlock
-                                        x:Name="ActiveFullPathText"
-                                        Text="Select a wallpaper from the Library or choose a file below."
-                                        FontSize="12"
-                                        TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock
-                                        x:Name="ActiveMissingWarningText"
-                                        Text="The wallpaper file is missing." TextWrapping="Wrap"
-                                        FontSize="12"
-                                        FontWeight="SemiBold"
-                                        Visibility="Collapsed"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Spacing="8" VerticalAlignment="Center">
+                                    <TextBlock x:Name="PathText" Text="No wallpaper active" FontSize="24" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="ActiveFullPathText" Text="Select a wallpaper from the Library or choose a file below." FontSize="12" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="ActiveMissingWarningText" Text="The wallpaper file is missing." TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
-                            </Grid>
-
+                            </StackPanel>
                             <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
-
                             <Grid ColumnSpacing="24" RowSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" MinWidth="64" />
@@ -385,92 +207,65 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-
-                                <TextBlock
-                                    Grid.Row="0"
-                                    Grid.Column="0"
-                                    Text="Type"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock
-                                    x:Name="WallpaperTypeText"
-                                    Grid.Row="0"
-                                    Grid.Column="1"
-                                    Text="None"
-                                    FontWeight="SemiBold" />
-
-                                <TextBlock
-                                    Grid.Row="1"
-                                    Grid.Column="0"
-                                    Text="Status"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock
-                                    x:Name="PlaybackStatusText"
-                                    Grid.Row="1"
-                                    Grid.Column="1"
-                                    Text="None"
-                                    FontWeight="SemiBold" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Type" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="WallpaperTypeText" Grid.Row="0" Grid.Column="1" Text="None" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Status" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PlaybackStatusText" Grid.Row="1" Grid.Column="1" Text="None" FontWeight="SemiBold" TextWrapping="Wrap" />
                             </Grid>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Efficiency" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{Binding SelectedItem.Tag, ElementName=EfficiencyProfileComboBox}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                            </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Source resolution · last measurement" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Available in Performance" TextWrapping="Wrap" x:Name="ActiveResolutionText" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
-
                     <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="152" ItemHeight="48">
-                        <Button
-                            x:Name="SelectImageButton"
-                            Content="Choose File…"
-                            Click="OnSelectImage"
-                            Style="{StaticResource AccentButtonStyle}" />
-                        <Button
-                            x:Name="PauseResumeWallpaperButton"
-                            Content="Pause"
-                            Click="OnPauseResumeWallpaper"
-                            IsEnabled="False" />
-                        <Button
-                            x:Name="StopActiveWallpaperButton"
-                            Content="Stop"
-                            Click="OnStopActiveWallpaper"
-                            IsEnabled="False" />
-                        <Button
-                            x:Name="RefreshActiveStatusButton"
-                            Content="Refresh"
-                            Click="OnRefreshStatus" />
+                        <Button x:Name="SelectImageButton" Content="Choose File…" Click="OnSelectImage" />
+                        <Button x:Name="PauseResumeWallpaperButton" Content="Pause" Click="OnPauseResumeWallpaper" IsEnabled="False" Style="{StaticResource AccentButtonStyle}" />
+                        <Button x:Name="StopActiveWallpaperButton" Content="Stop" Click="OnStopActiveWallpaper" IsEnabled="False" />
+                        <Button x:Name="RefreshActiveStatusButton" Content="Refresh" Click="OnRefreshStatus" />
                     </VariableSizedWrapGrid>
                 </StackPanel>
             </ScrollViewer>
-
-            <!-- PERFORMANCE PAGE -->
             <ScrollViewer x:Name="PerformancePage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Spacing="16" MaxWidth="720" HorizontalAlignment="Left">
-                    <!-- Header & Action -->
+                <StackPanel Spacing="16" MaxWidth="1120" HorizontalAlignment="Stretch">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Spacing="4" VerticalAlignment="Center">
-                            <TextBlock Text="Performance" Style="{ThemeResource TitleTextBlockStyle}" />
-                            <TextBlock
-                                x:Name="PerformanceSubtitleText"
-                                Text="Real-time resource utilization and runtime diagnostics."
-                                FontSize="13"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="Performance" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="PerformanceSubtitleText" Text="A clear view of your desktop. Metrics stay on this device." FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <Button
-                                x:Name="ExportReportButton"
-                                Content="Export Report"
-                                Click="OnExportReportClicked"
-                                AutomationProperties.Name="Export performance report" />
+                            <Button x:Name="ExportReportButton" Content="Export Report" Click="OnExportReportClicked" AutomationProperties.Name="Export performance report" />
                         </StackPanel>
                     </Grid>
-
-                    <!-- Host Status Banner -->
-                    <Border
-                        x:Name="PerformanceHostStatusBorder"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="14,10">
+                    <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="240" ItemHeight="136" SizeChanged="OnResponsivePanelSizeChanged" HorizontalAlignment="Stretch">
+                        <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Runtime Health" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfRuntimeHealthText" Text="Awaiting status" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Efficiency Mode" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfEfficiencyProfileText" Text="Awaiting status" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Current Action" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfCurrentActionText" Text="Awaiting status" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </VariableSizedWrapGrid>
+                    <Border x:Name="PerformanceHostStatusBorder" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16,12">
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -478,195 +273,102 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <SymbolIcon x:Name="PerformanceHostStatusIcon" Symbol="ShowResults" VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock x:Name="PerformanceHostStatusTitle" Text="Runtime Host: Connected" FontSize="14" FontWeight="SemiBold" />
-                                <TextBlock x:Name="PerformanceHostStatusDetails" Text="PID: 0 • Uptime: 00:00:00" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="8">
+                                <TextBlock x:Name="PerformanceHostStatusTitle" Text="Waiting for runtime" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PerformanceHostStatusDetails" Text="Status appears when the runtime responds." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <TextBlock Grid.Column="2" x:Name="PerformanceLiveIndicator" Text="LIVE (1s)" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock Grid.Column="2" x:Name="PerformanceLiveIndicator" Text="LIVE" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
                         </Grid>
                     </Border>
-
-                    <!-- 1. Process & Memory Metrics -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
+                    <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="240" ItemHeight="144" SizeChanged="OnResponsivePanelSizeChanged" HorizontalAlignment="Stretch">
+                        <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="CPU" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfCpuCurrentText" Text="--%" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PerfCpuStatsText" Text="Avg: --% • Peak: --%" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Memory · working set" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfWorkingSetText" Text="-- MB" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PerfRamStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Private Memory" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfPrivateMemoryText" Text="-- MB" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PerfPrivateStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Threads" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfThreadsText" Text="--" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PerfThreadPeakText" Text="Peak: --" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Handles" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfHandlesText" Text="--" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PerfHandlePeakText" Text="Peak: --" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Uptime" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfUptimeText" Text="--" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PerfSampleCountText" Text="0 samples" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" TextWrapping="Wrap" FontWeight="Normal" />
+                            </StackPanel>
+                        </Border>
+                    </VariableSizedWrapGrid>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Runtime Process Metrics" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock Text="Wallpaper &amp; Renderer" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <Grid ColumnSpacing="16" RowSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <!-- CPU -->
-                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="CPU Utilization" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfCpuCurrentText" Text="--%" FontSize="20" FontWeight="SemiBold" />
-                                </StackPanel>
-
-                                <!-- Working Set -->
-                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Working Set (RAM)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfWorkingSetText" Text="-- MB" FontSize="20" FontWeight="SemiBold" />
-                                </StackPanel>
-
-                                <!-- Private Memory -->
-                                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
-                                    <TextBlock Text="Private Memory" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfPrivateMemoryText" Text="-- MB" FontSize="20" FontWeight="SemiBold" />
-                                </StackPanel>
-
-                                <!-- Threads -->
-                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Active Threads" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfThreadsText" Text="--" FontSize="18" FontWeight="SemiBold" />
-                                </StackPanel>
-
-                                <!-- Handles -->
-                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Kernel Handles" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfHandlesText" Text="--" FontSize="18" FontWeight="SemiBold" />
-                                </StackPanel>
-
-                                <!-- Uptime -->
-                                <StackPanel Grid.Row="1" Grid.Column="2" Spacing="2">
-                                    <TextBlock Text="Host Uptime" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfUptimeText" Text="--" FontSize="18" FontWeight="SemiBold" />
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- 2. Last 60 Seconds Stats -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
-                        <StackPanel Spacing="12">
-                            <Grid>
-                                <TextBlock Text="60-Second Short-Term Window" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <TextBlock x:Name="PerfSampleCountText" Text="0 samples" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                            </Grid>
-                            <Grid ColumnSpacing="16" RowSpacing="10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="CPU Average / Peak" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfCpuStatsText" Text="Avg: --% • Peak: --%" FontSize="14" FontWeight="SemiBold" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="RAM Average / Peak" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfRamStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="14" FontWeight="SemiBold" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
-                                    <TextBlock Text="Private Average / Peak" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfPrivateStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="14" FontWeight="SemiBold" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Threads (Peak)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfThreadPeakText" Text="Peak: --" FontSize="14" FontWeight="SemiBold" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Handles (Peak)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfHandlePeakText" Text="Peak: --" FontSize="14" FontWeight="SemiBold" />
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- 3. Wallpaper & Rendering Transparency -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Wallpaper &amp; Rendering State" FontSize="15" FontWeight="SemiBold" />
-                            <Grid ColumnSpacing="16" RowSpacing="10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-
-                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Active Type &amp; Playback" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfWallpaperTypeStateText" Text="None • Inactive" FontSize="14" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="8">
+                                    <TextBlock Text="Active Type &amp; Playback" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfWallpaperTypeStateText" Text="None • Inactive" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Renderer Window (HWND)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfRendererStatusText" Text="Inactive" FontSize="14" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="8">
+                                    <TextBlock Text="Renderer Window (HWND)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfRendererStatusText" Text="Inactive" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Source Resolution" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfSourceResolutionText" Text="Unavailable" FontSize="14" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
+                                    <TextBlock Text="Source Resolution" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfSourceResolutionText" Text="Unavailable" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Decode Resolution &amp; Memory" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfDecodeResolutionText" Text="Unavailable" FontSize="14" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8">
+                                    <TextBlock Text="Decode Resolution &amp; Memory" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfDecodeResolutionText" Text="Unavailable" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="2">
-                                    <TextBlock Text="Media Details" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="8">
+                                    <TextBlock Text="Media Details" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfMediaDetailsText" Text="None" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
                     </Border>
-
-                    <!-- 4. Efficiency & Guardrails -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <Grid>
-                                <TextBlock Text="Efficiency &amp; Guardrails" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <Border x:Name="PerfEfficiencyStatusBadge"
-                                        HorizontalAlignment="Right"
-                                        CornerRadius="4"
-                                        Padding="8,2"
-                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}">
-                                    <TextBlock x:Name="PerfEfficiencyStatusText"
-                                               Text="Efficiency: Active"
-                                               FontSize="12"
-                                               FontWeight="SemiBold"
-                                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Desktop guardrails" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Left" />
+                                <Border x:Name="PerfEfficiencyStatusBadge" HorizontalAlignment="Left" CornerRadius="4" Padding="8,4" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                    <TextBlock x:Name="PerfEfficiencyStatusText" Text="Efficiency: Active" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                                 </Border>
-                            </Grid>
-                            <Grid ColumnSpacing="16" RowSpacing="10">
+                            </StackPanel>
+                            <Grid ColumnSpacing="16" RowSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
@@ -678,252 +380,138 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-
-                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Efficiency Mode" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfEfficiencyProfileText" Text="Balanced" FontSize="14" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="8">
+                                    <TextBlock Text="Desktop Host (WorkerW)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfDesktopHostStateText" Text="Disconnected" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Runtime Health" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfRuntimeHealthText" Text="Healthy" FontSize="14" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="8">
+                                    <TextBlock Text="Active Pause Reasons" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfPauseReasonsText" Text="None" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="2">
-                                    <TextBlock Text="Current Host Action" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfCurrentActionText" Text="Operating normally" FontSize="13" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="3" Grid.Column="0" Spacing="8">
+                                    <TextBlock Text="Fullscreen Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfFullscreenPolicyText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Desktop Host (WorkerW)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfDesktopHostStateText" Text="Disconnected" FontSize="14" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="3" Grid.Column="1" Spacing="8">
+                                    <TextBlock Text="Power / Battery Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfPowerPolicyText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Active Pause Reasons" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfPauseReasonsText" Text="None" FontSize="14" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="4" Grid.Column="0" Spacing="8">
+                                    <TextBlock Text="Session Lock Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfSessionLockPolicyText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Row="3" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Fullscreen Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfFullscreenPolicyText" Text="Inactive" FontSize="13" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="3" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Power / Battery Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfPowerPolicyText" Text="Inactive" FontSize="13" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="4" Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Session Lock Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfSessionLockPolicyText" Text="Inactive" FontSize="13" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="4" Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Display Power Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="PerfDisplayPowerPolicyText" Text="Inactive" FontSize="13" />
+                                <StackPanel Grid.Row="4" Grid.Column="1" Spacing="8">
+                                    <TextBlock Text="Display Power Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfDisplayPowerPolicyText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
                     </Border>
-
-                    <!-- 5. Runtime Audit Trail (Recent Events) -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
-                        <StackPanel Spacing="10">
-                            <Grid>
-                                <TextBlock Text="Runtime Audit Trail &amp; Events" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <TextBlock x:Name="PerfRecentEventsCountText" Text="0 events" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                            </Grid>
-                            <TextBlock
-                                x:Name="PerfRecentEventsListText"
-                                FontFamily="Consolas, Cascadia Mono, monospace"
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="No events recorded." />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- 6. GPU Measurement Status -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="GPU Measurement" FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock
-                                x:Name="PerfGpuStatusText"
-                                Text="GPU metrics: Unavailable. Windows process-level GPU counters require full D3D engine enumeration across all processes, adding 2+ seconds overhead per sample."
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Audit Trail" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Left" />
+                                <TextBlock x:Name="PerfRecentEventsCountText" Text="0 events" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Border BorderThickness="2,0,0,0" BorderBrush="{ThemeResource ControlStrokeBrush}" Padding="16,0,0,0">
+                                <TextBlock x:Name="PerfRecentEventsListText" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="No events recorded." LineHeight="24" />
+                            </Border>
                         </StackPanel>
                     </Border>
-
-                    <!-- 7. Local Privacy Notice -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
-                        <StackPanel Spacing="6">
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="GPU Measurement" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="PerfGpuStatusText" Text="GPU metrics: Unavailable. Windows process-level GPU counters require full D3D engine enumeration across all processes, adding 2+ seconds overhead per sample." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <SymbolIcon Symbol="ProtectedDocument" VerticalAlignment="Center" />
-                                <TextBlock Text="Privacy &amp; Local Transparency" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Text="Privacy &amp; Local Transparency" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
-                            <TextBlock
-                                Text="Metrics are measured locally. NiceWP does not send performance telemetry anywhere."
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="Metrics stay on this device. No performance telemetry is sent." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
-
-            <!-- SETTINGS PAGE -->
             <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Spacing="16" MaxWidth="720" HorizontalAlignment="Left">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Settings" Style="{ThemeResource TitleTextBlockStyle}" />
-                        <TextBlock
-                            Text="Appearance and startup preferences."
-                            FontSize="13"
-                            TextWrapping="Wrap"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <StackPanel Spacing="16" MaxWidth="1120" HorizontalAlignment="Stretch">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Settings" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+                        <TextBlock Text="Appearance and startup preferences." FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
-
-                    <!-- Appearance Group -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Appearance" FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock
-                                Text="Use light, dark, or your Windows theme."
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <ComboBox
-                                x:Name="ThemeComboBox"
-                                Width="220"
-                                SelectionChanged="OnThemeSelectionChanged"
-                                AutomationProperties.Name="Application theme">
+                            <TextBlock Text="Appearance" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="Use light, dark, or your Windows theme." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <ComboBox x:Name="ThemeComboBox" SelectionChanged="OnThemeSelectionChanged" AutomationProperties.Name="Application theme" MaxWidth="280" HorizontalAlignment="Stretch">
                                 <ComboBoxItem Content="System default" Tag="System" />
                                 <ComboBoxItem Content="Light" Tag="Light" />
                                 <ComboBoxItem Content="Dark" Tag="Dark" />
                             </ComboBox>
                         </StackPanel>
                     </Border>
-
-                    <!-- Efficiency Mode Group -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Efficiency Mode &amp; Power Profile" FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock
-                                Text="Control how NiceWP balances visual smoothness with background battery and CPU efficiency."
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <ComboBox
-                                x:Name="EfficiencyProfileComboBox"
-                                Width="280"
-                                SelectionChanged="OnEfficiencyProfileSelectionChanged"
-                                AutomationProperties.Name="Efficiency mode">
-                                <ComboBoxItem Content="Balanced (Recommended)" Tag="Balanced" />
-                                <ComboBoxItem Content="Eco (Aggressive Power Saving)" Tag="Eco" />
-                                <ComboBoxItem Content="Unrestricted (Continuous Playback)" Tag="Unrestricted" />
+                            <TextBlock Text="Efficiency" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="Control how NiceWP balances visual smoothness with background battery and CPU efficiency." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <ComboBox x:Name="EfficiencyProfileComboBox" SelectionChanged="OnEfficiencyProfileSelectionChanged" AutomationProperties.Name="Efficiency mode" HorizontalAlignment="Stretch" MaxWidth="560">
+                                <ComboBoxItem Tag="Balanced">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Balanced · Recommended" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                        <TextBlock Text="Balanced desktop performance and background savings" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </ComboBoxItem>
+                                <ComboBoxItem Tag="Eco">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Eco" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                        <TextBlock Text="Maximum background savings" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </ComboBoxItem>
+                                <ComboBoxItem Tag="Unrestricted">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Unrestricted" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                        <TextBlock Text="Keeps wallpaper running whenever possible" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </ComboBoxItem>
                             </ComboBox>
-                            <TextBlock
-                                x:Name="EfficiencyProfileDescriptionText"
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="EfficiencyProfileDescriptionText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </Border>
-
-                    <!-- Startup & Restore Group -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Startup &amp; Session Restore" FontSize="15" FontWeight="SemiBold" />
-                            <CheckBox
-                                x:Name="AutostartCheckBox"
-                                Content="Start with Windows"
-                                Checked="OnAutostartChecked"
-                                Unchecked="OnAutostartUnchecked" />
-                            <CheckBox
-                                x:Name="RestoreLastWallpaperCheckBox"
-                                Content="Restore last wallpaper"
-                                Checked="OnRestoreLastWallpaperChanged"
-                                Unchecked="OnRestoreLastWallpaperChanged" />
+                            <TextBlock Text="Startup" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <CheckBox x:Name="AutostartCheckBox" Content="Start with Windows" Checked="OnAutostartChecked" Unchecked="OnAutostartUnchecked" />
                         </StackPanel>
                     </Border>
-
-                    <!-- System Tray & Storage Info Group -->
-                    <Border
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
+                    <Border Style="{StaticResource ControlSurfaceStyle}">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="System Tray &amp; Local Storage" FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock
-                                Text="NiceWP stays in the system tray when you close this window. Your wallpaper keeps running."
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <TextBlock
-                                x:Name="LibraryStoragePathText"
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <TextBlock
-                                x:Name="SettingsStoragePathText"
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="Wallpaper Behavior" TextWrapping="Wrap" FontSize="16" FontWeight="SemiBold" />
+                            <CheckBox x:Name="RestoreLastWallpaperCheckBox" Content="Restore last wallpaper" Checked="OnRestoreLastWallpaperChanged" Unchecked="OnRestoreLastWallpaperChanged" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="System Tray &amp; Local Storage" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="NiceWP stays in the system tray when you close this window. Your wallpaper keeps running." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="LibraryStoragePathText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="SettingsStoragePathText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
-
-            <Border x:Name="FeedbackArea" Grid.Row="1" Visibility="Collapsed"
-                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+            <Border x:Name="FeedbackArea" Grid.Row="1" Visibility="Collapsed" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <ProgressRing x:Name="BusyIndicator" Width="16" Height="16" MinWidth="16" MinHeight="16"
-                                  IsActive="False" Visibility="Collapsed" VerticalAlignment="Center" AutomationProperties.Name="Working" />
-                    <StackPanel Grid.Column="1" Spacing="4">
-                        <TextBlock x:Name="BusyText" Text="Working…" Visibility="Collapsed" FontSize="12"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+                    <ProgressRing x:Name="BusyIndicator" Width="16" Height="16" MinWidth="16" MinHeight="16" IsActive="False" Visibility="Collapsed" VerticalAlignment="Center" AutomationProperties.Name="Working" />
+                    <StackPanel Grid.Column="1" Spacing="8">
+                        <TextBlock x:Name="BusyText" Text="Working…" Visibility="Collapsed" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
                         <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                            <TextBlock x:Name="StatusText" TextWrapping="Wrap" IsTextSelectionEnabled="True"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock x:Name="StatusText" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
                         </ScrollViewer>
                     </StackPanel>
                 </Grid>

@@ -1,14 +1,46 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Application
-    x:Class="NiceWP.App.App"
-    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:NiceWP.App">
+<?xml version='1.0' encoding='utf-8'?>
+<Application xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:ns2="using:Microsoft.UI.Xaml.Controls" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="NiceWP.App.App">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <ns2:XamlControlsResources />
             </ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush Color="#191C20" x:Key="ControlCanvasBrush" />
+                    <SolidColorBrush Color="#22262B" x:Key="ControlSurfaceBrush" />
+                    <SolidColorBrush Color="#363C43" x:Key="ControlStrokeBrush" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush Color="#F3F4F6" x:Key="ControlCanvasBrush" />
+                    <SolidColorBrush Color="#FFFFFF" x:Key="ControlSurfaceBrush" />
+                    <SolidColorBrush Color="#D8DDE3" x:Key="ControlStrokeBrush" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush Color="{ThemeResource SystemColorWindowColor}" x:Key="ControlCanvasBrush" />
+                    <SolidColorBrush Color="{ThemeResource SystemColorWindowColor}" x:Key="ControlSurfaceBrush" />
+                    <SolidColorBrush Color="{ThemeResource SystemColorWindowTextColor}" x:Key="ControlStrokeBrush" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <Style TargetType="Border" x:Key="ControlSurfaceStyle">
+                <Setter Property="Background" Value="{ThemeResource ControlSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="16" />
+            </Style>
+            <Style x:Key="HealthHealthyStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+            </Style>
+            <Style x:Key="HealthWarningStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource SystemFillColorCautionBrush}" />
+            </Style>
+            <Style x:Key="HealthAttentionStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+            </Style>
+            <Style x:Key="HealthNeutralStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
