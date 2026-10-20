@@ -60,6 +60,7 @@ public sealed partial class DesktopTestWindow : Window
     {
         libraryRenderDeferred = isStartup;
         InitializeComponent();
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Brand", "nicewp-app.ico"));
         StatusText.RegisterPropertyChangedCallback(TextBlock.TextProperty, (_, _) => UpdateFeedbackVisuals());
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1060, 720));
         AppWindow.Closing += OnClosing;

@@ -5,6 +5,7 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>NiceWP.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\Brand\nicewp-app.ico</ApplicationIcon>
     <Platforms>x64;ARM64;x86</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64;win-x86</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
@@ -14,6 +15,11 @@
 
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
+    <Content Remove="Assets\Brand\**\*" />
+    <Content Include="Assets\Brand\*.ico;Assets\Brand\*.svg;Assets\Brand\nicewp-app-*.png;Assets\Brand\nicewp-tray-*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

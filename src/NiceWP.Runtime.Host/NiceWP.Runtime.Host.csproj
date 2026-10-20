@@ -10,6 +10,7 @@
     <WindowsPackageType>None</WindowsPackageType>
     <UseWinUI>true</UseWinUI>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\NiceWP.App\Assets\Brand\nicewp-app.ico</ApplicationIcon>
     <AppxMSBuildToolsPath Condition="'$(AppxMSBuildToolsPath)' == '' and Exists('C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VisualStudio\v18.0\AppxPackage\')">C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VisualStudio\v18.0\AppxPackage\</AppxMSBuildToolsPath>
   </PropertyGroup>
 

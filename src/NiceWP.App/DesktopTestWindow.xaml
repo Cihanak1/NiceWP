@@ -29,11 +29,21 @@
             </DataTemplate>
         </NavigationView.Resources>
         <NavigationView.PaneHeader>
-            <StackPanel Margin="16,16,16,16" Spacing="8">
-                <Border Width="24" Height="2" HorizontalAlignment="Left" Background="{ThemeResource TextFillColorPrimaryBrush}" Margin="0,0,0,4" />
-                <TextBlock Text="NiceWP" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" CharacterSpacing="-20" />
-                <TextBlock Text="DESKTOP CONTROL" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" CharacterSpacing="100" />
-            </StackPanel>
+            <Grid Margin="16,16,16,16" ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="32" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Image Width="32" Height="32" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                    <Image.Source>
+                        <SvgImageSource UriSource="ms-appx:///Assets/Brand/nicewp-app.svg" />
+                    </Image.Source>
+                </Image>
+                <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock Text="NiceWP" FontSize="22" FontWeight="SemiBold" CharacterSpacing="-20" />
+                    <TextBlock Text="DESKTOP CONTROL" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" CharacterSpacing="100" />
+                </StackPanel>
+            </Grid>
         </NavigationView.PaneHeader>
         <NavigationView.MenuItems>
             <NavigationViewItem x:Name="LibraryNavigationItem" Content="Library" Tag="Library" Icon="Pictures" />

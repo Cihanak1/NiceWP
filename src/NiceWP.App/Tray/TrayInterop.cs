@@ -23,7 +23,13 @@ internal static class TrayInterop
     public const int WM_CONTEXTMENU = 0x007B;
     public const int WM_NULL = 0x0000;
 
-    public const int IDI_APPLICATION = 32512;
+    public const int IMAGE_ICON = 1;
+    public const int LR_LOADFROMFILE = 0x0010;
+    public const int SM_CXSMICON = 49;
+    public const int SM_CYSMICON = 50;
+    public const uint WM_DPICHANGED = 0x02E0;
+    public const uint WM_SETTINGCHANGE = 0x001A;
+    public const uint WM_DISPLAYCHANGE = 0x007E;
 
     public const int TPM_RETURNCMD = 0x0100;
     public const int TPM_RIGHTBUTTON = 0x0002;
@@ -76,8 +82,21 @@ internal static class TrayInterop
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool Shell_NotifyIcon(int dwMessage, ref NOTIFYICONDATA lpData);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr LoadImage(IntPtr hInstance, string name, int type, int cx, int cy, int flags);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetDpiForWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern int GetSystemMetricsForDpi(int index, uint dpi);
+
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern IntPtr LoadIcon(IntPtr hInstance, IntPtr lpIconName);
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern uint ExtractIconEx(string file, int index, out IntPtr largeIcon, out IntPtr smallIcon, uint count);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr CreatePopupMenu();
