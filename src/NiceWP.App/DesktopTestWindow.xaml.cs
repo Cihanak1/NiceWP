@@ -56,6 +56,7 @@ public sealed partial class DesktopTestWindow : Window
     private bool isRefreshingPerformance;
     private RuntimePerformanceStatus? latestPerformanceStatus;
     private bool libraryRenderDeferred;
+    private bool isUpdatingFeedbackText;
 
     public DesktopTestWindow(bool isStartup = false)
     {
@@ -502,13 +503,16 @@ public sealed partial class DesktopTestWindow : Window
         if (closed || libraryController.SelectedCount == 0 || IsInteractionBusy) return;
 
         var count = libraryController.SelectedCount;
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
-            Title = $"Remove {count} {(count == 1 ? "wallpaper" : "wallpapers")}?",
-            Content = $"This will remove {count} {(count == 1 ? "wallpaper" : "wallpapers")} from NiceWP. Your physical files will not be deleted from disk.",
-            PrimaryButtonText = "Remove",
-            CloseButtonText = "Cancel",
+            Title = isTr ? $"{count} duvar kağıdını kaldır?" : $"Remove {count} {(count == 1 ? "wallpaper" : "wallpapers")}?",
+            Content = isTr
+                ? $"{count} duvar kağıdı NiceWP'den kaldırılacak. Fiziksel dosyalarınız diskten silinmez."
+                : $"This will remove {count} {(count == 1 ? "wallpaper" : "wallpapers")} from NiceWP. Your physical files will not be deleted from disk.",
+            PrimaryButtonText = isTr ? "Kaldır" : "Remove",
+            CloseButtonText = isTr ? "İptal" : "Cancel",
             DefaultButton = ContentDialogButton.Close
         };
 
@@ -664,13 +668,14 @@ public sealed partial class DesktopTestWindow : Window
             }
         };
 
+        var isTrRemote = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
         var dialog = new ContentDialog
         {
             XamlRoot = this.Content.XamlRoot,
-            Title = "Import Remote Wallpaper",
+            Title = isTrRemote ? "Uzak Duvar Kağıdı İndir" : "Import Remote Wallpaper",
             RequestedTheme = Navigation.RequestedTheme,
-            PrimaryButtonText = "Download",
-            CloseButtonText = "Cancel",
+            PrimaryButtonText = isTrRemote ? "İndir" : "Download",
+            CloseButtonText = isTrRemote ? "İptal" : "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             Content = contentPanel
         };
@@ -1092,12 +1097,13 @@ public sealed partial class DesktopTestWindow : Window
             contentPanel.Children.Add(renameBox);
             contentPanel.Children.Add(errorText);
 
+            var isTrRename = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
             var dialog = new ContentDialog
             {
                 XamlRoot = this.Content.XamlRoot,
-                Title = "Rename Wallpaper",
-                PrimaryButtonText = "Rename",
-                CloseButtonText = "Cancel",
+                Title = isTrRename ? "Duvar Kağıdını Yeniden Adlandır" : "Rename Wallpaper",
+                PrimaryButtonText = isTrRename ? "Yeniden Adlandır" : "Rename",
+                CloseButtonText = isTrRename ? "İptal" : "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
                 Content = contentPanel
             };
@@ -1852,26 +1858,103 @@ public sealed partial class DesktopTestWindow : Window
         UpdateLibraryActionState();
     }
 
-    private void UpdateFeedbackVisuals()
+        private void UpdateFeedbackVisuals()
     {
         if (closed) return;
+        var loc = LocalizationService.Instance;
+        var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
+
+        if (!isUpdatingFeedbackText && StatusText != null && !string.IsNullOrEmpty(StatusText.Text) && isTr)
+        {
+            var localized = LocalizeStatusMessage(StatusText.Text);
+            if (!string.Equals(localized, StatusText.Text, StringComparison.Ordinal))
+            {
+                try
+                {
+                    isUpdatingFeedbackText = true;
+                    StatusText.Text = localized;
+                }
+                finally
+                {
+                    isUpdatingFeedbackText = false;
+                }
+            }
+        }
+
+        if (FeedbackArea == null) return;
+
         if (libraryController == null)
         {
-            FeedbackArea.Visibility = string.IsNullOrWhiteSpace(StatusText.Text) ? Visibility.Collapsed : Visibility.Visible;
+            FeedbackArea.Visibility = string.IsNullOrWhiteSpace(StatusText?.Text) ? Visibility.Collapsed : Visibility.Visible;
             return;
         }
         var busy = libraryLoads > 0 || IsInteractionBusy;
-        BusyIndicator.IsActive = busy;
-        BusyIndicator.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-        BusyText.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-        BusyText.Text = libraryLoads > 0 && !IsInteractionBusy ? "Loading library…" : "Working…";
-        FeedbackArea.Visibility = busy || !string.IsNullOrWhiteSpace(StatusText.Text)
+        if (BusyIndicator != null)
+        {
+            BusyIndicator.IsActive = busy;
+            BusyIndicator.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (BusyText != null)
+        {
+            BusyText.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+            BusyText.Text = libraryLoads > 0 && !IsInteractionBusy
+                ? (isTr ? "Kütüphane yükleniyor…" : "Loading library…")
+                : (isTr ? "İşleniyor…" : "Working…");
+        }
+        FeedbackArea.Visibility = busy || !string.IsNullOrWhiteSpace(StatusText?.Text)
             ? Visibility.Visible : Visibility.Collapsed;
-        LibraryEmptyText.Visibility = libraryLoads == 0 && libraryController.Items.Count == 0
-            ? Visibility.Visible : Visibility.Collapsed;
+        if (LibraryEmptyText != null)
+        {
+            LibraryEmptyText.Visibility = libraryLoads == 0 && libraryController.Items.Count == 0
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 
-    private void UpdateLibraryActionState()
+    private string LocalizeStatusMessage(string? message)
+    {
+        if (string.IsNullOrEmpty(message)) return string.Empty;
+        var loc = LocalizationService.Instance;
+        if (loc.CurrentLanguage == EffectiveLanguage.English) return message;
+
+        if (message.StartsWith("Applied wallpaper: ", StringComparison.Ordinal))
+            return $"Duvar kağıdı uygulandı: {message["Applied wallpaper: ".Length..]}";
+        if (message.StartsWith("Applying wallpaper: ", StringComparison.Ordinal))
+            return $"Duvar kağıdı uygulanıyor: {message["Applying wallpaper: ".Length..]}";
+        if (message.StartsWith("Rotated wallpaper: ", StringComparison.Ordinal))
+            return $"Döngü uygulandı: {message["Rotated wallpaper: ".Length..]}";
+        if (message.StartsWith("Added to library: ", StringComparison.Ordinal))
+            return $"Kütüphaneye eklendi: {message["Added to library: ".Length..]}";
+        if (message.StartsWith("Wallpaper is already in library: ", StringComparison.Ordinal))
+            return $"Duvar kağıdı zaten kütüphanede mevcut: {message["Wallpaper is already in library: ".Length..]}";
+        if (message.StartsWith("Performance report exported to ", StringComparison.Ordinal))
+            return $"Performans raporu dışa aktarıldı: {message["Performance report exported to ".Length..]}";
+
+        return message switch
+        {
+            "Runtime unavailable." => "Çalışma ortamı kullanılamıyor.",
+            "File not found." => loc.GetString(LocalizationKeys.StatusWallpaperFileMissing),
+            "Unsupported wallpaper." => loc.GetString(LocalizationKeys.StatusUnsupportedFile),
+            "Failed to apply wallpaper." => "Duvar kağıdı uygulanamadı.",
+            "Wallpaper stopped." => loc.GetString(LocalizationKeys.StatusWallpaperStopped),
+            "Failed to load library." => "Kütüphane yüklenemedi.",
+            "Rotation paused." => loc.GetString(LocalizationKeys.StatusRotationPaused),
+            "Rotation stopped." => loc.GetString(LocalizationKeys.StatusRotationStopped),
+            "Failed to select next wallpaper." => "Sonraki duvar kağıdı seçilemedi.",
+            "Failed to export performance report." => "Performans raporu dışa aktarılamadı.",
+            "Select a valid wallpaper file." => "Geçerli bir duvar kağıdı dosyası seçin.",
+            "Wallpaper operation in progress." => "Duvar kağıdı işlemi sürüyor.",
+            "No wallpapers found in folder." => "Klasörde duvar kağıdı bulunamadı.",
+            "Import cancelled." => loc.GetString(LocalizationKeys.StatusImportCancelled),
+            "Diagnostic log could not be opened." => "Tanılama günlüğü açılamadı.",
+            "Runtime host recovered successfully." => loc.GetString(LocalizationKeys.StatusRuntimeRecovered),
+            "Failed to restore previous wallpaper." => loc.GetString(LocalizationKeys.StatusRestoreFailed),
+            "Wallpaper stopped safely after repeated failures." => loc.GetString(LocalizationKeys.StatusSafeStopped),
+            "Invalid folder path." => "Geçersiz klasör yolu.",
+            "Folder does not exist." => "Klasör bulunamadı.",
+            "No supported wallpapers found." => "Desteklenen duvar kağıdı bulunamadı.",
+            _ => message
+        };
+    }private void UpdateLibraryActionState()
     {
         if (closed) return;
         UpdateFeedbackVisuals();
