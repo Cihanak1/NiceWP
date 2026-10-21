@@ -1597,6 +1597,18 @@ public sealed partial class DesktopTestWindow : Window
                 : badgeText.Text);
         }
 
+        if (cardBorder.FindName("CardCostBadgeText") is TextBlock costText)
+        {
+            costText.Text = currentEntry.GetLocalizedCostLabel(isTr);
+            if (cardBorder.FindName("CardCostBadge") is Border costBadge)
+            {
+                var costTip = isTr
+                    ? $"Donanım yükü: {currentEntry.GetLocalizedCostLabel(isTr)}"
+                    : $"Hardware footprint: {currentEntry.CostLabel}";
+                ToolTipService.SetToolTip(costBadge, costTip);
+            }
+        }
+
         ToolTipService.SetToolTip(cardBorder, currentEntry.IsRemoteImported
             ? $"{currentEntry.DisplayName}\n{(isTr ? "UZAK · YEREL KOPYA\nYerel olarak indirildi ve doğrulandı." : "REMOTE · LOCAL COPY\nDownloaded and validated locally.")}"
             : currentEntry.GetLocalizedToolTipText(isTr));
