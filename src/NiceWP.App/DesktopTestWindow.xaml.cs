@@ -2193,8 +2193,27 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
-    private void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs args)
+    private async void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs args)
     {
+        if (isSyncingAppSettings || closed) return;
+        if (LanguageComboBox?.SelectedItem is not ComboBoxItem selectedItem) return;
+
+        var tag = selectedItem.Tag as string ?? "System";
+        var preferredLang = AppLanguageExtensions.ParseLanguage(tag);
+        var effective = new LanguageResolver().Resolve(preferredLang);
+
+        LocalizationService.Instance.SetLanguage(effective);
+
+        try
+        {
+            var current = await settingsService.LoadAsync();
+            current.Language = tag == "System" ? null : tag;
+            await settingsService.SaveAsync(current);
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Error saving language preference: {exception}");
+        }
     }
 
     private void SelectLanguageComboBoxItem(string? language)
@@ -3141,6 +3160,7 @@ public sealed partial class DesktopTestWindow : Window
             UpdateActiveWallpaperLocalization();
             UpdateSettingsLocalization();
             UpdatePerformanceLocalization();
+            UpdateFeedbackVisuals();
         });
     }
 
