@@ -285,6 +285,11 @@ public sealed class RuntimeHostApp : IDisposable
             return await HandleResumeWallpaperAsync(request).ConfigureAwait(false);
         }
 
+        if (string.Equals(request.Command, IpcConstants.DeepFreezeWallpaperCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HandleDeepFreezeWallpaperAsync(request).ConfigureAwait(false);
+        }
+
         if (string.Equals(request.Command, IpcConstants.GetPerformanceStatusCommand, StringComparison.OrdinalIgnoreCase))
         {
             return await HandleGetPerformanceStatusAsync(request).ConfigureAwait(false);
@@ -679,6 +684,46 @@ public sealed class RuntimeHostApp : IDisposable
         }).ConfigureAwait(false);
     }
 
+    private async Task<IpcResponse> HandleDeepFreezeWallpaperAsync(IpcRequest request)
+    {
+        if (IsShuttingDown)
+        {
+            return IpcResponse.Fail(request.Id, "Runtime host is shutting down.");
+        }
+
+        if (healthTracker.IsCircuitBreakerTripped)
+        {
+            return IpcResponse.Fail(request.Id, "Circuit breaker tripped. Reset required before wallpaper control.");
+        }
+
+        return await dispatcher.InvokeAsync(() =>
+        {
+            if (!currentState.HasActiveWallpaper)
+            {
+                return IpcResponse.Fail(request.Id, "No active wallpaper to deep freeze.");
+            }
+
+            var result = compositionRoot.WallpaperService.DeepFreeze();
+            if (result.Success)
+            {
+                isManualPaused = true;
+                isFullscreenPaused = false;
+                isPowerPaused = false;
+                currentState = currentState.AsDeepFrozen();
+                auditTrail.Record("WallpaperDeepFrozen", $"Wallpaper deep frozen: {Path.GetFileName(currentState.Path)}");
+                return IpcResponse.Ok(request.Id, $"Wallpaper deep frozen: {currentState.Path}");
+            }
+
+            if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
+            {
+                ClearPauseReasons();
+                currentState = RuntimeWallpaperState.Empty;
+            }
+
+            return IpcResponse.Fail(request.Id, result.Message ?? "Failed to deep freeze wallpaper.");
+        }).ConfigureAwait(false);
+    }
+
     private async Task<IpcResponse> HandleResumeWallpaperAsync(IpcRequest request)
     {
         if (IsShuttingDown)
@@ -940,18 +985,33 @@ public sealed class RuntimeHostApp : IDisposable
 
     private void SynchronizeAutoPauseStateOnDispatcher()
     {
-        if (ShouldBePaused && currentState.IsRunning)
+        if (ShouldBePaused && (currentState.IsRunning || currentState.IsPaused))
         {
-            var result = compositionRoot.WallpaperService.Pause();
-            if (result.Success)
+            var shouldDeepFreeze = isSessionLockedPaused || isDisplayOffPaused;
+            if (shouldDeepFreeze && !currentState.IsDeepFrozen)
             {
-                currentState = currentState.AsPaused();
-                Trace.WriteLine($"Wallpaper auto-paused (fullscreen={isFullscreenPaused}, power={isPowerPaused}, sessionLocked={isSessionLockedPaused}, displayOff={isDisplayOffPaused}): {currentState.Path}");
+                var freezeResult = compositionRoot.WallpaperService.DeepFreeze();
+                if (freezeResult.Success)
+                {
+                    currentState = currentState.AsDeepFrozen();
+                    Trace.WriteLine($"Wallpaper auto-deep-frozen (sessionLocked={isSessionLockedPaused}, displayOff={isDisplayOffPaused}): {currentState.Path}");
+                    return;
+                }
             }
-            else if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
+
+            if (currentState.IsRunning)
             {
-                ClearPauseReasons();
-                currentState = RuntimeWallpaperState.Empty;
+                var result = compositionRoot.WallpaperService.Pause();
+                if (result.Success)
+                {
+                    currentState = currentState.AsPaused();
+                    Trace.WriteLine($"Wallpaper auto-paused (fullscreen={isFullscreenPaused}, power={isPowerPaused}, sessionLocked={isSessionLockedPaused}, displayOff={isDisplayOffPaused}): {currentState.Path}");
+                }
+                else if (string.IsNullOrWhiteSpace(compositionRoot.WallpaperService.ActivePath))
+                {
+                    ClearPauseReasons();
+                    currentState = RuntimeWallpaperState.Empty;
+                }
             }
         }
         else if (!ShouldBePaused && currentState.IsPaused)
