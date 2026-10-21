@@ -16,6 +16,7 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
 
     public string? ActivePath { get; private set; }
     public bool IsPaused { get; private set; }
+    public bool IsDeepFrozen { get; private set; }
     public IWallpaperRenderer? ActiveRenderer => active;
     public DesktopHostService DesktopService => desktop;
     public bool IsDesktopHostConnected => desktop.Handle != 0 && host.IsValid(desktop.Handle);
@@ -140,6 +141,39 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
         }
     }
 
+    public WallpaperResult DeepFreeze()
+    {
+        if (active == null || string.IsNullOrWhiteSpace(ActivePath))
+        {
+            return new(WallpaperError.Stopped, "No active wallpaper to deep freeze.");
+        }
+
+        var health = ValidateHost();
+        if (!health.Success)
+        {
+            return health;
+        }
+
+        if (IsDeepFrozen)
+        {
+            return new();
+        }
+
+        try
+        {
+            active.DeepFreeze();
+            IsDeepFrozen = true;
+            IsPaused = true;
+            Trace.WriteLine($"Wallpaper deep frozen: {ActivePath}");
+            return new();
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine(exception);
+            return new(WallpaperError.RendererFailed, "The wallpaper could not be paused.");
+        }
+    }
+
     public WallpaperResult Resume()
     {
         if (active == null || string.IsNullOrWhiteSpace(ActivePath))
@@ -160,7 +194,15 @@ public sealed class ImageWallpaperService(IDesktopHost host, Func<IWallpaperRend
 
         try
         {
-            active.Resume();
+            if (IsDeepFrozen)
+            {
+                active.RestoreFromDeepFreeze();
+            }
+            else
+            {
+                active.Resume();
+            }
+            IsDeepFrozen = false;
             IsPaused = false;
             Trace.WriteLine($"Wallpaper resumed: {ActivePath}");
             return new();
