@@ -14,7 +14,7 @@ public static class PerformanceReportGenerator
 
         var snapshot = status.Snapshot;
         var stats = status.Stats;
-        var version = appVersion ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.12";
+        var version = appVersion ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.16";
 
         var sb = new StringBuilder();
         sb.AppendLine("================================================================================");
