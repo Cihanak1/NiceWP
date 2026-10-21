@@ -321,4 +321,20 @@ public sealed class SettingsServiceTests : IDisposable
         var loadedSystem = await service.LoadAsync();
         Assert.Null(loadedSystem.Theme);
     }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_PresentationWallpaperId_RoundtripsSuccessfully()
+    {
+        var service = new SettingsService(settingsFilePath);
+
+        Assert.True(await service.SaveAsync(new AppSettings
+        {
+            RestoreLastWallpaper = true,
+            LastWallpaperType = IpcConstants.WallpaperTypeImage,
+            PresentationWallpaperId = "pres-item-123"
+        }));
+
+        var loaded = await service.LoadAsync();
+        Assert.Equal("pres-item-123", loaded.PresentationWallpaperId);
+    }
 }

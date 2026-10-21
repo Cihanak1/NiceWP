@@ -641,6 +641,11 @@
                                 <Button x:Name="AddAppRuleButton" Content="Add Rule" Click="OnAddAppRuleClicked" />
                                 <Button x:Name="AddFromRunningAppButton" Content="Add from Running…" Click="OnAddFromRunningAppClicked" />
                             </StackPanel>
+                            <StackPanel Spacing="6" Margin="0,8,0,0">
+                                <TextBlock x:Name="SettingsPresentationWallpaperHeader" Text="Presentation Profile Wallpaper (Optional)" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="SettingsPresentationWallpaperSubtitle" Text="Wallpaper to show during meetings or screen share sessions." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <ComboBox x:Name="PresentationWallpaperComboBox" HorizontalAlignment="Stretch" SelectionChanged="OnPresentationWallpaperSelectionChanged" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">

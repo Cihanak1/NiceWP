@@ -3543,6 +3543,18 @@ public sealed partial class DesktopTestWindow : Window
             ScheduleNightWallpaperComboBox.Items.Add(new ComboBoxItem { Content = it.DisplayName, Tag = it.Id });
         }
 
+        if (PresentationWallpaperComboBox != null)
+        {
+            var selectedPresTag = (PresentationWallpaperComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+            PresentationWallpaperComboBox.Items.Clear();
+            PresentationWallpaperComboBox.Items.Add(new ComboBoxItem { Content = noneLabel, Tag = "" });
+            foreach (var it in items)
+            {
+                PresentationWallpaperComboBox.Items.Add(new ComboBoxItem { Content = it.DisplayName, Tag = it.Id });
+            }
+            SelectComboBoxByTag(PresentationWallpaperComboBox, selectedPresTag);
+        }
+
         // Restore selections
         SelectComboBoxByTag(ScheduleDayWallpaperComboBox, selectedDayTag ?? libraryController?.Schedule?.DayWallpaperId);
         SelectComboBoxByTag(ScheduleNightWallpaperComboBox, selectedNightTag ?? libraryController?.Schedule?.NightWallpaperId);
@@ -3571,7 +3583,26 @@ public sealed partial class DesktopTestWindow : Window
         PopulateScheduleWallpaperComboBoxes();
         SelectComboBoxByTag(ScheduleDayWallpaperComboBox, settings.DayWallpaperId);
         SelectComboBoxByTag(ScheduleNightWallpaperComboBox, settings.NightWallpaperId);
+        SelectComboBoxByTag(PresentationWallpaperComboBox, settings.PresentationWallpaperId);
         UpdateScheduleSettingsStatus();
+    }
+
+    private async void OnPresentationWallpaperSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        var tag = (PresentationWallpaperComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var presWall = string.IsNullOrWhiteSpace(tag) ? null : tag;
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.PresentationWallpaperId = presWall;
+            await settingsService.SaveAsync(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving PresentationWallpaperId: {ex}");
+        }
     }
 
     private async void OnScheduleModeSelectionChanged(object sender, SelectionChangedEventArgs args)
@@ -4107,6 +4138,10 @@ public sealed partial class DesktopTestWindow : Window
 
         UpdateScheduleSettingsStatus();
 
+        if (SettingsPresentationWallpaperHeader != null) SettingsPresentationWallpaperHeader.Text = isTr ? "Sunum Profili Duvar Kağıdı (İsteğe Bağlı)" : "Presentation Profile Wallpaper (Optional)";
+        if (SettingsPresentationWallpaperSubtitle != null) SettingsPresentationWallpaperSubtitle.Text = isTr
+            ? "Toplantı veya ekran paylaşımı oturumlarında gösterilecek duvar kağıdı."
+            : "Wallpaper to show during meetings or screen share sessions.";
         if (SettingsAppRulesHeader != null) SettingsAppRulesHeader.Text = isTr ? "Uygulama Kuralları" : "Application Rules";
         if (SettingsAppRulesSubtitle != null) SettingsAppRulesSubtitle.Text = isTr
             ? "Belirli uygulamalar aktif olduğunda atanacak masaüstü profilini veya davranışını belirleyin."

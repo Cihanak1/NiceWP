@@ -57,6 +57,9 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? NightWallpaperId { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PresentationWallpaperId { get; set; }
+
     public List<AppRule> AppRules { get; set; } = new();
 
     [JsonIgnore]
@@ -85,6 +88,7 @@ public sealed class AppSettings
         NightStartTime = null,
         DayWallpaperId = null,
         NightWallpaperId = null,
+        PresentationWallpaperId = null,
         AppRules = new List<AppRule>()
     };
 
@@ -120,6 +124,7 @@ public sealed class AppSettings
             NightStartTime = NormalizeNightStartTime(NightStartTime),
             DayWallpaperId = string.IsNullOrWhiteSpace(DayWallpaperId) ? null : DayWallpaperId.Trim(),
             NightWallpaperId = string.IsNullOrWhiteSpace(NightWallpaperId) ? null : NightWallpaperId.Trim(),
+            PresentationWallpaperId = string.IsNullOrWhiteSpace(PresentationWallpaperId) ? null : PresentationWallpaperId.Trim(),
             AppRules = AppRuleNormalizer.NormalizeRules(AppRules).ToList()
         };
     }
