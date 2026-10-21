@@ -66,12 +66,6 @@ public sealed partial class DesktopTestWindow : Window
         libraryRenderDeferred = isStartup;
         InitializeLanguage();
         InitializeComponent();
-        LocalizationService.Instance.LanguageChanged += OnLocalizationLanguageChanged;
-        UpdateNavigationLocalization();
-        UpdateLibraryLocalization();
-        UpdateActiveWallpaperLocalization();
-        UpdateSettingsLocalization();
-        UpdatePerformanceLocalization();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Brand", "nicewp-app.ico"));
         StatusText.RegisterPropertyChangedCallback(TextBlock.TextProperty, (_, _) => UpdateFeedbackVisuals());
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1060, 720));
@@ -135,6 +129,13 @@ public sealed partial class DesktopTestWindow : Window
         Navigation.SelectedItem = LibraryNavigationItem;
         RefreshAutostartState();
 
+        LocalizationService.Instance.LanguageChanged += OnLocalizationLanguageChanged;
+        UpdateNavigationLocalization();
+        UpdateLibraryLocalization();
+        UpdateActiveWallpaperLocalization();
+        UpdateSettingsLocalization();
+        UpdatePerformanceLocalization();
+
         _ = LoadAppSettingsAsync();
         _ = LoadLibraryAsync();
         _ = SyncRuntimeStatusAsync();
@@ -159,6 +160,7 @@ public sealed partial class DesktopTestWindow : Window
                 SelectRotationOrderComboBoxItem(settings.RotationOrder);
                 SelectRotationIntervalComboBoxItem(settings.RotationIntervalMinutes);
                 UpdateRotationSettingsStatus(settings.RotationMode, settings.RotationOrder, settings.RotationIntervalMinutes);
+                SelectScheduleSettingsItems(settings);
             }
             finally
             {
@@ -168,7 +170,6 @@ public sealed partial class DesktopTestWindow : Window
             await libraryController.Rotation.InitializeAsync(settings);
             UpdateRotationDetailsUI();
             libraryController.Schedule.Initialize(settings);
-            SelectScheduleSettingsItems(settings);
             UpdateScheduleDetailsUI();
             if (settings.EffectiveScheduleMode == ScheduleModeExtensions.ModeDayNight)
             {
@@ -1784,7 +1785,7 @@ public sealed partial class DesktopTestWindow : Window
 
     private void RenderLibraryItems()
     {
-        if (closed || libraryRenderDeferred) return;
+        if (closed || libraryRenderDeferred || libraryController == null) return;
 
         var items = libraryController.Items;
         var totalCount = libraryController.AllItems.Count;
@@ -2539,8 +2540,8 @@ public sealed partial class DesktopTestWindow : Window
 
     private void UpdateRotationDetailsUI(WallpaperRotationStatus? status = null)
     {
-        if (closed) return;
-        status ??= libraryController?.Rotation?.GetStatus();
+        if (closed || libraryController?.Rotation == null) return;
+        status ??= libraryController.Rotation.GetStatus();
         if (status == null) return;
 
         if (ActiveRotationStateText != null)
@@ -3232,7 +3233,7 @@ public sealed partial class DesktopTestWindow : Window
         if (AddFromUrlButton != null) AddFromUrlButton.Content = loc.GetString(LocalizationKeys.LibAddFromUrl);
         if (SelectModeButton != null)
         {
-            SelectModeButton.Content = libraryController.IsSelectionMode ? loc.GetString(LocalizationKeys.LibDone) : loc.GetString(LocalizationKeys.LibSelect);
+            SelectModeButton.Content = (libraryController?.IsSelectionMode == true) ? loc.GetString(LocalizationKeys.LibDone) : loc.GetString(LocalizationKeys.LibSelect);
         }
 
         if (BulkSelectAllButton != null) BulkSelectAllButton.Content = loc.GetString(LocalizationKeys.LibSelectAll);
@@ -3241,8 +3242,9 @@ public sealed partial class DesktopTestWindow : Window
         if (BulkUnfavoriteButton != null) BulkUnfavoriteButton.Content = loc.GetString(LocalizationKeys.LibUnfavorite);
         if (BulkRemoveButton != null)
         {
-            var hasSelection = libraryController.SelectedCount > 0;
-            BulkRemoveButton.Content = hasSelection ? $"{loc.GetString(LocalizationKeys.LibRemove)} ({libraryController.SelectedCount})" : loc.GetString(LocalizationKeys.LibRemove);
+            var selectedCount = libraryController?.SelectedCount ?? 0;
+            var hasSelection = selectedCount > 0;
+            BulkRemoveButton.Content = hasSelection ? $"{loc.GetString(LocalizationKeys.LibRemove)} ({selectedCount})" : loc.GetString(LocalizationKeys.LibRemove);
         }
         if (BulkDoneButton != null) BulkDoneButton.Content = loc.GetString(LocalizationKeys.LibDone);
 
