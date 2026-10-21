@@ -132,7 +132,7 @@ public static class AdaptiveDesktopStateResolver
                 EffectiveProfile = AdaptiveDesktopProfile.BatterySaver,
                 ResourceBudget = budget,
                 ShouldPause = isVideo,
-                ShouldDeepFreeze = isVideo,
+                ShouldDeepFreeze = BatterySaverProfileBehavior.ShouldImmediatelyDeepFreeze(true, input.CurrentWallpaperType),
                 AllowRotation = false,
                 AllowScheduleApply = false,
                 ActiveProcessName = input.ForegroundProcessName,
