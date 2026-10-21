@@ -486,6 +486,17 @@
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
+                            <TextBlock x:Name="SettingsLanguageHeader" Text="Language" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsLanguageSubtitle" Text="Choose your preferred interface language." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <ComboBox x:Name="LanguageComboBox" SelectionChanged="OnLanguageSelectionChanged" AutomationProperties.Name="Application language" MaxWidth="280" HorizontalAlignment="Stretch">
+                                <ComboBoxItem Content="System default" Tag="System" />
+                                <ComboBoxItem Content="Türkçe" Tag="Turkish" />
+                                <ComboBoxItem Content="English" Tag="English" />
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="12">
                             <TextBlock x:Name="SettingsEfficiencyHeader" Text="Efficiency" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <TextBlock x:Name="SettingsEfficiencySubtitle" Text="Control how NiceWP balances visual smoothness with background battery and CPU efficiency." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <ComboBox x:Name="EfficiencyProfileComboBox" SelectionChanged="OnEfficiencyProfileSelectionChanged" AutomationProperties.Name="Efficiency mode" HorizontalAlignment="Stretch" MaxWidth="560">

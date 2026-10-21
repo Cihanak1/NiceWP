@@ -2190,6 +2190,28 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
+    private void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+    }
+
+    private void SelectLanguageComboBoxItem(string? language)
+    {
+        if (LanguageComboBox == null) return;
+        var expectedTag = AppLanguageExtensions.ParseLanguage(language).ToConfigString();
+
+        for (var i = 0; i < LanguageComboBox.Items.Count; i++)
+        {
+            if (LanguageComboBox.Items[i] is ComboBoxItem item &&
+                string.Equals(item.Tag as string, expectedTag, StringComparison.OrdinalIgnoreCase))
+            {
+                LanguageComboBox.SelectedIndex = i;
+                return;
+            }
+        }
+
+        LanguageComboBox.SelectedIndex = 0;
+    }
+
     private async void OnThemeSelectionChanged(object sender, SelectionChangedEventArgs args)
     {
         if (isSyncingAppSettings || closed) return;
@@ -3226,6 +3248,27 @@ public sealed partial class DesktopTestWindow : Window
 
         if (SettingsAppearanceHeader != null) SettingsAppearanceHeader.Text = loc.GetString(LocalizationKeys.SetAppearance);
         if (SettingsAppearanceSubtitle != null) SettingsAppearanceSubtitle.Text = isTr ? "Açık, koyu veya Windows temanızı kullanın." : "Use light, dark, or your Windows theme.";
+
+        if (SettingsLanguageHeader != null) SettingsLanguageHeader.Text = loc.GetString(LocalizationKeys.SetLanguage);
+        if (SettingsLanguageSubtitle != null) SettingsLanguageSubtitle.Text = loc.GetString(LocalizationKeys.SetLanguageDescription);
+
+        if (LanguageComboBox != null)
+        {
+            var systemTag = WindowsLanguageDetector.Instance.GetSystemDisplayLanguage();
+            var effectiveForSystem = LanguageResolver.ResolveFromSystemTag(systemTag);
+            var sysSuffix = effectiveForSystem == EffectiveLanguage.Turkish ? " (Türkçe)" : " (English)";
+            foreach (var item in LanguageComboBox.Items.OfType<ComboBoxItem>())
+            {
+                var tag = item.Tag as string;
+                item.Content = tag switch
+                {
+                    "System" => (isTr ? "Sistem varsayılanı" : "System default") + sysSuffix,
+                    "Turkish" => "Türkçe",
+                    "English" => "English",
+                    _ => item.Content
+                };
+            }
+        }
 
         if (ThemeComboBox != null)
         {
