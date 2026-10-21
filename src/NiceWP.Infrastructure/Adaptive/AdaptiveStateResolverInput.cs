@@ -1,4 +1,5 @@
 using NiceWP.Core;
+using NiceWP.Infrastructure.Ipc;
 
 namespace NiceWP.Infrastructure.Adaptive;
 

@@ -28,6 +28,7 @@ public sealed class WindowsRuntimeEventNotifier : IRuntimeEventNotifier
     private bool disposed;
 
     public event EventHandler? ForegroundWindowChanged;
+    public event Action<string?>? ForegroundProcessChanged;
     public event Action<bool>? SessionLockChanged;
     public event Action<bool>? DisplayPowerChanged;
     public event EventHandler? PowerStatusChanged;
@@ -36,6 +37,7 @@ public sealed class WindowsRuntimeEventNotifier : IRuntimeEventNotifier
     public bool IsSessionNotificationActive => sessionNotificationRegistered;
     public bool IsDisplayNotificationActive => displayNotificationHandle != 0;
     public bool IsPowerNotificationActive => acDcNotificationHandle != 0 || powerSavingNotificationHandle != 0;
+    public string? CurrentForegroundProcessName { get; private set; }
 
     public WindowsRuntimeEventNotifier()
     {
@@ -212,11 +214,41 @@ public sealed class WindowsRuntimeEventNotifier : IRuntimeEventNotifier
             if (eventType == EventSystemForeground)
             {
                 ForegroundWindowChanged?.Invoke(this, EventArgs.Empty);
+
+                if (hwnd != 0)
+                {
+                    GetWindowThreadProcessId(hwnd, out var pid);
+                    if (pid != 0)
+                    {
+                        var procName = TryGetProcessExeName(pid);
+                        if (!string.Equals(procName, CurrentForegroundProcessName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            CurrentForegroundProcessName = procName;
+                            ForegroundProcessChanged?.Invoke(procName);
+                        }
+                    }
+                }
             }
         }
         catch (Exception ex)
         {
             Trace.WriteLine($"Error handling foreground win event: {ex}");
+        }
+    }
+
+    private static string? TryGetProcessExeName(uint processId)
+    {
+        if (processId == 0) return null;
+        try
+        {
+            using var process = Process.GetProcessById((int)processId);
+            var name = process.ProcessName;
+            if (string.IsNullOrEmpty(name)) return null;
+            return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name : $"{name}.exe";
+        }
+        catch
+        {
+            return null;
         }
     }
 
