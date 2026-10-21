@@ -42,6 +42,21 @@ public sealed class RuntimeAuditTrail
         }
     }
 
+    public void RecordProfileChanged(AdaptiveDesktopProfile profile, string reason) =>
+        Record("AdaptiveProfile", $"Switched to {profile}: {reason}");
+
+    public void RecordDeepFrozen(string? wallpaperPath, string reason) =>
+        Record("DeepFreeze", $"Resources released: {reason}");
+
+    public void RecordDeepFreezeRestored(string? wallpaperPath) =>
+        Record("DeepFreeze", "Playback and hardware decoders restored");
+
+    public void RecordResourceGuardEngaged(string reason) =>
+        Record("ResourceGuard", $"Throttled background load: {reason}");
+
+    public void RecordAppRuleMatched(string processName, AdaptiveDesktopProfile profile) =>
+        Record("AppRule", $"Matched {processName} -> {profile}");
+
     /// <summary>
     /// Returns the most recent events in chronological order (oldest to newest).
     /// </summary>
