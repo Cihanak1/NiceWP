@@ -470,13 +470,13 @@
             <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="16" MaxWidth="1120" HorizontalAlignment="Stretch">
                     <StackPanel Spacing="8">
-                        <TextBlock Text="Settings" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
-                        <TextBlock Text="Appearance and startup preferences." FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="SettingsTitleText" Text="Settings" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="SettingsSubtitleText" Text="Appearance and startup preferences." FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Appearance" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock Text="Use light, dark, or your Windows theme." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="SettingsAppearanceHeader" Text="Appearance" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsAppearanceSubtitle" Text="Use light, dark, or your Windows theme." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <ComboBox x:Name="ThemeComboBox" SelectionChanged="OnThemeSelectionChanged" AutomationProperties.Name="Application theme" MaxWidth="280" HorizontalAlignment="Stretch">
                                 <ComboBoxItem Content="System default" Tag="System" />
                                 <ComboBoxItem Content="Light" Tag="Light" />
@@ -486,8 +486,8 @@
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Efficiency" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock Text="Control how NiceWP balances visual smoothness with background battery and CPU efficiency." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="SettingsEfficiencyHeader" Text="Efficiency" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsEfficiencySubtitle" Text="Control how NiceWP balances visual smoothness with background battery and CPU efficiency." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <ComboBox x:Name="EfficiencyProfileComboBox" SelectionChanged="OnEfficiencyProfileSelectionChanged" AutomationProperties.Name="Efficiency mode" HorizontalAlignment="Stretch" MaxWidth="560">
                                 <ComboBoxItem Tag="Balanced">
                                     <StackPanel Spacing="8">
@@ -513,20 +513,20 @@
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Startup" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsStartupHeader" Text="Startup" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <CheckBox x:Name="AutostartCheckBox" Content="Start with Windows" Checked="OnAutostartChecked" Unchecked="OnAutostartUnchecked" />
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource ControlSurfaceStyle}">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="Wallpaper Behavior" TextWrapping="Wrap" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock x:Name="SettingsWallpaperBehaviorHeader" Text="Wallpaper Behavior" TextWrapping="Wrap" FontSize="16" FontWeight="SemiBold" />
                             <CheckBox x:Name="RestoreLastWallpaperCheckBox" Content="Restore last wallpaper" Checked="OnRestoreLastWallpaperChanged" Unchecked="OnRestoreLastWallpaperChanged" />
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Wallpaper Rotation" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock Text="Automatically cycle through wallpapers in your library or favorites." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="SettingsRotationHeader" Text="Wallpaper Rotation" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsRotationSubtitle" Text="Automatically cycle through wallpapers in your library or favorites." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <Grid ColumnSpacing="16" RowSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -534,7 +534,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Spacing="6">
-                                    <TextBlock Text="Rotation" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="SettingsRotationModeLabel" Text="Rotation" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <ComboBox x:Name="RotationModeComboBox" SelectionChanged="OnRotationModeSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Rotation mode">
                                         <ComboBoxItem Content="Off" Tag="Off" />
                                         <ComboBoxItem Content="All Library" Tag="All" />
@@ -542,14 +542,14 @@
                                     </ComboBox>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Spacing="6">
-                                    <TextBlock Text="Order" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="SettingsRotationOrderLabel" Text="Order" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <ComboBox x:Name="RotationOrderComboBox" SelectionChanged="OnRotationOrderSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Rotation order">
                                         <ComboBoxItem Content="Sequential" Tag="Sequential" />
                                         <ComboBoxItem Content="Shuffle" Tag="Shuffle" />
                                     </ComboBox>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="Change every" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="SettingsRotationIntervalLabel" Text="Change every" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <ComboBox x:Name="RotationIntervalComboBox" SelectionChanged="OnRotationIntervalSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Rotation interval">
                                         <ComboBoxItem Content="5 minutes" Tag="5" />
                                         <ComboBoxItem Content="15 minutes" Tag="15" />
@@ -567,8 +567,8 @@
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="System Tray &amp; Local Storage" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock Text="NiceWP stays in the system tray when you close this window. Your wallpaper keeps running." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="SettingsStorageHeader" Text="System Tray &amp; Local Storage" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsStorageSubtitle" Text="NiceWP stays in the system tray when you close this window. Your wallpaper keeps running." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <TextBlock x:Name="LibraryStoragePathText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <TextBlock x:Name="SettingsStoragePathText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
