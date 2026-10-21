@@ -337,4 +337,23 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
         Assert.Equal("pres-item-123", loaded.PresentationWallpaperId);
     }
+
+    [Fact]
+    public async Task SaveAndLoadAsync_AdaptiveSettings_PersistsAdaptiveProfileAndResourceBudget()
+    {
+        var service = new SettingsService(settingsFilePath);
+
+        Assert.True(await service.SaveAsync(new AppSettings
+        {
+            RestoreLastWallpaper = true,
+            EffectiveAdaptiveProfile = NiceWP.Core.AdaptiveDesktopProfile.Gaming,
+            EffectiveResourceBudget = NiceWP.Core.ResourceBudget.Low
+        }));
+
+        var loaded = await service.LoadAsync();
+        Assert.Equal(NiceWP.Core.AdaptiveDesktopProfile.Gaming, loaded.EffectiveAdaptiveProfile);
+        Assert.Equal(NiceWP.Core.ResourceBudget.Low, loaded.EffectiveResourceBudget);
+        Assert.Equal("Gaming", loaded.AdaptiveProfile);
+        Assert.Equal("Low", loaded.ResourceBudget);
+    }
 }
