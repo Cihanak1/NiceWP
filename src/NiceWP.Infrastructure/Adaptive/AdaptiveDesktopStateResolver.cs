@@ -252,6 +252,12 @@ public static class AdaptiveDesktopStateResolver
             return input.MatchedAppRuleProfile.Value;
         }
 
+        // Then Presentation processes
+        if (PresentationProfileBehavior.IsPresentationProcess(input.ForegroundProcessName))
+        {
+            return AdaptiveDesktopProfile.Presentation;
+        }
+
         // Then Battery Saver
         if (input.IsBatterySaverActive)
         {
