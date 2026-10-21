@@ -51,6 +51,7 @@ public sealed class RuntimePerformanceSnapshot
     public string EfficiencyProfile { get; init; } = "Balanced";
     public string RuntimeHealth { get; init; } = "Healthy";
     public string CurrentAction { get; init; } = "Running normally";
+    public NiceWP.Core.AutomaticActionExplanation? LastAutomaticAction { get; init; }
     public IReadOnlyList<NiceWP.Core.RuntimeAuditEvent> RecentEvents { get; init; } = Array.Empty<NiceWP.Core.RuntimeAuditEvent>();
 
     // GPU Metrics (null when unavailable)
