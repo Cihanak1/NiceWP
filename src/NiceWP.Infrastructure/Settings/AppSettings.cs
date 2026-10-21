@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using NiceWP.Core;
+using NiceWP.Infrastructure.Adaptive;
 using NiceWP.Infrastructure.Ipc;
 
 namespace NiceWP.Infrastructure.Settings;
@@ -56,6 +57,8 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? NightWallpaperId { get; set; }
 
+    public List<AppRule> AppRules { get; set; } = new();
+
     [JsonIgnore]
     public string EffectiveScheduleMode => ScheduleMode ?? ScheduleModeExtensions.ModeOff;
 
@@ -81,7 +84,8 @@ public sealed class AppSettings
         DayStartTime = null,
         NightStartTime = null,
         DayWallpaperId = null,
-        NightWallpaperId = null
+        NightWallpaperId = null,
+        AppRules = new List<AppRule>()
     };
 
     /// <summary>
@@ -115,7 +119,8 @@ public sealed class AppSettings
             DayStartTime = NormalizeDayStartTime(DayStartTime),
             NightStartTime = NormalizeNightStartTime(NightStartTime),
             DayWallpaperId = string.IsNullOrWhiteSpace(DayWallpaperId) ? null : DayWallpaperId.Trim(),
-            NightWallpaperId = string.IsNullOrWhiteSpace(NightWallpaperId) ? null : NightWallpaperId.Trim()
+            NightWallpaperId = string.IsNullOrWhiteSpace(NightWallpaperId) ? null : NightWallpaperId.Trim(),
+            AppRules = AppRuleNormalizer.NormalizeRules(AppRules).ToList()
         };
     }
 
