@@ -44,7 +44,8 @@ public sealed record WallpaperLibraryEntryView(
     DateTimeOffset? LastUsedAtUtc = null,
     bool IsRemoteImported = false,
     string? SourceHost = null,
-    string? SourceDisplayUrl = null)
+    string? SourceDisplayUrl = null,
+    WallpaperCost Cost = WallpaperCost.Light)
 {
     public string StatusText => IsMissing ? "Missing" : string.Empty;
 
@@ -61,6 +62,16 @@ public sealed record WallpaperLibraryEntryView(
     public bool IsVideo => string.Equals(Type, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
 
     public string ToolTipText => GetLocalizedToolTipText(isTurkish: false);
+
+    public string CostLabel => Cost.ToDisplayString();
+
+    public string GetLocalizedCostLabel(bool isTurkish) => Cost switch
+    {
+        WallpaperCost.Light => isTurkish ? "Hafif" : "Light",
+        WallpaperCost.Moderate => isTurkish ? "Orta" : "Moderate",
+        WallpaperCost.Heavy => isTurkish ? "Ağır" : "Heavy",
+        _ => "Light"
+    };
 
     public string GetLocalizedToolTipText(bool isTurkish)
     {
