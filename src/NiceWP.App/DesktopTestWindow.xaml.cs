@@ -63,6 +63,7 @@ public sealed partial class DesktopTestWindow : Window
         InitializeComponent();
         LocalizationService.Instance.LanguageChanged += OnLocalizationLanguageChanged;
         UpdateNavigationLocalization();
+        UpdateLibraryLocalization();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Brand", "nicewp-app.ico"));
         StatusText.RegisterPropertyChangedCallback(TextBlock.TextProperty, (_, _) => UpdateFeedbackVisuals());
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1060, 720));
@@ -1159,27 +1160,32 @@ public sealed partial class DesktopTestWindow : Window
                 switch (mfi.Name)
                 {
                     case "MenuApplyItem":
+                        mfi.Text = LocalizationService.Instance.GetString(LocalizationKeys.ItemApply);
                         mfi.IsEnabled = currentEntry.CanApply && isIdle;
                         break;
                     case "MenuFavoriteItem":
                         mfi.IsEnabled = isIdle;
-                        mfi.Text = currentEntry.IsFavorite ? "Unfavorite" : "Favorite";
+                        mfi.Text = currentEntry.IsFavorite ? LocalizationService.Instance.GetString(LocalizationKeys.LibUnfavorite) : LocalizationService.Instance.GetString(LocalizationKeys.LibFavorite);
                         if (mfi.FindName("MenuFavoriteIcon") is FontIcon favIcon)
                         {
                             favIcon.Glyph = currentEntry.IsFavorite ? "\uE735" : "\uE734";
                         }
                         break;
                     case "MenuRenameItem":
+                        mfi.Text = LocalizationService.Instance.GetString(LocalizationKeys.ItemRename);
                         mfi.IsEnabled = isIdle;
                         break;
                     case "MenuOpenLocationItem":
+                        mfi.Text = LocalizationService.Instance.GetString(LocalizationKeys.ItemOpenFileLocation);
                         mfi.IsEnabled = !currentEntry.IsMissing && isIdle;
                         break;
                     case "MenuLocateFileItem":
+                        mfi.Text = LocalizationService.Instance.GetString(LocalizationKeys.ItemLocateFile);
                         mfi.Visibility = currentEntry.IsMissing ? Visibility.Visible : Visibility.Collapsed;
                         mfi.IsEnabled = currentEntry.IsMissing && isIdle;
                         break;
                     case "MenuRemoveItem":
+                        mfi.Text = LocalizationService.Instance.GetString(LocalizationKeys.LibRemove);
                         mfi.IsEnabled = currentEntry.CanRemove && isIdle;
                         break;
                 }
@@ -1538,17 +1544,19 @@ public sealed partial class DesktopTestWindow : Window
         {
             applyButton.Visibility = currentEntry.IsMissing ? Visibility.Collapsed : Visibility.Visible;
             applyButton.IsEnabled = currentEntry.CanApply && isIdle;
-            applyButton.Content = isActive ? "Reapply" : "Apply";
+            applyButton.Content = isActive ? LocalizationService.Instance.GetString(LocalizationKeys.ItemReapply) : LocalizationService.Instance.GetString(LocalizationKeys.ItemApply);
         }
 
         if (cardBorder.FindName("CardLocateButton") is Button locateButton)
         {
             locateButton.Visibility = currentEntry.IsMissing ? Visibility.Visible : Visibility.Collapsed;
+            locateButton.Content = LocalizationService.Instance.GetString(LocalizationKeys.ItemLocateFile);
             locateButton.IsEnabled = isIdle;
         }
 
         if (cardBorder.FindName("CardRemoveButton") is Button removeButton)
         {
+            removeButton.Content = LocalizationService.Instance.GetString(LocalizationKeys.LibRemove);
             removeButton.IsEnabled = currentEntry.CanRemove && isIdle;
         }
     }
@@ -1774,7 +1782,7 @@ public sealed partial class DesktopTestWindow : Window
         if (libraryController.IsSelectionMode)
         {
             var selected = libraryController.SelectedCount;
-            LibraryCountText.Text = selected == 1 ? "1 wallpaper selected" : $"{selected} wallpapers selected";
+            LibraryCountText.Text = LocalizationService.Instance.Format(LocalizationKeys.ItemSelectedCount, selected);
         }
         else if (totalCount == 0)
         {
@@ -1871,14 +1879,14 @@ public sealed partial class DesktopTestWindow : Window
         AddFolderButton.IsEnabled = isIdle;
         AddFromUrlButton.IsEnabled = isIdle;
         SelectModeButton.IsEnabled = isIdle;
-        SelectModeButton.Content = libraryController.IsSelectionMode ? "Done" : "Select";
+        SelectModeButton.Content = libraryController.IsSelectionMode ? LocalizationService.Instance.GetString(LocalizationKeys.LibDone) : LocalizationService.Instance.GetString(LocalizationKeys.LibSelect);
         BulkActionStrip.Visibility = libraryController.IsSelectionMode ? Visibility.Visible : Visibility.Collapsed;
 
         var hasSelection = libraryController.SelectedCount > 0;
         BulkFavoriteButton.IsEnabled = isIdle && hasSelection;
         BulkUnfavoriteButton.IsEnabled = isIdle && hasSelection;
         BulkRemoveButton.IsEnabled = isIdle && hasSelection;
-        BulkRemoveButton.Content = hasSelection ? $"Remove ({libraryController.SelectedCount})" : "Remove";
+        BulkRemoveButton.Content = hasSelection ? $"{LocalizationService.Instance.GetString(LocalizationKeys.LibRemove)} ({libraryController.SelectedCount})" : LocalizationService.Instance.GetString(LocalizationKeys.LibRemove);
 
         LibraryListView.IsEnabled = isIdle;
         LibrarySearchBox.IsEnabled = isIdle;
@@ -1912,12 +1920,14 @@ public sealed partial class DesktopTestWindow : Window
                 if (cardBorder.FindName("CardLocateButton") is Button locateButton)
                 {
                     locateButton.Visibility = currentEntry.IsMissing ? Visibility.Visible : Visibility.Collapsed;
-                    locateButton.IsEnabled = isIdle;
+                    locateButton.Content = LocalizationService.Instance.GetString(LocalizationKeys.ItemLocateFile);
+            locateButton.IsEnabled = isIdle;
                 }
 
                 if (cardBorder.FindName("CardRemoveButton") is Button removeButton)
                 {
-                    removeButton.IsEnabled = currentEntry.CanRemove && isIdle;
+                    removeButton.Content = LocalizationService.Instance.GetString(LocalizationKeys.LibRemove);
+            removeButton.IsEnabled = currentEntry.CanRemove && isIdle;
                 }
 
                 if (cardBorder.FindName("CardSelectCheckBox") is CheckBox selectCheckBox)
@@ -1935,16 +1945,16 @@ public sealed partial class DesktopTestWindow : Window
         var isIdle = !IsInteractionBusy;
         var hasSelection = libraryController.SelectedCount > 0;
         BulkActionStrip.Visibility = libraryController.IsSelectionMode ? Visibility.Visible : Visibility.Collapsed;
-        SelectModeButton.Content = libraryController.IsSelectionMode ? "Done" : "Select";
+        SelectModeButton.Content = libraryController.IsSelectionMode ? LocalizationService.Instance.GetString(LocalizationKeys.LibDone) : LocalizationService.Instance.GetString(LocalizationKeys.LibSelect);
         BulkFavoriteButton.IsEnabled = isIdle && hasSelection;
         BulkUnfavoriteButton.IsEnabled = isIdle && hasSelection;
         BulkRemoveButton.IsEnabled = isIdle && hasSelection;
-        BulkRemoveButton.Content = hasSelection ? $"Remove ({libraryController.SelectedCount})" : "Remove";
+        BulkRemoveButton.Content = hasSelection ? $"{LocalizationService.Instance.GetString(LocalizationKeys.LibRemove)} ({libraryController.SelectedCount})" : LocalizationService.Instance.GetString(LocalizationKeys.LibRemove);
 
         if (libraryController.IsSelectionMode)
         {
             var selected = libraryController.SelectedCount;
-            LibraryCountText.Text = selected == 1 ? "1 wallpaper selected" : $"{selected} wallpapers selected";
+            LibraryCountText.Text = LocalizationService.Instance.Format(LocalizationKeys.ItemSelectedCount, selected);
         }
 
         foreach (var cardBorder in realizedCardBorders)
@@ -2980,6 +2990,7 @@ public sealed partial class DesktopTestWindow : Window
         DispatcherQueue.TryEnqueue(() =>
         {
             UpdateNavigationLocalization();
+        UpdateLibraryLocalization();
             UpdateLibraryLocalization();
             UpdateActiveWallpaperLocalization();
             UpdateSettingsLocalization();
@@ -2996,7 +3007,81 @@ public sealed partial class DesktopTestWindow : Window
         SettingsNavigationItem.Content = loc.GetString(LocalizationKeys.NavSettings);
     }
 
-    private void UpdateLibraryLocalization() { }
+    private void UpdateLibraryLocalization()
+    {
+        var loc = LocalizationService.Instance;
+        if (LibraryTitleText != null)
+        {
+            LibraryTitleText.Text = loc.GetString(LocalizationKeys.NavLibrary);
+        }
+
+        if (LibrarySearchBox != null)
+        {
+            LibrarySearchBox.PlaceholderText = loc.GetString(LocalizationKeys.LibSearchPlaceholder);
+            AutomationProperties.SetName(LibrarySearchBox, loc.GetString(LocalizationKeys.LibSearchPlaceholder));
+        }
+
+        if (AddWallpaperButton != null) AddWallpaperButton.Content = loc.GetString(LocalizationKeys.LibAddWallpaper);
+        if (AddFolderButton != null) AddFolderButton.Content = loc.GetString(LocalizationKeys.LibAddFolder);
+        if (AddFromUrlButton != null) AddFromUrlButton.Content = loc.GetString(LocalizationKeys.LibAddFromUrl);
+        if (SelectModeButton != null)
+        {
+            SelectModeButton.Content = libraryController.IsSelectionMode ? loc.GetString(LocalizationKeys.LibDone) : loc.GetString(LocalizationKeys.LibSelect);
+        }
+
+        if (BulkSelectAllButton != null) BulkSelectAllButton.Content = loc.GetString(LocalizationKeys.LibSelectAll);
+        if (BulkClearSelectionButton != null) BulkClearSelectionButton.Content = loc.GetString(LocalizationKeys.LibClear);
+        if (BulkFavoriteButton != null) BulkFavoriteButton.Content = loc.GetString(LocalizationKeys.LibFavorite);
+        if (BulkUnfavoriteButton != null) BulkUnfavoriteButton.Content = loc.GetString(LocalizationKeys.LibUnfavorite);
+        if (BulkRemoveButton != null)
+        {
+            var hasSelection = libraryController.SelectedCount > 0;
+            BulkRemoveButton.Content = hasSelection ? $"{loc.GetString(LocalizationKeys.LibRemove)} ({libraryController.SelectedCount})" : loc.GetString(LocalizationKeys.LibRemove);
+        }
+        if (BulkDoneButton != null) BulkDoneButton.Content = loc.GetString(LocalizationKeys.LibDone);
+
+        if (EmptyTitleText != null) EmptyTitleText.Text = loc.GetString(LocalizationKeys.ItemEmptyTitle);
+        if (EmptySubtitleText != null) EmptySubtitleText.Text = loc.GetString(LocalizationKeys.ItemEmptySubtitle);
+
+        if (LibraryFilterComboBox?.Items != null)
+        {
+            foreach (var obj in LibraryFilterComboBox.Items)
+            {
+                if (obj is ComboBoxItem item && item.Tag is string tag)
+                {
+                    item.Content = tag switch
+                    {
+                        "All" => loc.GetString(LocalizationKeys.FilterAll),
+                        "Images" => loc.GetString(LocalizationKeys.FilterImages),
+                        "Videos" => loc.GetString(LocalizationKeys.FilterVideos),
+                        "Favorites" => loc.GetString(LocalizationKeys.FilterFavorites),
+                        "Recent" => loc.GetString(LocalizationKeys.FilterRecent),
+                        _ => item.Content
+                    };
+                }
+            }
+        }
+
+        if (LibrarySortComboBox?.Items != null)
+        {
+            foreach (var obj in LibrarySortComboBox.Items)
+            {
+                if (obj is ComboBoxItem item && item.Tag is string tag)
+                {
+                    item.Content = tag switch
+                    {
+                        "Newest" => loc.GetString(LocalizationKeys.SortRecent),
+                        "Oldest" => loc.CurrentLanguage == EffectiveLanguage.Turkish ? "En Eski" : "Oldest",
+                        "NameAsc" => loc.GetString(LocalizationKeys.SortName),
+                        "NameDesc" => loc.CurrentLanguage == EffectiveLanguage.Turkish ? "İsim (Z–A)" : "Name (Z–A)",
+                        _ => item.Content
+                    };
+                }
+            }
+        }
+
+        RenderLibraryItems();
+    }
     private void UpdateActiveWallpaperLocalization() { }
     private void UpdateSettingsLocalization() { }
     private void UpdatePerformanceLocalization() { }

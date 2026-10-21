@@ -65,7 +65,7 @@
                 </Grid.RowDefinitions>
                 <StackPanel Spacing="8">
                     <StackPanel Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Text="Library" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" FontSize="32" />
+                        <TextBlock x:Name="LibraryTitleText" Text="Library" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" FontSize="32" />
                         <TextBlock x:Name="LibraryCountText" Text="Your wallpaper collection" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>
