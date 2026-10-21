@@ -27,6 +27,8 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
     private bool stopped;
     private bool disposed;
     private TimeSpan? frozenPosition;
+    private string? loadedFilePath;
+    private bool isSourceDetached;
 
     public bool IsDeepFrozen { get; private set; }
 
@@ -186,7 +188,8 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
                 Dispose();
                 return new(WallpaperError.RendererFailed, "The video wallpaper window is no longer valid.");
             }
-            Trace.WriteLine($"Video opened: {fullPath}, H.264, window=0x{WindowHandle:X}");
+            loadedFilePath = fullPath;
+        Trace.WriteLine($"Video opened: {fullPath}, H.264, window=0x{WindowHandle:X}");
             return playbackFailure ?? new WallpaperResult();
         }
         catch (OperationCanceledException)
@@ -311,6 +314,21 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
 
         try
         {
+            if (isSourceDetached && !string.IsNullOrWhiteSpace(loadedFilePath) && player != null)
+            {
+                try
+                {
+                    var file = StorageFile.GetFileFromPathAsync(loadedFilePath).AsTask().GetAwaiter().GetResult();
+                    source = MediaSource.CreateFromStorageFile(file);
+                    player.Source = source;
+                    isSourceDetached = false;
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"Reattaching media source failed during restore: {ex.Message}");
+                }
+            }
+
             if (frozenPosition.HasValue && player?.PlaybackSession != null)
             {
                 player.PlaybackSession.Position = frozenPosition.Value;
