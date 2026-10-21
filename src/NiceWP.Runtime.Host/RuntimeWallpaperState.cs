@@ -19,7 +19,12 @@ public sealed class RuntimeWallpaperState
 
     public bool IsPaused =>
         HasActiveWallpaper &&
-        string.Equals(PlaybackState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase);
+        (string.Equals(PlaybackState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(PlaybackState, IpcConstants.PlaybackStateDeepFrozen, StringComparison.OrdinalIgnoreCase));
+
+    public bool IsDeepFrozen =>
+        HasActiveWallpaper &&
+        string.Equals(PlaybackState, IpcConstants.PlaybackStateDeepFrozen, StringComparison.OrdinalIgnoreCase);
 
     public bool IsRunning =>
         HasActiveWallpaper &&
@@ -38,6 +43,10 @@ public sealed class RuntimeWallpaperState
         {
             PlaybackState = IpcConstants.PlaybackStatePaused;
         }
+        else if (string.Equals(playbackState, IpcConstants.PlaybackStateDeepFrozen, StringComparison.OrdinalIgnoreCase))
+        {
+            PlaybackState = IpcConstants.PlaybackStateDeepFrozen;
+        }
         else
         {
             PlaybackState = IpcConstants.PlaybackStateRunning;
@@ -52,5 +61,10 @@ public sealed class RuntimeWallpaperState
     public RuntimeWallpaperState AsRunning() =>
         HasActiveWallpaper
             ? new RuntimeWallpaperState(Type, Path, IpcConstants.PlaybackStateRunning)
+            : Empty;
+
+    public RuntimeWallpaperState AsDeepFrozen() =>
+        HasActiveWallpaper
+            ? new RuntimeWallpaperState(Type, Path, IpcConstants.PlaybackStateDeepFrozen)
             : Empty;
 }

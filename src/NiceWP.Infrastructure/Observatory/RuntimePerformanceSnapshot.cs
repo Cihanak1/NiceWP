@@ -68,7 +68,12 @@ public sealed class RuntimePerformanceSnapshot
 
     public bool IsPaused =>
         HasActiveWallpaper &&
-        string.Equals(WallpaperState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase);
+        (string.Equals(WallpaperState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(WallpaperState, IpcConstants.PlaybackStateDeepFrozen, StringComparison.OrdinalIgnoreCase));
+
+    public bool IsDeepFrozen =>
+        HasActiveWallpaper &&
+        string.Equals(WallpaperState, IpcConstants.PlaybackStateDeepFrozen, StringComparison.OrdinalIgnoreCase);
 
     public bool IsRunning =>
         HasActiveWallpaper &&

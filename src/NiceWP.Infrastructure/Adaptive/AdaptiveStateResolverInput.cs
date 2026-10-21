@@ -10,7 +10,7 @@ namespace NiceWP.Infrastructure.Adaptive;
 public sealed record AdaptiveStateResolverInput
 {
     public AdaptiveDesktopProfile ConfiguredProfile { get; init; } = AdaptiveDesktopProfile.Automatic;
-    public ResourceBudget ConfiguredBudget { get; init; } = ResourceBudget.Balanced;
+    public ResourceBudget ConfiguredBudget { get; init; } = ResourceBudget.Automatic;
     public string? ForegroundProcessName { get; init; }
     public bool IsFullscreenActive { get; init; }
     public bool IsOnBattery { get; init; }

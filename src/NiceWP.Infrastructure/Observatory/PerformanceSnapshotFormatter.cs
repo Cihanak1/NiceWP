@@ -162,6 +162,7 @@ public static class PerformanceSnapshotFormatter
         {
             IpcConstants.PlaybackStateRunning => isTr ? "Çalışıyor" : "Running",
             IpcConstants.PlaybackStatePaused => isTr ? "Duraklatıldı" : "Paused",
+            IpcConstants.PlaybackStateDeepFrozen => isTr ? "Derin Donduruldu" : "Deep Frozen",
             "Stopped" => isTr ? "Durduruldu" : "Stopped",
             _ => isTr ? "Etkin Değil" : "Inactive"
         };

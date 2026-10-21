@@ -48,7 +48,8 @@ public sealed class IpcResponse
             HasActiveWallpaper = performance?.Snapshot?.HasActiveWallpaper ?? false,
             WallpaperType = performance?.Snapshot?.WallpaperType ?? IpcConstants.WallpaperTypeNone,
             ActivePath = performance?.Snapshot?.ActiveWallpaperPath,
-            IsPaused = string.Equals(performance?.Snapshot?.WallpaperState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase),
+            IsPaused = string.Equals(performance?.Snapshot?.WallpaperState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(performance?.Snapshot?.WallpaperState, IpcConstants.PlaybackStateDeepFrozen, StringComparison.OrdinalIgnoreCase),
             PauseReasons = performance?.Snapshot?.PauseReasons,
             PlaybackState = performance?.Snapshot?.WallpaperState ?? IpcConstants.PlaybackStateNone,
             Performance = performance
@@ -70,7 +71,9 @@ public sealed class IpcResponse
                 ? (isPaused == true ? IpcConstants.PlaybackStatePaused : IpcConstants.PlaybackStateRunning)
                 : IpcConstants.PlaybackStateNone)
             : playbackState;
-        var resolvedIsPaused = isPaused ?? string.Equals(resolvedPlaybackState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase);
+        var resolvedIsPaused = isPaused ?? (
+            string.Equals(resolvedPlaybackState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(resolvedPlaybackState, IpcConstants.PlaybackStateDeepFrozen, StringComparison.OrdinalIgnoreCase));
 
         return new()
         {
