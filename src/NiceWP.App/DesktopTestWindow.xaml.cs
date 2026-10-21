@@ -21,6 +21,7 @@ using NiceWP.Infrastructure.Settings;
 using NiceWP.Infrastructure.Tray;
 using NiceWP.Infrastructure.Remote;
 using NiceWP.Infrastructure.Rotation;
+using NiceWP.Infrastructure.Localization;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 
@@ -60,6 +61,8 @@ public sealed partial class DesktopTestWindow : Window
     {
         libraryRenderDeferred = isStartup;
         InitializeComponent();
+        LocalizationService.Instance.LanguageChanged += OnLocalizationLanguageChanged;
+        UpdateNavigationLocalization();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Brand", "nicewp-app.ico"));
         StatusText.RegisterPropertyChangedCallback(TextBlock.TextProperty, (_, _) => UpdateFeedbackVisuals());
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1060, 720));
@@ -2682,6 +2685,7 @@ public sealed partial class DesktopTestWindow : Window
         libraryController.Dispose();
         trayIcon.Dispose();
         App.ReleaseSingleInstance();
+        LocalizationService.Instance.LanguageChanged -= OnLocalizationLanguageChanged;
         Trace.WriteLine("Control window closed; runtime host continues in background.");
         if (diagnostics != null)
         {
@@ -2969,6 +2973,33 @@ public sealed partial class DesktopTestWindow : Window
 
     private static string FormatTimeSpan(TimeSpan? ts) =>
         ts.HasValue ? $"{(int)ts.Value.TotalHours:D2}:{ts.Value.Minutes:D2}:{ts.Value.Seconds:D2}" : "--:--:--";
+
+    private void OnLocalizationLanguageChanged(EffectiveLanguage language)
+    {
+        if (closed) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            UpdateNavigationLocalization();
+            UpdateLibraryLocalization();
+            UpdateActiveWallpaperLocalization();
+            UpdateSettingsLocalization();
+            UpdatePerformanceLocalization();
+        });
+    }
+
+    private void UpdateNavigationLocalization()
+    {
+        var loc = LocalizationService.Instance;
+        LibraryNavigationItem.Content = loc.GetString(LocalizationKeys.NavLibrary);
+        ActiveNavigationItem.Content = loc.GetString(LocalizationKeys.NavActiveWallpaper);
+        PerformanceNavigationItem.Content = loc.GetString(LocalizationKeys.NavPerformance);
+        SettingsNavigationItem.Content = loc.GetString(LocalizationKeys.NavSettings);
+    }
+
+    private void UpdateLibraryLocalization() { }
+    private void UpdateActiveWallpaperLocalization() { }
+    private void UpdateSettingsLocalization() { }
+    private void UpdatePerformanceLocalization() { }
 
     private static string FormatDimensions(uint? w, uint? h) =>
         w.HasValue && h.HasValue ? $"{w.Value} x {h.Value}" : "Unavailable";
