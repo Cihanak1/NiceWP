@@ -192,7 +192,9 @@ public static class AdaptiveDesktopStateResolver
                 ActiveProcessName = input.ForegroundProcessName,
                 Reason = isRule
                     ? $"Cinema rule active for {input.ForegroundProcessName}"
-                    : "Cinema profile active"
+                    : (CinemaProfileBehavior.IsCinemaProcess(input.ForegroundProcessName)
+                        ? $"Cinema application active: {input.ForegroundProcessName}"
+                        : "Cinema profile active")
             };
         }
 
@@ -272,6 +274,12 @@ public static class AdaptiveDesktopStateResolver
         if (input.IsFullscreenActive || GamingProfileBehavior.IsGamingProcess(input.ForegroundProcessName))
         {
             return AdaptiveDesktopProfile.Gaming;
+        }
+
+        // Then Cinema processes
+        if (CinemaProfileBehavior.IsCinemaProcess(input.ForegroundProcessName))
+        {
+            return AdaptiveDesktopProfile.Cinema;
         }
 
         // Then Focus processes
