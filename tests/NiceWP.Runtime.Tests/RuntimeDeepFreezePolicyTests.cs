@@ -50,18 +50,16 @@ public sealed class RuntimeDeepFreezePolicyTests : IDisposable
     {
         public int AttachCallCount { get; private set; }
         public int DetachCallCount { get; private set; }
-        public bool IsActiveWorkerW { get; private set; }
 
-        public Task<nint> GetTargetAsync()
+        public Task<DesktopHostResult> ResolveAsync(CancellationToken cancellationToken = default)
         {
             AttachCallCount++;
-            return Task.FromResult((nint)0x1111);
+            return Task.FromResult(new DesktopHostResult(10, DesktopHostError.None));
         }
 
         public bool IsValid(nint handle) => handle != 0;
-        public bool IsWindowAlive(nint handle) => handle != 0;
-        public void SendTimeoutMessage() { }
-        public void SetWorkerWActive(bool active) => IsActiveWorkerW = active;
+        public nint Attach(nint host, nint window) => 0;
+        public void Detach(nint host, nint window, nint previousParent) => DetachCallCount++;
     }
 
     private sealed class DeepFreezeTrackingRenderer : IWallpaperRenderer

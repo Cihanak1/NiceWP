@@ -38,11 +38,12 @@ public sealed class RuntimeHostDeepFreezeRestoreTests : IDisposable
 
     private sealed class FakeDesktopHost : IDesktopHost
     {
-        public Task<nint> GetTargetAsync() => Task.FromResult((nint)0x4444);
+        public Task<DesktopHostResult> ResolveAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new DesktopHostResult(10, DesktopHostError.None));
+
         public bool IsValid(nint handle) => handle != 0;
-        public bool IsWindowAlive(nint handle) => handle != 0;
-        public void SendTimeoutMessage() { }
-        public void SetWorkerWActive(bool active) { }
+        public nint Attach(nint host, nint window) => 0;
+        public void Detach(nint host, nint window, nint previousParent) { }
     }
 
     private sealed class TrackingRenderer : IWallpaperRenderer

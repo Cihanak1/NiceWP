@@ -8,7 +8,7 @@ public sealed class DeepFreezeVisualPreservationTests
     [Fact]
     public void DefaultInterfaceMethods_PreserveLifecycleAndWindowHandle()
     {
-        var renderer = new MockVisualPreservingRenderer();
+        IWallpaperRenderer renderer = new MockVisualPreservingRenderer();
 
         Assert.False(renderer.IsDeepFrozen);
         Assert.Equal((nint)0x1234, renderer.WindowHandle);
@@ -16,13 +16,13 @@ public sealed class DeepFreezeVisualPreservationTests
 
         renderer.DeepFreeze();
         Assert.True(renderer.IsDeepFrozen);
-        Assert.True(renderer.PauseCalled);
+        Assert.True(((MockVisualPreservingRenderer)renderer).PauseCalled);
         Assert.True(renderer.IsWindowAlive);
         Assert.Equal((nint)0x1234, renderer.WindowHandle); // Surface retained!
 
         renderer.RestoreFromDeepFreeze();
         Assert.False(renderer.IsDeepFrozen);
-        Assert.True(renderer.ResumeCalled);
+        Assert.True(((MockVisualPreservingRenderer)renderer).ResumeCalled);
         Assert.True(renderer.IsWindowAlive);
     }
 

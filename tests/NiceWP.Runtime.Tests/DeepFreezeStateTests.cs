@@ -40,14 +40,14 @@ public sealed class DeepFreezeStateTests
     [Fact]
     public void PerformanceSnapshotFormatter_FormatsDeepFrozenState()
     {
-        var enResult = PerformanceSnapshotFormatter.FormatTypeAndState(
+        var enResult = PerformanceSnapshotFormatter.FormatWallpaperTypeState(
             IpcConstants.WallpaperTypeVideo,
             IpcConstants.PlaybackStateDeepFrozen,
             new FakeLoc(EffectiveLanguage.English));
 
         Assert.Contains("Deep Frozen", enResult);
 
-        var trResult = PerformanceSnapshotFormatter.FormatTypeAndState(
+        var trResult = PerformanceSnapshotFormatter.FormatWallpaperTypeState(
             IpcConstants.WallpaperTypeVideo,
             IpcConstants.PlaybackStateDeepFrozen,
             new FakeLoc(EffectiveLanguage.Turkish));
@@ -58,10 +58,10 @@ public sealed class DeepFreezeStateTests
     private sealed class FakeLoc : ILocalizationService
     {
         public EffectiveLanguage CurrentLanguage { get; }
-        public AppLanguage ConfiguredLanguage => AppLanguage.System;
-        public event EventHandler<EffectiveLanguage>? LanguageChanged { add { } remove { } }
+        public event Action<EffectiveLanguage>? LanguageChanged { add { } remove { } }
         public FakeLoc(EffectiveLanguage lang) => CurrentLanguage = lang;
         public string GetString(string key) => key;
-        public void SetLanguage(AppLanguage language) { }
+        public string Format(string key, params object[] args) => string.Format(key, args);
+        public void SetLanguage(EffectiveLanguage language) { }
     }
 }
