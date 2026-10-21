@@ -302,16 +302,6 @@ public static class AdaptiveDesktopStateResolver
             return configured;
         }
 
-        if (isBatterySaver || isPressureSustained)
-        {
-            return ResourceBudget.Low;
-        }
-
-        if (isOnBattery)
-        {
-            return ResourceBudget.Balanced;
-        }
-
-        return ResourceBudget.Balanced;
+        return ResourceBudgetPolicy.ResolveAutomaticBudget(isOnBattery, isBatterySaver, isPressureSustained);
     }
 }
