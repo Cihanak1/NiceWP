@@ -26,6 +26,9 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
     private bool loadStarted;
     private bool stopped;
     private bool disposed;
+    private TimeSpan? frozenPosition;
+
+    public bool IsDeepFrozen { get; private set; }
 
     public RendererLifecycleState LifecycleState { get; private set; } = RendererLifecycleState.Alive;
 
@@ -272,8 +275,54 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
     {
         ObjectDisposedException.ThrowIf(stopped, this);
         if (playbackFailure is { } failure) throw new InvalidOperationException(failure.Message);
+        if (IsDeepFrozen)
+        {
+            RestoreFromDeepFreeze();
+            return;
+        }
         player?.Play();
         Trace.WriteLine("Video resumed.");
+    }
+
+    public void DeepFreeze()
+    {
+        ObjectDisposedException.ThrowIf(stopped, this);
+        if (IsDeepFrozen) return;
+        if (playbackFailure is { } failure) throw new InvalidOperationException(failure.Message);
+
+        try
+        {
+            frozenPosition = PlaybackPosition;
+            player?.Pause();
+            IsDeepFrozen = true;
+            Trace.WriteLine($"Video deep frozen at position {frozenPosition}; visual surface preserved on HWND 0x{WindowHandle:X}.");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Video deep freeze failed: {ex}");
+        }
+    }
+
+    public void RestoreFromDeepFreeze()
+    {
+        ObjectDisposedException.ThrowIf(stopped, this);
+        if (!IsDeepFrozen) return;
+        if (playbackFailure is { } failure) throw new InvalidOperationException(failure.Message);
+
+        try
+        {
+            if (frozenPosition.HasValue && player?.PlaybackSession != null)
+            {
+                player.PlaybackSession.Position = frozenPosition.Value;
+            }
+            player?.Play();
+            IsDeepFrozen = false;
+            Trace.WriteLine("Video restored from deep freeze.");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Video restore from deep freeze failed: {ex}");
+        }
     }
 
     private void OnWindowClosed(object sender, WindowEventArgs args)

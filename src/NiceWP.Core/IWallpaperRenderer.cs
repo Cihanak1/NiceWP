@@ -8,6 +8,10 @@ public interface IWallpaperRenderer : IDisposable
     void Show();
     void Pause() { }
     void Resume() { }
+    void DeepFreeze() { Pause(); }
+    void RestoreFromDeepFreeze() { Resume(); }
+
+    bool IsDeepFrozen => false;
 
     uint? SourceWidth => null;
     uint? SourceHeight => null;
