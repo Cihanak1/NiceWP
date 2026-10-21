@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -61,6 +62,7 @@ public sealed partial class DesktopTestWindow : Window
     public DesktopTestWindow(bool isStartup = false)
     {
         libraryRenderDeferred = isStartup;
+        InitializeLanguage();
         InitializeComponent();
         LocalizationService.Instance.LanguageChanged += OnLocalizationLanguageChanged;
         UpdateNavigationLocalization();
@@ -147,6 +149,7 @@ public sealed partial class DesktopTestWindow : Window
             {
                 RestoreLastWallpaperCheckBox.IsChecked = settings.RestoreLastWallpaper;
                 ApplyThemePreference(settings.Theme);
+                SelectLanguageComboBoxItem(settings.Language);
                 SelectThemeComboBoxItem(settings.Theme);
                 SelectEfficiencyProfileComboBoxItem(settings.EfficiencyProfile);
                 SelectRotationModeComboBoxItem(settings.RotationMode);
@@ -3139,6 +3142,34 @@ public sealed partial class DesktopTestWindow : Window
             UpdateSettingsLocalization();
             UpdatePerformanceLocalization();
         });
+    }
+
+    private void InitializeLanguage()
+    {
+        try
+        {
+            var path = SettingsService.GetDefaultSettingsPath();
+            if (File.Exists(path))
+            {
+                var json = File.ReadAllText(path);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("language", out var langProp) ||
+                    doc.RootElement.TryGetProperty("Language", out langProp))
+                {
+                    var pref = AppLanguageExtensions.ParseLanguage(langProp.GetString());
+                    var effective = new LanguageResolver().Resolve(pref);
+                    LocalizationService.Instance.SetLanguage(effective);
+                    return;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore - fallback to system detector
+        }
+
+        var systemEffective = new LanguageResolver().Resolve(AppLanguage.System);
+        LocalizationService.Instance.SetLanguage(systemEffective);
     }
 
     private void UpdateNavigationLocalization()

@@ -21,6 +21,9 @@ public sealed class AppSettings
     public string? LastWallpaperPath { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Language { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Theme { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -40,6 +43,7 @@ public sealed class AppSettings
         RestoreLastWallpaper = true,
         LastWallpaperType = IpcConstants.WallpaperTypeNone,
         LastWallpaperPath = null,
+        Language = null,
         Theme = null,
         EfficiencyProfile = null,
         RotationMode = RotationModeExtensions.ModeOff,
@@ -68,6 +72,7 @@ public sealed class AppSettings
             RestoreLastWallpaper = RestoreLastWallpaper,
             LastWallpaperType = normalizedType,
             LastWallpaperPath = normalizedPath,
+            Language = NormalizeLanguage(Language),
             Theme = NormalizeTheme(Theme),
             EfficiencyProfile = NormalizeEfficiencyProfile(EfficiencyProfile),
             RotationMode = NormalizeRotationMode(RotationMode),
@@ -95,6 +100,12 @@ public sealed class AppSettings
         }
 
         return IpcConstants.WallpaperTypeNone;
+    }
+
+    public static string? NormalizeLanguage(string? language)
+    {
+        var parsed = AppLanguageExtensions.ParseLanguage(language);
+        return parsed == AppLanguage.System ? null : parsed.ToConfigString();
     }
 
     public static string? NormalizeTheme(string? theme)
