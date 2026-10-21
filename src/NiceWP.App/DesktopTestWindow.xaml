@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version='1.0' encoding='utf-8'?>
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="NiceWP.App.DesktopTestWindow" Title="NiceWP">
     <NavigationView x:Name="Navigation" PaneDisplayMode="Auto" OpenPaneLength="208" CompactModeThresholdWidth="640" ExpandedModeThresholdWidth="960" IsBackButtonVisible="Collapsed" IsSettingsVisible="False" SelectionChanged="OnNavigationChanged" Background="{ThemeResource ControlCanvasBrush}">
         <NavigationView.Resources>
@@ -10,7 +10,7 @@
             <DataTemplate x:Key="RemoteImportTemplate">
                 <StackPanel Spacing="16" MaxWidth="480">
                     <TextBlock x:Name="RemoteInstructionsText" Text="Paste a direct media or supported wallpaper page URL." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBox x:Name="RemoteUrlBox" Header="Wallpaper URL" PlaceholderText="https://…" HorizontalAlignment="Stretch" AutomationProperties.Name="Wallpaper URL" />
+                    <TextBox x:Name="RemoteUrlBox" Header="Wallpaper URL" PlaceholderText="https://â€¦" HorizontalAlignment="Stretch" AutomationProperties.Name="Wallpaper URL" />
                     <CheckBox x:Name="RemoteApplyCheckBox" Content="Apply after download" IsChecked="True" />
                     <StackPanel Spacing="8">
                         <ProgressBar x:Name="RemoteProgressBar" Minimum="0" Maximum="100" Visibility="Collapsed" AutomationProperties.Name="Download progress" />
@@ -132,34 +132,34 @@
                                     <MenuFlyout Opening="OnCardMenuFlyoutOpening">
                                         <MenuFlyoutItem x:Name="MenuApplyItem" Text="Apply" Click="OnMenuApplyClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="" FontSize="14" />
+                                                <FontIcon Glyph="î¨" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="MenuFavoriteItem" Text="Favorite" Click="OnMenuFavoriteClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon x:Name="MenuFavoriteIcon" Glyph="" FontSize="14" />
+                                                <FontIcon x:Name="MenuFavoriteIcon" Glyph="îœ´" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="MenuRenameItem" Text="Rename…" Click="OnMenuRenameClick">
+                                        <MenuFlyoutItem x:Name="MenuRenameItem" Text="Renameâ€¦" Click="OnMenuRenameClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="" FontSize="14" />
+                                                <FontIcon Glyph="î¢¬" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem x:Name="MenuOpenLocationItem" Text="Open File Location" Click="OnMenuOpenLocationClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="" FontSize="14" />
+                                                <FontIcon Glyph="î´¥" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="MenuLocateFileItem" Text="Locate File…" Click="OnMenuLocateFileClick">
+                                        <MenuFlyoutItem x:Name="MenuLocateFileItem" Text="Locate Fileâ€¦" Click="OnMenuLocateFileClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="" FontSize="14" />
+                                                <FontIcon Glyph="îœ¡" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem x:Name="MenuRemoveItem" Text="Remove" Click="OnMenuRemoveClick">
                                             <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="" FontSize="14" />
+                                                <FontIcon Glyph="î" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                     </MenuFlyout>
@@ -169,7 +169,7 @@
                                         <SymbolIcon x:Name="CardPlaceholderIcon" Symbol="Pictures" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         <Image x:Name="CardPreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
                                         <Button x:Name="CardFavoriteButton" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12" Padding="4" MinWidth="32" MinHeight="32" Width="32" Height="32" CornerRadius="6" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderThickness="1" Click="OnToggleFavorite" Loaded="OnFavoriteButtonLoaded" DataContextChanged="OnFavoriteButtonDataContextChanged" AutomationProperties.Name="Favorite" BorderBrush="{ThemeResource ControlStrokeBrush}">
-                                            <FontIcon x:Name="CardFavoriteIcon" Glyph="" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <FontIcon x:Name="CardFavoriteIcon" Glyph="îœ´" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         </Button>
                                         <CheckBox x:Name="CardSelectCheckBox" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12" Visibility="Collapsed" Click="OnCardSelectCheckBoxClicked" Loaded="OnCardSelectCheckBoxLoaded" DataContextChanged="OnCardSelectCheckBoxDataContextChanged" AutomationProperties.Name="Select wallpaper" />
                                         <Border x:Name="CardStateBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12,48,12,12" Padding="8,4" CornerRadius="4" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
@@ -223,10 +223,12 @@
                             <TextBlock x:Name="PathText" Text="No wallpaper active" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" TextWrapping="NoWrap" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock x:Name="WallpaperTypeText" Text="None" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="12" />
-                                <TextBlock Text="·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Â·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PlaybackStatusText" Text="None" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="12" />
-                                <TextBlock Text="·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Â·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="ActiveEfficiencyProfileText" Text="Balanced" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Â·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="ActiveWallpaperCostText" Text="Light" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                             <TextBlock x:Name="ActiveFullPathText" Text="Select a wallpaper from the Library or choose a file below." FontSize="12" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                             <TextBlock x:Name="ActiveMissingWarningText" Text="The wallpaper file is missing." TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -258,11 +260,11 @@
                         <Image x:Name="ActivePreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
                     </Grid>
                     <StackPanel Spacing="8" Visibility="{Binding Visibility, ElementName=ActiveDetailsPanel}">
-                        <TextBlock x:Name="ActiveSourceResolutionHeader" Text="Source resolution · last measurement" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="ActiveSourceResolutionHeader" Text="Source resolution Â· last measurement" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock Text="Available in Performance" TextWrapping="Wrap" x:Name="ActiveResolutionText" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button x:Name="SelectImageButton" Content="Choose File…" Click="OnSelectImage" />
+                        <Button x:Name="SelectImageButton" Content="Choose Fileâ€¦" Click="OnSelectImage" />
                         <Button x:Name="RefreshActiveStatusButton" Content="Refresh" Click="OnRefreshStatus" />
                     </StackPanel>
                 </StackPanel>
@@ -322,21 +324,21 @@
                             <StackPanel Spacing="8">
                                 <TextBlock x:Name="PerfCpuLabel" Text="CPU" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfCpuCurrentText" Text="--%" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock x:Name="PerfCpuStatsText" Text="Avg: --% • Peak: --%" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfCpuStatsText" Text="Avg: --% â€¢ Peak: --%" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock x:Name="PerfWorkingSetLabel" Text="Memory · working set" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfWorkingSetLabel" Text="Memory Â· working set" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfWorkingSetText" Text="-- MB" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock x:Name="PerfRamStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfRamStatsText" Text="Avg: -- MB â€¢ Peak: -- MB" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
                                 <TextBlock x:Name="PerfPrivateMemoryLabel" Text="Private Memory" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfPrivateMemoryText" Text="-- MB" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock x:Name="PerfPrivateStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfPrivateStatsText" Text="Avg: -- MB â€¢ Peak: -- MB" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
@@ -376,7 +378,7 @@
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0" Grid.Column="0" Spacing="8">
                                     <TextBlock x:Name="PerfActiveTypeLabel" Text="Active Type &amp; Playback" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                    <TextBlock x:Name="PerfWallpaperTypeStateText" Text="None • Inactive" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfWallpaperTypeStateText" Text="None â€¢ Inactive" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="1" Spacing="8">
                                     <TextBlock x:Name="PerfRendererWindowLabel" Text="Renderer Window (HWND)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
@@ -495,7 +497,7 @@
                             <TextBlock x:Name="SettingsLanguageSubtitle" Text="Choose your preferred interface language." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <ComboBox x:Name="LanguageComboBox" SelectionChanged="OnLanguageSelectionChanged" AutomationProperties.Name="Application language" MaxWidth="280" HorizontalAlignment="Stretch">
                                 <ComboBoxItem Content="System default" Tag="System" />
-                                <ComboBoxItem Content="Türkçe" Tag="Turkish" />
+                                <ComboBoxItem Content="TÃ¼rkÃ§e" Tag="Turkish" />
                                 <ComboBoxItem Content="English" Tag="English" />
                             </ComboBox>
                         </StackPanel>
@@ -507,7 +509,7 @@
                             <ComboBox x:Name="EfficiencyProfileComboBox" SelectionChanged="OnEfficiencyProfileSelectionChanged" AutomationProperties.Name="Efficiency mode" HorizontalAlignment="Stretch" MaxWidth="560">
                                 <ComboBoxItem Tag="Balanced">
                                     <StackPanel Spacing="8">
-                                        <TextBlock Text="Balanced · Recommended" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                        <TextBlock Text="Balanced Â· Recommended" TextWrapping="Wrap" FontWeight="SemiBold" />
                                         <TextBlock Text="Balanced desktop performance and background savings" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
                                 </ComboBoxItem>
@@ -642,7 +644,7 @@
                             <StackPanel x:Name="AppRulesListContainer" Spacing="8" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button x:Name="AddAppRuleButton" Content="Add Rule" Click="OnAddAppRuleClicked" />
-                                <Button x:Name="AddFromRunningAppButton" Content="Add from Running…" Click="OnAddFromRunningAppClicked" />
+                                <Button x:Name="AddFromRunningAppButton" Content="Add from Runningâ€¦" Click="OnAddFromRunningAppClicked" />
                             </StackPanel>
                             <StackPanel Spacing="6" Margin="0,8,0,0">
                                 <TextBlock x:Name="SettingsPresentationWallpaperHeader" Text="Presentation Profile Wallpaper (Optional)" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -669,7 +671,7 @@
                     </Grid.ColumnDefinitions>
                     <ProgressRing x:Name="BusyIndicator" Width="16" Height="16" MinWidth="16" MinHeight="16" IsActive="False" Visibility="Collapsed" VerticalAlignment="Center" AutomationProperties.Name="Working" />
                     <StackPanel Grid.Column="1" Spacing="8">
-                        <TextBlock x:Name="BusyText" Text="Working…" Visibility="Collapsed" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
+                        <TextBlock x:Name="BusyText" Text="Workingâ€¦" Visibility="Collapsed" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
                         <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                             <TextBlock x:Name="StatusText" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
                         </ScrollViewer>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -283,7 +283,7 @@ public sealed partial class DesktopTestWindow : Window
     {
         if (string.IsNullOrWhiteSpace(path) || string.Equals(wallpaperType, IpcConstants.WallpaperTypeNone, StringComparison.OrdinalIgnoreCase))
         {
-            return LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish ? "Etkin duvar kağıdı yok" : "No wallpaper active";
+            return LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish ? "Etkin duvar kaÄŸÄ±dÄ± yok" : "No wallpaper active";
         }
 
         return Path.GetFileName(path);
@@ -527,12 +527,12 @@ public sealed partial class DesktopTestWindow : Window
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
-            Title = isTr ? $"{count} duvar kağıdını kaldır?" : $"Remove {count} {(count == 1 ? "wallpaper" : "wallpapers")}?",
+            Title = isTr ? $"{count} duvar kaÄŸÄ±dÄ±nÄ± kaldÄ±r?" : $"Remove {count} {(count == 1 ? "wallpaper" : "wallpapers")}?",
             Content = isTr
-                ? $"{count} duvar kağıdı NiceWP'den kaldırılacak. Fiziksel dosyalarınız diskten silinmez."
+                ? $"{count} duvar kaÄŸÄ±dÄ± NiceWP'den kaldÄ±rÄ±lacak. Fiziksel dosyalarÄ±nÄ±z diskten silinmez."
                 : $"This will remove {count} {(count == 1 ? "wallpaper" : "wallpapers")} from NiceWP. Your physical files will not be deleted from disk.",
-            PrimaryButtonText = isTr ? "Kaldır" : "Remove",
-            CloseButtonText = isTr ? "İptal" : "Cancel",
+            PrimaryButtonText = isTr ? "KaldÄ±r" : "Remove",
+            CloseButtonText = isTr ? "Ä°ptal" : "Cancel",
             DefaultButton = ContentDialogButton.Close
         };
 
@@ -692,32 +692,32 @@ public sealed partial class DesktopTestWindow : Window
         if (contentPanel.FindName("RemoteInstructionsText") is TextBlock instructions)
         {
             instructions.Text = isTrRemote
-                ? "Doğrudan bir medya veya desteklenen duvar kağıdı sayfası bağlantısı yapıştırın."
+                ? "DoÄŸrudan bir medya veya desteklenen duvar kaÄŸÄ±dÄ± sayfasÄ± baÄŸlantÄ±sÄ± yapÄ±ÅŸtÄ±rÄ±n."
                 : "Paste a direct media or supported wallpaper page URL.";
         }
         if (contentPanel.FindName("RemoteSecurityHeader") is TextBlock secHeader)
         {
             secHeader.Text = isTrRemote
-                ? "Yerel olarak indirilir ve kullanılmadan önce doğrulanır."
+                ? "Yerel olarak indirilir ve kullanÄ±lmadan Ã¶nce doÄŸrulanÄ±r."
                 : "Downloaded locally and validated before use.";
         }
         if (contentPanel.FindName("RemoteSecurityText") is TextBlock secText)
         {
             secText.Text = isTrRemote
-                ? "NiceWP, yalnızca siz açıkça bir uzak duvar kağıdı içe aktardığınızda ağa erişir."
+                ? "NiceWP, yalnÄ±zca siz aÃ§Ä±kÃ§a bir uzak duvar kaÄŸÄ±dÄ± iÃ§e aktardÄ±ÄŸÄ±nÄ±zda aÄŸa eriÅŸir."
                 : "NiceWP only accesses the network when you explicitly import a remote wallpaper.";
         }
-        urlBox.Header = isTrRemote ? "Duvar Kağıdı URL'si" : "Wallpaper URL";
-        AutomationProperties.SetName(urlBox, isTrRemote ? "Duvar Kağıdı URL'si" : "Wallpaper URL");
-        applyCheckBox.Content = isTrRemote ? "İndirdikten sonra uygula" : "Apply after download";
+        urlBox.Header = isTrRemote ? "Duvar KaÄŸÄ±dÄ± URL'si" : "Wallpaper URL";
+        AutomationProperties.SetName(urlBox, isTrRemote ? "Duvar KaÄŸÄ±dÄ± URL'si" : "Wallpaper URL");
+        applyCheckBox.Content = isTrRemote ? "Ä°ndirdikten sonra uygula" : "Apply after download";
 
         var dialog = new ContentDialog
         {
             XamlRoot = this.Content.XamlRoot,
-            Title = isTrRemote ? "Uzak Duvar Kağıdı İndir" : "Import Remote Wallpaper",
+            Title = isTrRemote ? "Uzak Duvar KaÄŸÄ±dÄ± Ä°ndir" : "Import Remote Wallpaper",
             RequestedTheme = Navigation.RequestedTheme,
-            PrimaryButtonText = isTrRemote ? "İndir" : "Download",
-            CloseButtonText = isTrRemote ? "İptal" : "Cancel",
+            PrimaryButtonText = isTrRemote ? "Ä°ndir" : "Download",
+            CloseButtonText = isTrRemote ? "Ä°ptal" : "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             Content = contentPanel
         };
@@ -734,7 +734,7 @@ public sealed partial class DesktopTestWindow : Window
             var rawUrl = urlBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(rawUrl))
             {
-                errorBlock.Text = isTrRemote ? "Geçersiz URL." : "Invalid URL.";
+                errorBlock.Text = isTrRemote ? "GeÃ§ersiz URL." : "Invalid URL.";
                 errorBlock.Visibility = Visibility.Visible;
                 return;
             }
@@ -745,7 +745,7 @@ public sealed partial class DesktopTestWindow : Window
             dialog.IsPrimaryButtonEnabled = false;
             progressBar.Visibility = Visibility.Visible;
             progressBar.IsIndeterminate = true;
-            statusBlock.Text = isTrRemote ? "Bağlanılıyor..." : "Connecting...";
+            statusBlock.Text = isTrRemote ? "BaÄŸlanÄ±lÄ±yor..." : "Connecting...";
 
             isDownloading = true;
             downloadCts = new CancellationTokenSource();
@@ -781,13 +781,13 @@ public sealed partial class DesktopTestWindow : Window
                         await SyncRuntimeStatusAsync();
                     }
                     StatusText.Text = isTrRemote
-                        ? (result.Message != null ? LocalizeStatusMessage(result.Message) : "Kütüphaneye eklendi.")
+                        ? (result.Message != null ? LocalizeStatusMessage(result.Message) : "KÃ¼tÃ¼phaneye eklendi.")
                         : (result.Message ?? "Added to library.");
                 }
                 else if (result.Message == "Download cancelled.")
                 {
                     dialog.Hide();
-                    StatusText.Text = isTrRemote ? "İndirme iptal edildi." : "Download cancelled.";
+                    StatusText.Text = isTrRemote ? "Ä°ndirme iptal edildi." : "Download cancelled.";
                 }
                 else
                 {
@@ -796,7 +796,7 @@ public sealed partial class DesktopTestWindow : Window
                     applyCheckBox.IsEnabled = true;
                     dialog.IsPrimaryButtonEnabled = true;
                     errorBlock.Text = isTrRemote
-                        ? (result.Message != null ? LocalizeStatusMessage(result.Message) : "Sunucuya bağlanılamadı.")
+                        ? (result.Message != null ? LocalizeStatusMessage(result.Message) : "Sunucuya baÄŸlanÄ±lamadÄ±.")
                         : (result.Message ?? "Could not connect to server.");
                     errorBlock.Visibility = Visibility.Visible;
                     isDownloading = false;
@@ -1147,9 +1147,9 @@ public sealed partial class DesktopTestWindow : Window
             var dialog = new ContentDialog
             {
                 XamlRoot = this.Content.XamlRoot,
-                Title = isTrRename ? "Duvar Kağıdını Yeniden Adlandır" : "Rename Wallpaper",
-                PrimaryButtonText = isTrRename ? "Yeniden Adlandır" : "Rename",
-                CloseButtonText = isTrRename ? "İptal" : "Cancel",
+                Title = isTrRename ? "Duvar KaÄŸÄ±dÄ±nÄ± Yeniden AdlandÄ±r" : "Rename Wallpaper",
+                PrimaryButtonText = isTrRename ? "Yeniden AdlandÄ±r" : "Rename",
+                CloseButtonText = isTrRename ? "Ä°ptal" : "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
                 Content = contentPanel
             };
@@ -1573,18 +1573,18 @@ public sealed partial class DesktopTestWindow : Window
             {
                 badge.Visibility = Visibility.Visible;
                 badgeText.Text = isActive
-                    ? (isTr ? "AKTİF · EKSİK" : "ACTIVE · MISSING")
-                    : (isTr ? "EKSİK" : "MISSING");
+                    ? (isTr ? "AKTÄ°F Â· EKSÄ°K" : "ACTIVE Â· MISSING")
+                    : (isTr ? "EKSÄ°K" : "MISSING");
             }
             else if (isActive)
             {
                 badge.Visibility = Visibility.Visible;
-                badgeText.Text = isTr ? "AKTİF" : "ACTIVE";
+                badgeText.Text = isTr ? "AKTÄ°F" : "ACTIVE";
             }
             else if (currentEntry.IsRemoteImported)
             {
                 badge.Visibility = Visibility.Visible;
-                badgeText.Text = isTr ? "UZAK · YEREL KOPYA" : "REMOTE · LOCAL COPY";
+                badgeText.Text = isTr ? "UZAK Â· YEREL KOPYA" : "REMOTE Â· LOCAL COPY";
             }
             else
             {
@@ -1593,7 +1593,7 @@ public sealed partial class DesktopTestWindow : Window
             badgeText.Style = (Style)Application.Current.Resources[
                 isActive ? "ActiveChipTextStyle" : "NeutralChipTextStyle"];
             ToolTipService.SetToolTip(badge, currentEntry.IsRemoteImported && !currentEntry.IsMissing
-                ? (isTr ? "Yerel olarak indirildi ve doğrulandı." : "Downloaded and validated locally.")
+                ? (isTr ? "Yerel olarak indirildi ve doÄŸrulandÄ±." : "Downloaded and validated locally.")
                 : badgeText.Text);
         }
 
@@ -1603,14 +1603,14 @@ public sealed partial class DesktopTestWindow : Window
             if (cardBorder.FindName("CardCostBadge") is Border costBadge)
             {
                 var costTip = isTr
-                    ? $"Donanım yükü: {currentEntry.GetLocalizedCostLabel(isTr)}"
+                    ? $"DonanÄ±m yÃ¼kÃ¼: {currentEntry.GetLocalizedCostLabel(isTr)}"
                     : $"Hardware footprint: {currentEntry.CostLabel}";
                 ToolTipService.SetToolTip(costBadge, costTip);
             }
         }
 
         ToolTipService.SetToolTip(cardBorder, currentEntry.IsRemoteImported
-            ? $"{currentEntry.DisplayName}\n{(isTr ? "UZAK · YEREL KOPYA\nYerel olarak indirildi ve doğrulandı." : "REMOTE · LOCAL COPY\nDownloaded and validated locally.")}"
+            ? $"{currentEntry.DisplayName}\n{(isTr ? "UZAK Â· YEREL KOPYA\nYerel olarak indirildi ve doÄŸrulandÄ±." : "REMOTE Â· LOCAL COPY\nDownloaded and validated locally.")}"
             : currentEntry.GetLocalizedToolTipText(isTr));
         var isIdle = !IsInteractionBusy;
         if (cardBorder.FindName("CardApplyButton") is Button applyButton)
@@ -1660,10 +1660,10 @@ public sealed partial class DesktopTestWindow : Window
 
         var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
         ToolTipService.SetToolTip(button, isFav
-            ? (isTr ? "Favorilerden çıkar" : "Remove from favorites")
+            ? (isTr ? "Favorilerden Ã§Ä±kar" : "Remove from favorites")
             : (isTr ? "Favorilere ekle" : "Add to favorites"));
         AutomationProperties.SetName(button, isFav
-            ? (isTr ? $"{entry.DisplayName} favorilerden çıkar" : $"Remove {entry.DisplayName} from favorites")
+            ? (isTr ? $"{entry.DisplayName} favorilerden Ã§Ä±kar" : $"Remove {entry.DisplayName} from favorites")
             : (isTr ? $"{entry.DisplayName} favorilere ekle" : $"Add {entry.DisplayName} to favorites"));
         button.IsEnabled = !IsInteractionBusy;
     }
@@ -1709,7 +1709,7 @@ public sealed partial class DesktopTestWindow : Window
         button.Visibility = currentEntry.IsMissing ? Visibility.Visible : Visibility.Collapsed;
         button.IsEnabled = !IsInteractionBusy;
         var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
-        AutomationProperties.SetName(button, isTr ? $"{currentEntry.DisplayName} için dosya bul" : $"Locate file for {currentEntry.DisplayName}");
+        AutomationProperties.SetName(button, isTr ? $"{currentEntry.DisplayName} iÃ§in dosya bul" : $"Locate file for {currentEntry.DisplayName}");
     }
 
     private void OnRemoveButtonLoaded(object sender, RoutedEventArgs args) =>
@@ -1730,7 +1730,7 @@ public sealed partial class DesktopTestWindow : Window
 
         button.IsEnabled = currentEntry.CanRemove && !IsInteractionBusy;
         var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
-        AutomationProperties.SetName(button, isTr ? $"{currentEntry.DisplayName} kaldır" : $"Remove {currentEntry.DisplayName}");
+        AutomationProperties.SetName(button, isTr ? $"{currentEntry.DisplayName} kaldÄ±r" : $"Remove {currentEntry.DisplayName}");
     }
 
     private async Task LoadWallpaperPreviewAsync(Image targetImage, string? filePath, bool isVideo)
@@ -1870,15 +1870,15 @@ public sealed partial class DesktopTestWindow : Window
         }
         else if (totalCount == 0)
         {
-            LibraryCountText.Text = isTr ? "Koleksiyonda 0 duvar kağıdı" : "0 wallpapers in collection";
+            LibraryCountText.Text = isTr ? "Koleksiyonda 0 duvar kaÄŸÄ±dÄ±" : "0 wallpapers in collection";
             EmptyTitleText.Text = loc.GetString(LocalizationKeys.ItemEmptyTitle);
-            EmptySubtitleText.Text = isTr ? "Duvar Kağıdı Ekle, Klasör Ekle veya dosyaları buraya sürükleyip bırakın." : "Use Add Wallpaper, Add Folder, or drag & drop files here.";
+            EmptySubtitleText.Text = isTr ? "Duvar KaÄŸÄ±dÄ± Ekle, KlasÃ¶r Ekle veya dosyalarÄ± buraya sÃ¼rÃ¼kleyip bÄ±rakÄ±n." : "Use Add Wallpaper, Add Folder, or drag & drop files here.";
         }
         else if (isFilteredOrSearched)
         {
             var parts = new List<string>(3)
             {
-                isTr ? $"{totalCount} duvar kağıdından {count} tanesi gösteriliyor" : $"Showing {count} of {totalCount} wallpapers"
+                isTr ? $"{totalCount} duvar kaÄŸÄ±dÄ±ndan {count} tanesi gÃ¶steriliyor" : $"Showing {count} of {totalCount} wallpapers"
             };
             if (favoriteCount > 0)
             {
@@ -1889,15 +1889,15 @@ public sealed partial class DesktopTestWindow : Window
                 parts.Add(isTr ? $"{missingCount} diskte eksik" : $"{missingCount} missing on disk");
             }
 
-            LibraryCountText.Text = string.Join(" • ", parts);
-            EmptyTitleText.Text = isTr ? "Eşleşen duvar kağıdı bulunamadı" : "No matching wallpapers";
-            EmptySubtitleText.Text = isTr ? "Aramanızı veya filtrenizi değiştirmeyi deneyin." : "Try adjusting your search or filter.";
+            LibraryCountText.Text = string.Join(" â€¢ ", parts);
+            EmptyTitleText.Text = isTr ? "EÅŸleÅŸen duvar kaÄŸÄ±dÄ± bulunamadÄ±" : "No matching wallpapers";
+            EmptySubtitleText.Text = isTr ? "AramanÄ±zÄ± veya filtrenizi deÄŸiÅŸtirmeyi deneyin." : "Try adjusting your search or filter.";
         }
         else
         {
             var parts = new List<string>(3)
             {
-                isTr ? $"{totalCount} duvar kağıdı" : $"{totalCount} {(totalCount == 1 ? "wallpaper" : "wallpapers")}",
+                isTr ? $"{totalCount} duvar kaÄŸÄ±dÄ±" : $"{totalCount} {(totalCount == 1 ? "wallpaper" : "wallpapers")}",
                 isTr ? $"{favoriteCount} favori" : $"{favoriteCount} {(favoriteCount == 1 ? "favorite" : "favorites")}"
             };
             if (missingCount > 0)
@@ -1905,9 +1905,9 @@ public sealed partial class DesktopTestWindow : Window
                 parts.Add(isTr ? $"{missingCount} eksik" : $"{missingCount} missing");
             }
 
-            LibraryCountText.Text = string.Join(" • ", parts);
+            LibraryCountText.Text = string.Join(" â€¢ ", parts);
             EmptyTitleText.Text = loc.GetString(LocalizationKeys.ItemEmptyTitle);
-            EmptySubtitleText.Text = isTr ? "Duvar Kağıdı Ekle, Klasör Ekle veya dosyaları buraya sürükleyip bırakın." : "Use Add Wallpaper, Add Folder, or drag & drop files here.";
+            EmptySubtitleText.Text = isTr ? "Duvar KaÄŸÄ±dÄ± Ekle, KlasÃ¶r Ekle veya dosyalarÄ± buraya sÃ¼rÃ¼kleyip bÄ±rakÄ±n." : "Use Add Wallpaper, Add Folder, or drag & drop files here.";
         }
 
         if (HasLibrarySnapshotChanged(items))
@@ -1974,8 +1974,8 @@ public sealed partial class DesktopTestWindow : Window
         {
             BusyText.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
             BusyText.Text = libraryLoads > 0 && !IsInteractionBusy
-                ? (isTr ? "Kütüphane yükleniyor…" : "Loading library…")
-                : (isTr ? "İşleniyor…" : "Working…");
+                ? (isTr ? "KÃ¼tÃ¼phane yÃ¼kleniyorâ€¦" : "Loading libraryâ€¦")
+                : (isTr ? "Ä°ÅŸleniyorâ€¦" : "Workingâ€¦");
         }
         FeedbackArea.Visibility = busy || !string.IsNullOrWhiteSpace(StatusText?.Text)
             ? Visibility.Visible : Visibility.Collapsed;
@@ -1993,80 +1993,80 @@ public sealed partial class DesktopTestWindow : Window
         if (loc.CurrentLanguage == EffectiveLanguage.English) return message;
 
         if (message.StartsWith("Applied wallpaper: ", StringComparison.Ordinal))
-            return $"Duvar kağıdı uygulandı: {message["Applied wallpaper: ".Length..]}";
+            return $"Duvar kaÄŸÄ±dÄ± uygulandÄ±: {message["Applied wallpaper: ".Length..]}";
         if (message.StartsWith("Applying wallpaper: ", StringComparison.Ordinal))
-            return $"Duvar kağıdı uygulanıyor: {message["Applying wallpaper: ".Length..]}";
+            return $"Duvar kaÄŸÄ±dÄ± uygulanÄ±yor: {message["Applying wallpaper: ".Length..]}";
         if (message.StartsWith("Rotated wallpaper: ", StringComparison.Ordinal))
-            return $"Döngü uygulandı: {message["Rotated wallpaper: ".Length..]}";
+            return $"DÃ¶ngÃ¼ uygulandÄ±: {message["Rotated wallpaper: ".Length..]}";
         if (message.StartsWith("Added to library: ", StringComparison.Ordinal))
-            return $"Kütüphaneye eklendi: {message["Added to library: ".Length..]}";
+            return $"KÃ¼tÃ¼phaneye eklendi: {message["Added to library: ".Length..]}";
         if (message.StartsWith("Wallpaper is already in library: ", StringComparison.Ordinal))
-            return $"Duvar kağıdı zaten kütüphanede mevcut: {message["Wallpaper is already in library: ".Length..]}";
+            return $"Duvar kaÄŸÄ±dÄ± zaten kÃ¼tÃ¼phanede mevcut: {message["Wallpaper is already in library: ".Length..]}";
         if (message.StartsWith("Performance report exported to ", StringComparison.Ordinal))
-            return $"Performans raporu dışa aktarıldı: {message["Performance report exported to ".Length..]}";
+            return $"Performans raporu dÄ±ÅŸa aktarÄ±ldÄ±: {message["Performance report exported to ".Length..]}";
         if (message.StartsWith("Renamed wallpaper: ", StringComparison.Ordinal))
-            return $"Duvar kağıdı yeniden adlandırıldı: {message["Renamed wallpaper: ".Length..]}";
+            return $"Duvar kaÄŸÄ±dÄ± yeniden adlandÄ±rÄ±ldÄ±: {message["Renamed wallpaper: ".Length..]}";
         if (message.StartsWith("Relinked wallpaper: ", StringComparison.Ordinal))
-            return $"Duvar kağıdı yeniden bağlandı: {message["Relinked wallpaper: ".Length..]}";
+            return $"Duvar kaÄŸÄ±dÄ± yeniden baÄŸlandÄ±: {message["Relinked wallpaper: ".Length..]}";
         if (message.StartsWith("Removed from library: ", StringComparison.Ordinal))
-            return $"Kütüphaneden kaldırıldı: {message["Removed from library: ".Length..]}";
+            return $"KÃ¼tÃ¼phaneden kaldÄ±rÄ±ldÄ±: {message["Removed from library: ".Length..]}";
         if (message.StartsWith("Schedule transition: ", StringComparison.Ordinal))
-            return $"Program geçişi: {message["Schedule transition: ".Length..]}";
+            return $"Program geÃ§iÅŸi: {message["Schedule transition: ".Length..]}";
 
         var matchRemoved = Regex.Match(message, @"^Removed (\d+) wallpapers? from library\.$");
         if (matchRemoved.Success)
-            return $"{matchRemoved.Groups[1].Value} duvar kağıdı kütüphaneden kaldırıldı.";
+            return $"{matchRemoved.Groups[1].Value} duvar kaÄŸÄ±dÄ± kÃ¼tÃ¼phaneden kaldÄ±rÄ±ldÄ±.";
 
         var matchFav = Regex.Match(message, @"^(\d+) wallpapers? favorited\.$");
         if (matchFav.Success)
-            return $"{matchFav.Groups[1].Value} duvar kağıdı favorilere eklendi.";
+            return $"{matchFav.Groups[1].Value} duvar kaÄŸÄ±dÄ± favorilere eklendi.";
 
         var matchUnfav = Regex.Match(message, @"^(\d+) wallpapers? unfavorited\.$");
         if (matchUnfav.Success)
-            return $"{matchUnfav.Groups[1].Value} duvar kağıdı favorilerden çıkarıldı.";
+            return $"{matchUnfav.Groups[1].Value} duvar kaÄŸÄ±dÄ± favorilerden Ã§Ä±karÄ±ldÄ±.";
 
         var matchImported = Regex.Match(message, @"^Added (\d+) wallpapers?, skipped (\d+) duplicates?\.$");
         if (matchImported.Success)
-            return $"{matchImported.Groups[1].Value} duvar kağıdı eklendi, {matchImported.Groups[2].Value} mükerrer atlandı.";
+            return $"{matchImported.Groups[1].Value} duvar kaÄŸÄ±dÄ± eklendi, {matchImported.Groups[2].Value} mÃ¼kerrer atlandÄ±.";
 
         return message switch
         {
-            "Runtime unavailable." => "Çalışma ortamı kullanılamıyor.",
+            "Runtime unavailable." => "Ã‡alÄ±ÅŸma ortamÄ± kullanÄ±lamÄ±yor.",
             "File not found." => loc.GetString(LocalizationKeys.StatusWallpaperFileMissing),
             "Unsupported wallpaper." => loc.GetString(LocalizationKeys.StatusUnsupportedFile),
-            "Failed to apply wallpaper." => "Duvar kağıdı uygulanamadı.",
+            "Failed to apply wallpaper." => "Duvar kaÄŸÄ±dÄ± uygulanamadÄ±.",
             "Wallpaper stopped." => loc.GetString(LocalizationKeys.StatusWallpaperStopped),
-            "Failed to load library." => "Kütüphane yüklenemedi.",
+            "Failed to load library." => "KÃ¼tÃ¼phane yÃ¼klenemedi.",
             "Rotation paused." => loc.GetString(LocalizationKeys.StatusRotationPaused),
             "Rotation stopped." => loc.GetString(LocalizationKeys.StatusRotationStopped),
-            "Failed to select next wallpaper." => "Sonraki duvar kağıdı seçilemedi.",
-            "Failed to export performance report." => "Performans raporu dışa aktarılamadı.",
-            "Select a valid wallpaper file." => "Geçerli bir duvar kağıdı dosyası seçin.",
-            "Wallpaper operation in progress." => "Duvar kağıdı işlemi sürüyor.",
-            "No wallpapers found in folder." => "Klasörde duvar kağıdı bulunamadı.",
+            "Failed to select next wallpaper." => "Sonraki duvar kaÄŸÄ±dÄ± seÃ§ilemedi.",
+            "Failed to export performance report." => "Performans raporu dÄ±ÅŸa aktarÄ±lamadÄ±.",
+            "Select a valid wallpaper file." => "GeÃ§erli bir duvar kaÄŸÄ±dÄ± dosyasÄ± seÃ§in.",
+            "Wallpaper operation in progress." => "Duvar kaÄŸÄ±dÄ± iÅŸlemi sÃ¼rÃ¼yor.",
+            "No wallpapers found in folder." => "KlasÃ¶rde duvar kaÄŸÄ±dÄ± bulunamadÄ±.",
             "Import cancelled." => loc.GetString(LocalizationKeys.StatusImportCancelled),
-            "Diagnostic log could not be opened." => "Tanılama günlüğü açılamadı.",
+            "Diagnostic log could not be opened." => "TanÄ±lama gÃ¼nlÃ¼ÄŸÃ¼ aÃ§Ä±lamadÄ±.",
             "Runtime host recovered successfully." => loc.GetString(LocalizationKeys.StatusRuntimeRecovered),
             "Failed to restore previous wallpaper." => loc.GetString(LocalizationKeys.StatusRestoreFailed),
             "Wallpaper stopped safely after repeated failures." => loc.GetString(LocalizationKeys.StatusSafeStopped),
-            "Invalid folder path." => "Geçersiz klasör yolu.",
-            "Folder does not exist." => "Klasör bulunamadı.",
-            "No supported wallpapers found." => "Desteklenen duvar kağıdı bulunamadı.",
-            "Removed from library." => "Kütüphaneden kaldırıldı.",
-            "No wallpapers selected." => "Hiçbir duvar kağıdı seçilmedi.",
-            "All wallpapers in folder already in library." => "Klasördeki tüm duvar kağıtları zaten kütüphanede mevcut.",
-            "Added to library." => "Kütüphaneye eklendi.",
-            "Download cancelled." => "İndirme iptal edildi.",
-            "Could not connect to server." => "Sunucuya bağlanılamadı.",
-            "Invalid URL." => "Geçersiz URL.",
-            "Day wallpaper applied." => "Gündüz duvar kağıdı uygulandı.",
-            "Night wallpaper applied." => "Gece duvar kağıdı uygulandı.",
-            "No day wallpaper configured." => "Gündüz duvar kağıdı ayarlanmadı.",
-            "No night wallpaper configured." => "Gece duvar kağıdı ayarlanmadı.",
-            "No eligible wallpapers to rotate." => "Döngü için uygun duvar kağıdı bulunamadı.",
-            "No eligible wallpapers." => "Uygun duvar kağıdı yok.",
-            "No eligible favorites to rotate." => "Döngü için uygun favori duvar kağıdı bulunamadı.",
-            "No favorites in library to rotate." => "Döngü için kütüphanede favori duvar kağıdı yok.",
+            "Invalid folder path." => "GeÃ§ersiz klasÃ¶r yolu.",
+            "Folder does not exist." => "KlasÃ¶r bulunamadÄ±.",
+            "No supported wallpapers found." => "Desteklenen duvar kaÄŸÄ±dÄ± bulunamadÄ±.",
+            "Removed from library." => "KÃ¼tÃ¼phaneden kaldÄ±rÄ±ldÄ±.",
+            "No wallpapers selected." => "HiÃ§bir duvar kaÄŸÄ±dÄ± seÃ§ilmedi.",
+            "All wallpapers in folder already in library." => "KlasÃ¶rdeki tÃ¼m duvar kaÄŸÄ±tlarÄ± zaten kÃ¼tÃ¼phanede mevcut.",
+            "Added to library." => "KÃ¼tÃ¼phaneye eklendi.",
+            "Download cancelled." => "Ä°ndirme iptal edildi.",
+            "Could not connect to server." => "Sunucuya baÄŸlanÄ±lamadÄ±.",
+            "Invalid URL." => "GeÃ§ersiz URL.",
+            "Day wallpaper applied." => "GÃ¼ndÃ¼z duvar kaÄŸÄ±dÄ± uygulandÄ±.",
+            "Night wallpaper applied." => "Gece duvar kaÄŸÄ±dÄ± uygulandÄ±.",
+            "No day wallpaper configured." => "GÃ¼ndÃ¼z duvar kaÄŸÄ±dÄ± ayarlanmadÄ±.",
+            "No night wallpaper configured." => "Gece duvar kaÄŸÄ±dÄ± ayarlanmadÄ±.",
+            "No eligible wallpapers to rotate." => "DÃ¶ngÃ¼ iÃ§in uygun duvar kaÄŸÄ±dÄ± bulunamadÄ±.",
+            "No eligible wallpapers." => "Uygun duvar kaÄŸÄ±dÄ± yok.",
+            "No eligible favorites to rotate." => "DÃ¶ngÃ¼ iÃ§in uygun favori duvar kaÄŸÄ±dÄ± bulunamadÄ±.",
+            "No favorites in library to rotate." => "DÃ¶ngÃ¼ iÃ§in kÃ¼tÃ¼phanede favori duvar kaÄŸÄ±dÄ± yok.",
             _ => message
         };
     }private void UpdateLibraryActionState()
@@ -2189,8 +2189,8 @@ public sealed partial class DesktopTestWindow : Window
 
         ActiveFullPathText.Text = hasWallpaper
             ? activeWallpaperPath!
-            : (isTr ? "Kütüphaneden bir duvar kağıdı seçin veya aşağıdan bir dosya belirleyin." : "Select a wallpaper from the Library or choose a file below.");
-        ActiveMissingWarningText.Text = isTr ? "Duvar kağıdı dosyası bulunamadı." : "The wallpaper file is missing.";
+            : (isTr ? "KÃ¼tÃ¼phaneden bir duvar kaÄŸÄ±dÄ± seÃ§in veya aÅŸaÄŸÄ±dan bir dosya belirleyin." : "Select a wallpaper from the Library or choose a file below.");
+        ActiveMissingWarningText.Text = isTr ? "Duvar kaÄŸÄ±dÄ± dosyasÄ± bulunamadÄ±." : "The wallpaper file is missing.";
         ActiveMissingWarningText.Visibility = isMissingOnDisk ? Visibility.Visible : Visibility.Collapsed;
         ActiveEmptyState.Visibility = hasWallpaper ? Visibility.Collapsed : Visibility.Visible;
         ActiveDetailsPanel.Visibility = hasWallpaper ? Visibility.Visible : Visibility.Collapsed;
@@ -2215,7 +2215,7 @@ public sealed partial class DesktopTestWindow : Window
             : IpcConstants.PlaybackStateNone;
 
         PlaybackStatusText.Text = !statusKnown
-            ? (isTr ? "Kullanılamıyor" : "Unavailable")
+            ? (isTr ? "KullanÄ±lamÄ±yor" : "Unavailable")
             : !hasWallpaper
                 ? (isTr ? "Yok" : "None")
                 : resolvedPaused
@@ -2226,6 +2226,41 @@ public sealed partial class DesktopTestWindow : Window
         {
             var profileTag = (EfficiencyProfileComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Balanced";
             ActiveEfficiencyProfileText.Text = PerformanceSnapshotFormatter.FormatEfficiencyProfile(profileTag, loc);
+        }
+
+                if (ActiveWallpaperCostText != null)
+        {
+            if (!hasWallpaper)
+            {
+                ActiveWallpaperCostText.Text = string.Empty;
+                ActiveWallpaperCostText.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ActiveWallpaperCostText.Visibility = Visibility.Visible;
+                long? size = null;
+                try
+                {
+                    if (File.Exists(activeWallpaperPath))
+                    {
+                        size = new FileInfo(activeWallpaperPath).Length;
+                    }
+                }
+                catch { }
+
+                var cost = WallpaperCostClassifier.Classify(activeWallpaperType, fileSizeBytes: size);
+                var costLabel = cost switch
+                {
+                    WallpaperCost.Light => isTr ? "YÃ¼k: Hafif" : "Cost: Light",
+                    WallpaperCost.Moderate => isTr ? "YÃ¼k: Orta" : "Cost: Moderate",
+                    WallpaperCost.Heavy => isTr ? "YÃ¼k: AÄŸÄ±r" : "Cost: Heavy",
+                    _ => "Light"
+                };
+                ActiveWallpaperCostText.Text = costLabel;
+                ToolTipService.SetToolTip(ActiveWallpaperCostText, isTr
+                    ? $"DonanÄ±m tÃ¼ketim sÄ±nÄ±fÄ±: {costLabel}"
+                    : $"Hardware resource tier: {costLabel}");
+            }
         }
 
         PauseResumeWallpaperButton.Content = resolvedPaused ? loc.GetString(LocalizationKeys.ActiveResume) : loc.GetString(LocalizationKeys.ActivePause);
@@ -2436,13 +2471,13 @@ public sealed partial class DesktopTestWindow : Window
         EfficiencyProfileDescriptionText.Text = profile switch
         {
             "Eco" => isTr
-                ? "Eko: Agresif güç ve işlemci tasarrufu. Tam ekran pencerelerde, pil tasarrufunda, oturum kilitlendiğinde ve ekran kapandığında otomatik duraklar."
+                ? "Eko: Agresif gÃ¼Ã§ ve iÅŸlemci tasarrufu. Tam ekran pencerelerde, pil tasarrufunda, oturum kilitlendiÄŸinde ve ekran kapandÄ±ÄŸÄ±nda otomatik duraklar."
                 : "Eco: Aggressive power and CPU savings. Automatically pauses during fullscreen windows, battery saver / low battery, workstation lock, and display sleep.",
             "Unrestricted" => isTr
-                ? "Kısıtlamasız: Tam ekran uygulamalarda ve pilde dahi duvar kağıdını çalıştırmaya devam eder. Güvenlik için kilit ve ekran kapanmasında duraklar."
+                ? "KÄ±sÄ±tlamasÄ±z: Tam ekran uygulamalarda ve pilde dahi duvar kaÄŸÄ±dÄ±nÄ± Ã§alÄ±ÅŸtÄ±rmaya devam eder. GÃ¼venlik iÃ§in kilit ve ekran kapanmasÄ±nda duraklar."
                 : "Unrestricted: Keeps wallpaper playing even during fullscreen applications and battery power. Still pauses on workstation lock and display sleep for safety.",
             _ => isTr
-                ? "Dengeli (Önerilen): Akıllı kaynak verimliliği. Tam ekran uygulamalar masaüstünü kapladığında veya pil tasarrufu devreye girdiğinde otomatik duraklar."
+                ? "Dengeli (Ã–nerilen): AkÄ±llÄ± kaynak verimliliÄŸi. Tam ekran uygulamalar masaÃ¼stÃ¼nÃ¼ kapladÄ±ÄŸÄ±nda veya pil tasarrufu devreye girdiÄŸinde otomatik duraklar."
                 : "Balanced (Recommended): Smart resource efficiency. Automatically pauses when fullscreen apps cover the desktop or battery saver is engaged."
         };
     }
@@ -2527,7 +2562,7 @@ public sealed partial class DesktopTestWindow : Window
 
         if (parsedMode == RotationMode.Off)
         {
-            RotationSettingsStatusText.Text = isTr ? "Döngü devre dışı." : "Rotation is disabled.";
+            RotationSettingsStatusText.Text = isTr ? "DÃ¶ngÃ¼ devre dÄ±ÅŸÄ±." : "Rotation is disabled.";
         }
         else
         {
@@ -2538,13 +2573,13 @@ public sealed partial class DesktopTestWindow : Window
             };
             var modeName = parsedMode == RotationMode.Favorites
                 ? (isTr ? "Favoriler" : "Favorites")
-                : (isTr ? "Tüm Kütüphane" : "All Library");
+                : (isTr ? "TÃ¼m KÃ¼tÃ¼phane" : "All Library");
             var orderName = parsedOrder == RotationOrder.Shuffle
-                ? (isTr ? "Karışık" : "Shuffle")
-                : (isTr ? "Sıralı" : "Sequential");
+                ? (isTr ? "KarÄ±ÅŸÄ±k" : "Shuffle")
+                : (isTr ? "SÄ±ralÄ±" : "Sequential");
             RotationSettingsStatusText.Text = isTr
-                ? $"Aktif: {modeName} • {orderName} • Her {intervalText}."
-                : $"Active: {modeName} • {orderName} every {intervalText}.";
+                ? $"Aktif: {modeName} â€¢ {orderName} â€¢ Her {intervalText}."
+                : $"Active: {modeName} â€¢ {orderName} every {intervalText}.";
         }
     }
 
@@ -2659,9 +2694,9 @@ public sealed partial class DesktopTestWindow : Window
         {
             var rotState = status.Mode switch
             {
-                RotationMode.All => isTr ? $"Tüm Kütüphane • {(status.Order == RotationOrder.Shuffle ? "Karışık" : "Sıralı")}" : $"All Library • {status.Order.ToDisplayString()}",
-                RotationMode.Favorites => isTr ? $"Favoriler • {(status.Order == RotationOrder.Shuffle ? "Karışık" : "Sıralı")}" : $"Favorites • {status.Order.ToDisplayString()}",
-                _ => isTr ? "Kapalı" : "Off"
+                RotationMode.All => isTr ? $"TÃ¼m KÃ¼tÃ¼phane â€¢ {(status.Order == RotationOrder.Shuffle ? "KarÄ±ÅŸÄ±k" : "SÄ±ralÄ±")}" : $"All Library â€¢ {status.Order.ToDisplayString()}",
+                RotationMode.Favorites => isTr ? $"Favoriler â€¢ {(status.Order == RotationOrder.Shuffle ? "KarÄ±ÅŸÄ±k" : "SÄ±ralÄ±")}" : $"Favorites â€¢ {status.Order.ToDisplayString()}",
+                _ => isTr ? "KapalÄ±" : "Off"
             };
             ActiveRotationStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveRotation)}: {rotState}";
         }
@@ -2682,14 +2717,14 @@ public sealed partial class DesktopTestWindow : Window
         status ??= libraryController?.Rotation?.GetStatus();
         if (status == null || !status.IsActive)
         {
-            var inactive = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Devre dışı" : "Inactive";
+            var inactive = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Devre dÄ±ÅŸÄ±" : "Inactive";
             ActiveRotationCountdownText.Text = $"{nextLabel}: {inactive}";
             return;
         }
 
         if (status.IsOverdue)
         {
-            var overdue = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Gecikmiş (duraklatıldı)" : "Overdue (paused)";
+            var overdue = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "GecikmiÅŸ (duraklatÄ±ldÄ±)" : "Overdue (paused)";
             ActiveRotationCountdownText.Text = $"{nextLabel}: {overdue}";
             return;
         }
@@ -2699,7 +2734,7 @@ public sealed partial class DesktopTestWindow : Window
             var remaining = status.NextDueTimeUtc.Value - DateTimeOffset.UtcNow;
             if (remaining <= TimeSpan.Zero)
             {
-                var imminent = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Uygulanıyor..." : "Imminent";
+                var imminent = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "UygulanÄ±yor..." : "Imminent";
                 ActiveRotationCountdownText.Text = $"{nextLabel}: {imminent}";
             }
             else
@@ -2721,7 +2756,7 @@ public sealed partial class DesktopTestWindow : Window
         }
         else
         {
-            var inactive = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Devre dışı" : "Inactive";
+            var inactive = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Devre dÄ±ÅŸÄ±" : "Inactive";
             ActiveRotationCountdownText.Text = $"{nextLabel}: {inactive}";
         }
     }
@@ -3130,19 +3165,19 @@ public sealed partial class DesktopTestWindow : Window
             var dur = PerformanceSnapshotFormatter.FormatTimeSpan(snap.PlaybackDuration);
             var pStatus = snap.PlaybackStatus switch
             {
-                "Playing" => isTr ? "Oynatılıyor" : "Playing",
-                "Paused" => isTr ? "Duraklatıldı" : "Paused",
+                "Playing" => isTr ? "OynatÄ±lÄ±yor" : "Playing",
+                "Paused" => isTr ? "DuraklatÄ±ldÄ±" : "Paused",
                 _ => snap.PlaybackStatus ?? (isTr ? "Bilinmiyor" : "Unknown")
             };
             PerfMediaDetailsText.Text = isTr
-                ? $"Durum: {pStatus} • Konum: {pos} / {dur} • Yol: {snap.ActiveWallpaperPath ?? "(Yok)"}"
-                : $"Status: {pStatus} • Pos: {pos} / {dur} • Path: {snap.ActiveWallpaperPath ?? "(None)"}";
+                ? $"Durum: {pStatus} â€¢ Konum: {pos} / {dur} â€¢ Yol: {snap.ActiveWallpaperPath ?? "(Yok)"}"
+                : $"Status: {pStatus} â€¢ Pos: {pos} / {dur} â€¢ Path: {snap.ActiveWallpaperPath ?? "(None)"}";
         }
         else
         {
             PerfSourceResolutionText.Text = isTr ? "Yok" : "None";
             PerfDecodeResolutionText.Text = isTr ? "Yok" : "None";
-            PerfMediaDetailsText.Text = isTr ? "Aktif duvar kağıdı yok." : "No active wallpaper.";
+            PerfMediaDetailsText.Text = isTr ? "Aktif duvar kaÄŸÄ±dÄ± yok." : "No active wallpaper.";
         }
 
         PerfDesktopHostStateText.Text = PerformanceSnapshotFormatter.FormatDesktopHostState(snap.DesktopHostConnected, loc);
@@ -3166,14 +3201,14 @@ public sealed partial class DesktopTestWindow : Window
             var sb = new StringBuilder();
             foreach (var evt in snap.RecentEvents.OrderByDescending(item => item.TimestampUtc).Take(6))
             {
-                sb.AppendLine($"{evt.EventType} · {evt.TimestampUtc.ToLocalTime():HH:mm:ss}\n{evt.Message}\n");
+                sb.AppendLine($"{evt.EventType} Â· {evt.TimestampUtc.ToLocalTime():HH:mm:ss}\n{evt.Message}\n");
             }
             PerfRecentEventsListText.Text = sb.ToString().TrimEnd();
         }
         else
         {
             PerfRecentEventsCountText.Text = isTr ? "0 olay" : "0 events";
-            PerfRecentEventsListText.Text = isTr ? "Kayıtlı olay yok." : "No events recorded.";
+            PerfRecentEventsListText.Text = isTr ? "KayÄ±tlÄ± olay yok." : "No events recorded.";
         }
 
         PerfEfficiencyStatusText.Text = PerformanceSnapshotFormatter.FormatEfficiencyStatus(snap, loc);
@@ -3181,13 +3216,13 @@ public sealed partial class DesktopTestWindow : Window
         if (snap.GpuPercent.HasValue)
         {
             PerfGpuStatusText.Text = isTr
-                ? $"GPU Kullanımı: {snap.GpuPercent.Value.ToString("F1", culture)}% • Ayrılmış Bellek: {FormatMegabytes(snap.GpuMemoryBytes ?? 0)}"
-                : $"GPU Utilization: {snap.GpuPercent.Value.ToString("F1", culture)}% • Dedicated Memory: {FormatMegabytes(snap.GpuMemoryBytes ?? 0)}";
+                ? $"GPU KullanÄ±mÄ±: {snap.GpuPercent.Value.ToString("F1", culture)}% â€¢ AyrÄ±lmÄ±ÅŸ Bellek: {FormatMegabytes(snap.GpuMemoryBytes ?? 0)}"
+                : $"GPU Utilization: {snap.GpuPercent.Value.ToString("F1", culture)}% â€¢ Dedicated Memory: {FormatMegabytes(snap.GpuMemoryBytes ?? 0)}";
         }
         else
         {
             PerfGpuStatusText.Text = isTr
-                ? "GPU metrikleri: Kullanılamıyor. Windows süreç düzeyinde GPU sayaçları tüm süreçler genelinde D3D motoru sayımı gerektirir ve örnek başına 2+ saniye ek yük getirir."
+                ? "GPU metrikleri: KullanÄ±lamÄ±yor. Windows sÃ¼reÃ§ dÃ¼zeyinde GPU sayaÃ§larÄ± tÃ¼m sÃ¼reÃ§ler genelinde D3D motoru sayÄ±mÄ± gerektirir ve Ã¶rnek baÅŸÄ±na 2+ saniye ek yÃ¼k getirir."
                 : (snap.GpuStatusMessage ?? "GPU metrics: Unavailable. Windows process-level GPU counters require full D3D engine enumeration across all processes, adding 2+ seconds overhead per sample.");
         }
     }
@@ -3208,7 +3243,7 @@ public sealed partial class DesktopTestWindow : Window
         PerfHandlesText.Text = "--";
         PerfUptimeText.Text = "--";
 
-        PerfSampleCountText.Text = isTr ? "0 örnek" : "0 samples";
+        PerfSampleCountText.Text = isTr ? "0 Ã¶rnek" : "0 samples";
         PerfCpuStatsText.Text = PerformanceSnapshotFormatter.FormatAvgPeak("--%", "--%", loc);
         PerfRamStatsText.Text = PerformanceSnapshotFormatter.FormatAvgPeak("-- MB", "-- MB", loc);
         PerfPrivateStatsText.Text = PerformanceSnapshotFormatter.FormatAvgPeak("-- MB", "-- MB", loc);
@@ -3216,25 +3251,25 @@ public sealed partial class DesktopTestWindow : Window
         PerfHandlePeakText.Text = PerformanceSnapshotFormatter.FormatPeak("--", loc);
 
         PerfWallpaperTypeStateText.Text = isTr ? "Bilinmiyor" : "Unknown";
-        PerfRendererStatusText.Text = isTr ? "Etkin Değil" : "Inactive";
-        PerfSourceResolutionText.Text = isTr ? "Kullanılamıyor" : "Unavailable";
-        PerfDecodeResolutionText.Text = isTr ? "Kullanılamıyor" : "Unavailable";
-        PerfMediaDetailsText.Text = isTr ? "Çalışma motoru yanıt vermiyor." : "Runtime host is not responding.";
+        PerfRendererStatusText.Text = isTr ? "Etkin DeÄŸil" : "Inactive";
+        PerfSourceResolutionText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
+        PerfDecodeResolutionText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
+        PerfMediaDetailsText.Text = isTr ? "Ã‡alÄ±ÅŸma motoru yanÄ±t vermiyor." : "Runtime host is not responding.";
 
-        PerfDesktopHostStateText.Text = isTr ? "Bağlantı Yok" : "Disconnected";
+        PerfDesktopHostStateText.Text = isTr ? "BaÄŸlantÄ± Yok" : "Disconnected";
         PerfPauseReasonsText.Text = isTr ? "Bilinmiyor" : "Unknown";
-        PerfFullscreenPolicyText.Text = isTr ? "Kullanılamıyor" : "Unavailable";
-        PerfPowerPolicyText.Text = isTr ? "Kullanılamıyor" : "Unavailable";
-        PerfSessionLockPolicyText.Text = isTr ? "Kullanılamıyor" : "Unavailable";
-        PerfDisplayPowerPolicyText.Text = isTr ? "Kullanılamıyor" : "Unavailable";
-        PerfEfficiencyStatusText.Text = isTr ? "Verimlilik: Kullanılamıyor" : "Efficiency: Unavailable";
+        PerfFullscreenPolicyText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
+        PerfPowerPolicyText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
+        PerfSessionLockPolicyText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
+        PerfDisplayPowerPolicyText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
+        PerfEfficiencyStatusText.Text = isTr ? "Verimlilik: KullanÄ±lamÄ±yor" : "Efficiency: Unavailable";
 
         PerfEfficiencyProfileText.Text = isTr ? "Bilinmiyor" : "Unknown";
-        PerfRuntimeHealthText.Text = isTr ? "Kullanılamıyor" : "Unavailable";
+        PerfRuntimeHealthText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
         PerfRuntimeHealthText.Style = (Style)Application.Current.Resources["HealthNeutralStyle"];
-        PerfCurrentActionText.Text = isTr ? "Çalışma motoru bağlantısı yok" : "Runtime host disconnected";
+        PerfCurrentActionText.Text = isTr ? "Ã‡alÄ±ÅŸma motoru baÄŸlantÄ±sÄ± yok" : "Runtime host disconnected";
         PerfRecentEventsCountText.Text = isTr ? "0 olay" : "0 events";
-        PerfRecentEventsListText.Text = isTr ? "Kullanılamıyor." : "Unavailable.";
+        PerfRecentEventsListText.Text = isTr ? "KullanÄ±lamÄ±yor." : "Unavailable.";
     }
 
     private async void OnExportReportClicked(object sender, RoutedEventArgs args)
@@ -3331,7 +3366,7 @@ public sealed partial class DesktopTestWindow : Window
         SettingsNavigationItem.Content = loc.GetString(LocalizationKeys.NavSettings);
         if (AppTaglineText != null)
         {
-            AppTaglineText.Text = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "MASAÜSTÜ DENETİMİ" : "DESKTOP CONTROL";
+            AppTaglineText.Text = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "MASAÃœSTÃœ DENETÄ°MÄ°" : "DESKTOP CONTROL";
         }
     }
 
@@ -3373,7 +3408,7 @@ public sealed partial class DesktopTestWindow : Window
         if (EmptyTitleText != null) EmptyTitleText.Text = loc.GetString(LocalizationKeys.ItemEmptyTitle);
         if (EmptySubtitleText != null) EmptySubtitleText.Text = loc.GetString(LocalizationKeys.ItemEmptySubtitle);
 
-        if (DropOverlayTitleText != null) DropOverlayTitleText.Text = isTr ? "Duvar kağıtlarını buraya bırakın" : "Drop wallpapers here";
+        if (DropOverlayTitleText != null) DropOverlayTitleText.Text = isTr ? "Duvar kaÄŸÄ±tlarÄ±nÄ± buraya bÄ±rakÄ±n" : "Drop wallpapers here";
         if (DropOverlaySubtitleText != null) DropOverlaySubtitleText.Text = isTr ? "Resimler (.png, .jpg) ve videolar (.mp4) desteklenir" : "Images (.png, .jpg) and videos (.mp4) supported";
 
         if (LibraryFilterComboBox?.Items != null)
@@ -3406,7 +3441,7 @@ public sealed partial class DesktopTestWindow : Window
                         "Newest" => loc.GetString(LocalizationKeys.SortRecent),
                         "Oldest" => loc.CurrentLanguage == EffectiveLanguage.Turkish ? "En Eski" : "Oldest",
                         "NameAsc" => loc.GetString(LocalizationKeys.SortName),
-                        "NameDesc" => loc.CurrentLanguage == EffectiveLanguage.Turkish ? "İsim (Z–A)" : "Name (Z–A)",
+                        "NameDesc" => loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Ä°sim (Zâ€“A)" : "Name (Zâ€“A)",
                         _ => item.Content
                     };
                 }
@@ -3437,13 +3472,13 @@ public sealed partial class DesktopTestWindow : Window
             StopActiveWallpaperButton.Content = loc.GetString(LocalizationKeys.ActiveStop);
             AutomationProperties.SetName(StopActiveWallpaperButton, loc.GetString(LocalizationKeys.ActiveStop));
         }
-        if (SelectImageButton != null) SelectImageButton.Content = isTr ? "Dosya Seç…" : "Choose File…";
+        if (SelectImageButton != null) SelectImageButton.Content = isTr ? "Dosya SeÃ§â€¦" : "Choose Fileâ€¦";
         if (RefreshActiveStatusButton != null) RefreshActiveStatusButton.Content = isTr ? "Yenile" : "Refresh";
 
-        if (ActiveEmptyTitleText != null) ActiveEmptyTitleText.Text = isTr ? "Etkin duvar kağıdı yok" : "No wallpaper active";
-        if (ActiveEmptySubtitleText != null) ActiveEmptySubtitleText.Text = isTr ? "Kütüphaneden bir duvar kağıdı uygulayın veya aşağıdan bir dosya seçin." : "Apply a wallpaper from Library or choose a file below.";
-        if (ActiveSourceResolutionHeader != null) ActiveSourceResolutionHeader.Text = isTr ? "Kaynak çözünürlüğü · son ölçüm" : "Source resolution · last measurement";
-        if (ActiveMissingWarningText != null) ActiveMissingWarningText.Text = isTr ? "Duvar kağıdı dosyası bulunamadı." : "The wallpaper file is missing.";
+        if (ActiveEmptyTitleText != null) ActiveEmptyTitleText.Text = isTr ? "Etkin duvar kaÄŸÄ±dÄ± yok" : "No wallpaper active";
+        if (ActiveEmptySubtitleText != null) ActiveEmptySubtitleText.Text = isTr ? "KÃ¼tÃ¼phaneden bir duvar kaÄŸÄ±dÄ± uygulayÄ±n veya aÅŸaÄŸÄ±dan bir dosya seÃ§in." : "Apply a wallpaper from Library or choose a file below.";
+        if (ActiveSourceResolutionHeader != null) ActiveSourceResolutionHeader.Text = isTr ? "Kaynak Ã§Ã¶zÃ¼nÃ¼rlÃ¼ÄŸÃ¼ Â· son Ã¶lÃ§Ã¼m" : "Source resolution Â· last measurement";
+        if (ActiveMissingWarningText != null) ActiveMissingWarningText.Text = isTr ? "Duvar kaÄŸÄ±dÄ± dosyasÄ± bulunamadÄ±." : "The wallpaper file is missing.";
 
         UpdateActiveDetails(activeWallpaperPaused, activePlaybackState, statusKnown: true);
         UpdateRotationDetailsUI();
@@ -3467,7 +3502,7 @@ public sealed partial class DesktopTestWindow : Window
         status ??= libraryController?.Schedule?.GetStatus();
         if (status == null || !status.IsActive)
         {
-            var offLabel = isTr ? "Kapalı" : "Off";
+            var offLabel = isTr ? "KapalÄ±" : "Off";
             ActiveScheduleStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveSchedule)}: {offLabel}";
             return;
         }
@@ -3481,8 +3516,8 @@ public sealed partial class DesktopTestWindow : Window
 
         if (status.IsOverdue)
         {
-            var overdue = isTr ? "Gecikmiş (duraklatıldı)" : "Overdue (paused)";
-            ActiveScheduleStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveSchedule)}: {slotLabel} • {overdue}";
+            var overdue = isTr ? "GecikmiÅŸ (duraklatÄ±ldÄ±)" : "Overdue (paused)";
+            ActiveScheduleStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveSchedule)}: {slotLabel} â€¢ {overdue}";
             return;
         }
 
@@ -3499,7 +3534,7 @@ public sealed partial class DesktopTestWindow : Window
             var nextFormat = isTr
                 ? $"Sonraki: {nextSlotLabel} {timeStr}"
                 : $"Next: {nextSlotLabel} at {timeStr}";
-            ActiveScheduleStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveSchedule)}: {slotLabel} • {nextFormat}";
+            ActiveScheduleStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveSchedule)}: {slotLabel} â€¢ {nextFormat}";
         }
         else
         {
@@ -3515,7 +3550,7 @@ public sealed partial class DesktopTestWindow : Window
         status ??= libraryController?.Schedule?.GetStatus();
         if (status == null || !status.IsActive)
         {
-            ScheduleSettingsStatusText.Text = isTr ? "Program devre dışı." : "Schedule is disabled.";
+            ScheduleSettingsStatusText.Text = isTr ? "Program devre dÄ±ÅŸÄ±." : "Schedule is disabled.";
             if (ScheduleDayStartPanel != null) ScheduleDayStartPanel.Opacity = 0.5;
             if (ScheduleNightStartPanel != null) ScheduleNightStartPanel.Opacity = 0.5;
             if (ScheduleWallpapersGrid != null) ScheduleWallpapersGrid.Opacity = 0.5;
@@ -3527,10 +3562,10 @@ public sealed partial class DesktopTestWindow : Window
         if (ScheduleWallpapersGrid != null) ScheduleWallpapersGrid.Opacity = 1.0;
 
         var dayName = !string.IsNullOrEmpty(status.CurrentWallpaperId) && libraryController?.Items?.FirstOrDefault(x => string.Equals(x.Id, status.CurrentWallpaperId, StringComparison.OrdinalIgnoreCase)) is { } item
-            ? item.DisplayName : (isTr ? "Seçilmedi" : "None");
+            ? item.DisplayName : (isTr ? "SeÃ§ilmedi" : "None");
         ScheduleSettingsStatusText.Text = isTr
-            ? $"Aktif: Gündüz / Gece Programı • Şu anki: {dayName}"
-            : $"Active: Day / Night Schedule • Current: {dayName}";
+            ? $"Aktif: GÃ¼ndÃ¼z / Gece ProgramÄ± â€¢ Åu anki: {dayName}"
+            : $"Active: Day / Night Schedule â€¢ Current: {dayName}";
     }
 
     private void PopulateScheduleWallpaperComboBoxes()
@@ -3538,7 +3573,7 @@ public sealed partial class DesktopTestWindow : Window
         if (ScheduleDayWallpaperComboBox == null || ScheduleNightWallpaperComboBox == null) return;
         var items = libraryController?.Items ?? (IReadOnlyList<WallpaperLibraryEntryView>)Array.Empty<WallpaperLibraryEntryView>();
         var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
-        var noneLabel = isTr ? "(Seçilmedi)" : "(None selected)";
+        var noneLabel = isTr ? "(SeÃ§ilmedi)" : "(None selected)";
 
         var selectedDayTag = (ScheduleDayWallpaperComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
         var selectedNightTag = (ScheduleNightWallpaperComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
@@ -3740,7 +3775,7 @@ public sealed partial class DesktopTestWindow : Window
         {
             var emptyText = new TextBlock
             {
-                Text = isTr ? "Yapılandırılmış uygulama kuralı yok." : "No application rules configured.",
+                Text = isTr ? "YapÄ±landÄ±rÄ±lmÄ±ÅŸ uygulama kuralÄ± yok." : "No application rules configured.",
                 FontSize = 12,
                 Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
             };
@@ -3780,7 +3815,7 @@ public sealed partial class DesktopTestWindow : Window
 
             var editBtn = new Button
             {
-                Content = isTr ? "Düzenle" : "Edit",
+                Content = isTr ? "DÃ¼zenle" : "Edit",
                 Margin = new Thickness(8, 0, 4, 0),
                 FontSize = 12
             };
@@ -3791,7 +3826,7 @@ public sealed partial class DesktopTestWindow : Window
 
             var removeBtn = new Button
             {
-                Content = isTr ? "Kaldır" : "Remove",
+                Content = isTr ? "KaldÄ±r" : "Remove",
                 Margin = new Thickness(4, 0, 0, 0),
                 FontSize = 12
             };
@@ -3806,14 +3841,14 @@ public sealed partial class DesktopTestWindow : Window
 
     private static string FormatAppRuleBehavior(AppRuleBehavior behavior, bool isTr) => behavior switch
     {
-        AppRuleBehavior.Focus => isTr ? "Odak Profili: Video duraklatılır, resim korunur" : "Focus Profile: Pauses video, keeps images",
-        AppRuleBehavior.Gaming => isTr ? "Oyun Profili: Video duraklatılır ve dondurulur" : "Gaming Profile: Pauses & deep freezes video",
-        AppRuleBehavior.Presentation => isTr ? "Sunum Profili: Hareket durdurulur, sunum duvar kağıdı açılır" : "Presentation Profile: Halts motion, uses presentation wallpaper",
-        AppRuleBehavior.Cinema => isTr ? "Sinema Profili: Video duraklatılır" : "Cinema Profile: Pauses video during media",
-        AppRuleBehavior.Pause => isTr ? "Duraklat: Duvar kağıdını duraklat" : "Pause: Pauses wallpaper",
-        AppRuleBehavior.DeepFreeze => isTr ? "Derin Dondur: Video kaynaklarını bırak" : "Deep Freeze: Releases video decoder resources",
-        AppRuleBehavior.UseWallpaper => isTr ? "Duvar Kağıdı Uygula: Özel duvar kağıdına geç" : "Use Wallpaper: Switches to designated wallpaper",
-        _ => isTr ? "İşlem Yok" : "No Action"
+        AppRuleBehavior.Focus => isTr ? "Odak Profili: Video duraklatÄ±lÄ±r, resim korunur" : "Focus Profile: Pauses video, keeps images",
+        AppRuleBehavior.Gaming => isTr ? "Oyun Profili: Video duraklatÄ±lÄ±r ve dondurulur" : "Gaming Profile: Pauses & deep freezes video",
+        AppRuleBehavior.Presentation => isTr ? "Sunum Profili: Hareket durdurulur, sunum duvar kaÄŸÄ±dÄ± aÃ§Ä±lÄ±r" : "Presentation Profile: Halts motion, uses presentation wallpaper",
+        AppRuleBehavior.Cinema => isTr ? "Sinema Profili: Video duraklatÄ±lÄ±r" : "Cinema Profile: Pauses video during media",
+        AppRuleBehavior.Pause => isTr ? "Duraklat: Duvar kaÄŸÄ±dÄ±nÄ± duraklat" : "Pause: Pauses wallpaper",
+        AppRuleBehavior.DeepFreeze => isTr ? "Derin Dondur: Video kaynaklarÄ±nÄ± bÄ±rak" : "Deep Freeze: Releases video decoder resources",
+        AppRuleBehavior.UseWallpaper => isTr ? "Duvar KaÄŸÄ±dÄ± Uygula: Ã–zel duvar kaÄŸÄ±dÄ±na geÃ§" : "Use Wallpaper: Switches to designated wallpaper",
+        _ => isTr ? "Ä°ÅŸlem Yok" : "No Action"
     };
 
     private async Task RemoveAppRuleAsync(string processName)
@@ -3849,15 +3884,15 @@ public sealed partial class DesktopTestWindow : Window
 
         var procBox = new TextBox
         {
-            Header = isTr ? "Uygulama Adı (.exe)" : "Application Executable (.exe)",
-            PlaceholderText = "ör. devenv.exe, powerpnt.exe",
+            Header = isTr ? "Uygulama AdÄ± (.exe)" : "Application Executable (.exe)",
+            PlaceholderText = "Ã¶r. devenv.exe, powerpnt.exe",
             Text = existingRule?.ProcessName ?? initialProcessName ?? string.Empty
         };
         panel.Children.Add(procBox);
 
         var behaviorBox = new ComboBox
         {
-            Header = isTr ? "Davranış / Profil" : "Behavior / Profile",
+            Header = isTr ? "DavranÄ±ÅŸ / Profil" : "Behavior / Profile",
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         behaviorBox.Items.Add(new ComboBoxItem { Content = isTr ? "Odak (Focus)" : "Focus", Tag = AppRuleBehavior.Focus });
@@ -3876,10 +3911,10 @@ public sealed partial class DesktopTestWindow : Window
         {
             XamlRoot = this.Content.XamlRoot,
             Title = existingRule != null
-                ? (isTr ? "Uygulama Kuralını Düzenle" : "Edit Application Rule")
-                : (isTr ? "Uygulama Kuralı Ekle" : "Add Application Rule"),
+                ? (isTr ? "Uygulama KuralÄ±nÄ± DÃ¼zenle" : "Edit Application Rule")
+                : (isTr ? "Uygulama KuralÄ± Ekle" : "Add Application Rule"),
             PrimaryButtonText = isTr ? "Kaydet" : "Save",
-            CloseButtonText = isTr ? "İptal" : "Cancel",
+            CloseButtonText = isTr ? "Ä°ptal" : "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             Content = panel
         };
@@ -3929,7 +3964,7 @@ public sealed partial class DesktopTestWindow : Window
         var infoText = new TextBlock
         {
             Text = isTr
-                ? "Şu anda çalışan uygulamalardan birini seçin:"
+                ? "Åu anda Ã§alÄ±ÅŸan uygulamalardan birini seÃ§in:"
                 : "Select from currently running applications:",
             FontSize = 12,
             Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
@@ -3938,7 +3973,7 @@ public sealed partial class DesktopTestWindow : Window
 
         var appList = new ComboBox
         {
-            Header = isTr ? "Çalışan Uygulamalar" : "Running Applications",
+            Header = isTr ? "Ã‡alÄ±ÅŸan Uygulamalar" : "Running Applications",
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
 
@@ -3959,7 +3994,7 @@ public sealed partial class DesktopTestWindow : Window
         {
             appList.Items.Add(new ComboBoxItem
             {
-                Content = isTr ? "Çalışan uygun uygulama bulunamadı" : "No suitable running applications found",
+                Content = isTr ? "Ã‡alÄ±ÅŸan uygun uygulama bulunamadÄ±" : "No suitable running applications found",
                 Tag = null,
                 IsEnabled = false
             });
@@ -3971,9 +4006,9 @@ public sealed partial class DesktopTestWindow : Window
         var dialog = new ContentDialog
         {
             XamlRoot = this.Content.XamlRoot,
-            Title = isTr ? "Çalışan Uygulamadan Kural Oluştur" : "Create Rule from Running Application",
-            PrimaryButtonText = isTr ? "Seç" : "Select",
-            CloseButtonText = isTr ? "İptal" : "Cancel",
+            Title = isTr ? "Ã‡alÄ±ÅŸan Uygulamadan Kural OluÅŸtur" : "Create Rule from Running Application",
+            PrimaryButtonText = isTr ? "SeÃ§" : "Select",
+            CloseButtonText = isTr ? "Ä°ptal" : "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             Content = panel
         };
@@ -3991,10 +4026,10 @@ public sealed partial class DesktopTestWindow : Window
         var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
 
         if (SettingsTitleText != null) SettingsTitleText.Text = loc.GetString(LocalizationKeys.NavSettings);
-        if (SettingsSubtitleText != null) SettingsSubtitleText.Text = isTr ? "Görünüm, verimlilik ve başlangıç tercihleri." : "Appearance and startup preferences.";
+        if (SettingsSubtitleText != null) SettingsSubtitleText.Text = isTr ? "GÃ¶rÃ¼nÃ¼m, verimlilik ve baÅŸlangÄ±Ã§ tercihleri." : "Appearance and startup preferences.";
 
         if (SettingsAppearanceHeader != null) SettingsAppearanceHeader.Text = loc.GetString(LocalizationKeys.SetAppearance);
-        if (SettingsAppearanceSubtitle != null) SettingsAppearanceSubtitle.Text = isTr ? "Açık, koyu veya Windows temanızı kullanın." : "Use light, dark, or your Windows theme.";
+        if (SettingsAppearanceSubtitle != null) SettingsAppearanceSubtitle.Text = isTr ? "AÃ§Ä±k, koyu veya Windows temanÄ±zÄ± kullanÄ±n." : "Use light, dark, or your Windows theme.";
 
         if (SettingsLanguageHeader != null) SettingsLanguageHeader.Text = loc.GetString(LocalizationKeys.SetLanguage);
         if (SettingsLanguageSubtitle != null) SettingsLanguageSubtitle.Text = loc.GetString(LocalizationKeys.SetLanguageDescription);
@@ -4003,14 +4038,14 @@ public sealed partial class DesktopTestWindow : Window
         {
             var systemTag = WindowsLanguageDetector.Instance.GetSystemDisplayLanguage();
             var effectiveForSystem = LanguageResolver.ResolveFromSystemTag(systemTag);
-            var sysSuffix = effectiveForSystem == EffectiveLanguage.Turkish ? " (Türkçe)" : " (English)";
+            var sysSuffix = effectiveForSystem == EffectiveLanguage.Turkish ? " (TÃ¼rkÃ§e)" : " (English)";
             foreach (var item in LanguageComboBox.Items.OfType<ComboBoxItem>())
             {
                 var tag = item.Tag as string;
                 item.Content = tag switch
                 {
-                    "System" => (isTr ? "Sistem varsayılanı" : "System default") + sysSuffix,
-                    "Turkish" => "Türkçe",
+                    "System" => (isTr ? "Sistem varsayÄ±lanÄ±" : "System default") + sysSuffix,
+                    "Turkish" => "TÃ¼rkÃ§e",
                     "English" => "English",
                     _ => item.Content
                 };
@@ -4024,7 +4059,7 @@ public sealed partial class DesktopTestWindow : Window
                 var tag = item.Tag as string;
                 item.Content = tag switch
                 {
-                    "System" => isTr ? "Sistem varsayılanı" : "System default",
+                    "System" => isTr ? "Sistem varsayÄ±lanÄ±" : "System default",
                     "Light" => loc.GetString(LocalizationKeys.SetThemeLight),
                     "Dark" => loc.GetString(LocalizationKeys.SetThemeDark),
                     _ => item.Content
@@ -4034,7 +4069,7 @@ public sealed partial class DesktopTestWindow : Window
 
         if (SettingsEfficiencyHeader != null) SettingsEfficiencyHeader.Text = loc.GetString(LocalizationKeys.SetEfficiency);
         if (SettingsEfficiencySubtitle != null) SettingsEfficiencySubtitle.Text = isTr
-            ? "NiceWP'nin görsel akıcılık ile arka plan pil ve işlemci tasarrufu arasındaki dengesini ayarlayın."
+            ? "NiceWP'nin gÃ¶rsel akÄ±cÄ±lÄ±k ile arka plan pil ve iÅŸlemci tasarrufu arasÄ±ndaki dengesini ayarlayÄ±n."
             : "Control how NiceWP balances visual smoothness with background battery and CPU efficiency.";
 
         if (EfficiencyProfileComboBox != null)
@@ -4048,16 +4083,16 @@ public sealed partial class DesktopTestWindow : Window
                     switch (tag)
                     {
                         case "Balanced":
-                            title.Text = isTr ? "Dengeli · Önerilen" : "Balanced · Recommended";
-                            desc.Text = isTr ? "Dengeli masaüstü performansı ve arka plan tasarrufu" : "Balanced desktop performance and background savings";
+                            title.Text = isTr ? "Dengeli Â· Ã–nerilen" : "Balanced Â· Recommended";
+                            desc.Text = isTr ? "Dengeli masaÃ¼stÃ¼ performansÄ± ve arka plan tasarrufu" : "Balanced desktop performance and background savings";
                             break;
                         case "Eco":
                             title.Text = isTr ? "Eko" : "Eco";
                             desc.Text = isTr ? "Maksimum arka plan tasarrufu" : "Maximum background savings";
                             break;
                         case "Unrestricted":
-                            title.Text = isTr ? "Kısıtlamasız" : "Unrestricted";
-                            desc.Text = isTr ? "Duvar kağıdını mümkün olduğunca sürekli çalıştırır" : "Keeps wallpaper running whenever possible";
+                            title.Text = isTr ? "KÄ±sÄ±tlamasÄ±z" : "Unrestricted";
+                            desc.Text = isTr ? "Duvar kaÄŸÄ±dÄ±nÄ± mÃ¼mkÃ¼n olduÄŸunca sÃ¼rekli Ã§alÄ±ÅŸtÄ±rÄ±r" : "Keeps wallpaper running whenever possible";
                             break;
                     }
                 }
@@ -4075,7 +4110,7 @@ public sealed partial class DesktopTestWindow : Window
         if (RestoreLastWallpaperCheckBox != null) RestoreLastWallpaperCheckBox.Content = loc.GetString(LocalizationKeys.SetRestoreLast);
 
         if (SettingsRotationHeader != null) SettingsRotationHeader.Text = loc.GetString(LocalizationKeys.SetWallpaperRotation);
-        if (SettingsRotationSubtitle != null) SettingsRotationSubtitle.Text = isTr ? "Kütüphanenizdeki veya favorilerinizdeki duvar kağıtlarını otomatik döngüye sokun." : "Automatically cycle through wallpapers in your library or favorites.";
+        if (SettingsRotationSubtitle != null) SettingsRotationSubtitle.Text = isTr ? "KÃ¼tÃ¼phanenizdeki veya favorilerinizdeki duvar kaÄŸÄ±tlarÄ±nÄ± otomatik dÃ¶ngÃ¼ye sokun." : "Automatically cycle through wallpapers in your library or favorites.";
 
         if (SettingsRotationModeLabel != null) SettingsRotationModeLabel.Text = loc.GetString(LocalizationKeys.ActiveRotation);
         if (SettingsRotationOrderLabel != null) SettingsRotationOrderLabel.Text = loc.GetString(LocalizationKeys.SetRotationOrder);
@@ -4088,8 +4123,8 @@ public sealed partial class DesktopTestWindow : Window
                 var tag = item.Tag as string;
                 item.Content = tag switch
                 {
-                    "Off" => isTr ? "Kapalı" : "Off",
-                    "All" => isTr ? "Tüm Kütüphane" : "All Library",
+                    "Off" => isTr ? "KapalÄ±" : "Off",
+                    "All" => isTr ? "TÃ¼m KÃ¼tÃ¼phane" : "All Library",
                     "Favorites" => isTr ? "Favoriler" : "Favorites",
                     _ => item.Content
                 };
@@ -4127,10 +4162,10 @@ public sealed partial class DesktopTestWindow : Window
         }
 
         if (SettingsScheduleHeader != null) SettingsScheduleHeader.Text = loc.GetString(LocalizationKeys.SetWallpaperSchedule);
-        if (SettingsScheduleSubtitle != null) SettingsScheduleSubtitle.Text = isTr ? "Gündüz ve gece duvar kağıtları arasında otomatik geçiş yapın." : "Automatically transition between Day and Night wallpapers.";
+        if (SettingsScheduleSubtitle != null) SettingsScheduleSubtitle.Text = isTr ? "GÃ¼ndÃ¼z ve gece duvar kaÄŸÄ±tlarÄ± arasÄ±nda otomatik geÃ§iÅŸ yapÄ±n." : "Automatically transition between Day and Night wallpapers.";
         if (SettingsScheduleModeLabel != null) SettingsScheduleModeLabel.Text = loc.GetString(LocalizationKeys.SetScheduleMode);
-        if (SettingsDayStartLabel != null) SettingsDayStartLabel.Text = isTr ? "Gündüz başlangıcı" : "Day begins";
-        if (SettingsNightStartLabel != null) SettingsNightStartLabel.Text = isTr ? "Gece başlangıcı" : "Night begins";
+        if (SettingsDayStartLabel != null) SettingsDayStartLabel.Text = isTr ? "GÃ¼ndÃ¼z baÅŸlangÄ±cÄ±" : "Day begins";
+        if (SettingsNightStartLabel != null) SettingsNightStartLabel.Text = isTr ? "Gece baÅŸlangÄ±cÄ±" : "Night begins";
         if (SettingsDayWallpaperLabel != null) SettingsDayWallpaperLabel.Text = loc.GetString(LocalizationKeys.SetDayWallpaper);
         if (SettingsNightWallpaperLabel != null) SettingsNightWallpaperLabel.Text = loc.GetString(LocalizationKeys.SetNightWallpaper);
 
@@ -4141,8 +4176,8 @@ public sealed partial class DesktopTestWindow : Window
                 var tag = item.Tag as string;
                 item.Content = tag switch
                 {
-                    "Off" => isTr ? "Kapalı" : "Off",
-                    "DayNight" => isTr ? "Gündüz ve Gece" : "Day & Night",
+                    "Off" => isTr ? "KapalÄ±" : "Off",
+                    "DayNight" => isTr ? "GÃ¼ndÃ¼z ve Gece" : "Day & Night",
                     _ => item.Content
                 };
             }
@@ -4150,21 +4185,21 @@ public sealed partial class DesktopTestWindow : Window
 
         UpdateScheduleSettingsStatus();
 
-        if (SettingsPresentationWallpaperHeader != null) SettingsPresentationWallpaperHeader.Text = isTr ? "Sunum Profili Duvar Kağıdı (İsteğe Bağlı)" : "Presentation Profile Wallpaper (Optional)";
+        if (SettingsPresentationWallpaperHeader != null) SettingsPresentationWallpaperHeader.Text = isTr ? "Sunum Profili Duvar KaÄŸÄ±dÄ± (Ä°steÄŸe BaÄŸlÄ±)" : "Presentation Profile Wallpaper (Optional)";
         if (SettingsPresentationWallpaperSubtitle != null) SettingsPresentationWallpaperSubtitle.Text = isTr
-            ? "Toplantı veya ekran paylaşımı oturumlarında gösterilecek duvar kağıdı."
+            ? "ToplantÄ± veya ekran paylaÅŸÄ±mÄ± oturumlarÄ±nda gÃ¶sterilecek duvar kaÄŸÄ±dÄ±."
             : "Wallpaper to show during meetings or screen share sessions.";
-        if (SettingsAppRulesHeader != null) SettingsAppRulesHeader.Text = isTr ? "Uygulama Kuralları" : "Application Rules";
+        if (SettingsAppRulesHeader != null) SettingsAppRulesHeader.Text = isTr ? "Uygulama KurallarÄ±" : "Application Rules";
         if (SettingsAppRulesSubtitle != null) SettingsAppRulesSubtitle.Text = isTr
-            ? "Belirli uygulamalar aktif olduğunda atanacak masaüstü profilini veya davranışını belirleyin."
+            ? "Belirli uygulamalar aktif olduÄŸunda atanacak masaÃ¼stÃ¼ profilini veya davranÄ±ÅŸÄ±nÄ± belirleyin."
             : "Assign specific desktop profiles or behaviors when selected applications are active.";
         if (AddAppRuleButton != null) AddAppRuleButton.Content = isTr ? "Kural Ekle" : "Add Rule";
-        if (AddFromRunningAppButton != null) AddFromRunningAppButton.Content = isTr ? "Çalışan Uygulamalardan…" : "Add from Running…";
+        if (AddFromRunningAppButton != null) AddFromRunningAppButton.Content = isTr ? "Ã‡alÄ±ÅŸan Uygulamalardanâ€¦" : "Add from Runningâ€¦";
         RenderAppRules();
 
         if (SettingsStorageHeader != null) SettingsStorageHeader.Text = isTr ? "Sistem Tepsisi ve Yerel Depolama" : "System Tray & Local Storage";
         if (SettingsStorageSubtitle != null) SettingsStorageSubtitle.Text = isTr
-            ? "Bu pencereyi kapattığınızda NiceWP sistem tepsisinde çalışmaya devam eder. Duvar kağıdınız aktif kalır."
+            ? "Bu pencereyi kapattÄ±ÄŸÄ±nÄ±zda NiceWP sistem tepsisinde Ã§alÄ±ÅŸmaya devam eder. Duvar kaÄŸÄ±dÄ±nÄ±z aktif kalÄ±r."
             : "NiceWP stays in the system tray when you close this window. Your wallpaper keeps running.";
 
         if (RotationModeComboBox?.SelectedItem is ComboBoxItem selMode &&
@@ -4183,10 +4218,10 @@ public sealed partial class DesktopTestWindow : Window
         var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
 
         if (PerformanceTitleText != null) PerformanceTitleText.Text = loc.GetString(LocalizationKeys.NavPerformance);
-        if (PerformanceSubtitleText != null) PerformanceSubtitleText.Text = isTr ? "Masaüstünüzün net görünümü. Metrikler bu cihazda kalır." : "A clear view of your desktop. Metrics stay on this device.";
+        if (PerformanceSubtitleText != null) PerformanceSubtitleText.Text = isTr ? "MasaÃ¼stÃ¼nÃ¼zÃ¼n net gÃ¶rÃ¼nÃ¼mÃ¼. Metrikler bu cihazda kalÄ±r." : "A clear view of your desktop. Metrics stay on this device.";
         if (ExportReportButton != null) ExportReportButton.Content = loc.GetString(LocalizationKeys.PerfExport);
 
-        if (PerfRuntimeHealthLabel != null) PerfRuntimeHealthLabel.Text = isTr ? "Çalışma Durumu" : "Runtime Health";
+        if (PerfRuntimeHealthLabel != null) PerfRuntimeHealthLabel.Text = isTr ? "Ã‡alÄ±ÅŸma Durumu" : "Runtime Health";
         if (PerfEfficiencyModeLabel != null) PerfEfficiencyModeLabel.Text = isTr ? "Verimlilik Modu" : "Efficiency Mode";
         if (PerfCurrentActionLabel != null) PerfCurrentActionLabel.Text = loc.GetString(LocalizationKeys.PerfCurrentAction);
 
@@ -4197,25 +4232,25 @@ public sealed partial class DesktopTestWindow : Window
         if (PerfHandlesLabel != null) PerfHandlesLabel.Text = loc.GetString(LocalizationKeys.PerfHandles);
         if (PerfUptimeLabel != null) PerfUptimeLabel.Text = loc.GetString(LocalizationKeys.PerfUptime);
 
-        if (PerfWallpaperRendererHeader != null) PerfWallpaperRendererHeader.Text = isTr ? "Duvar Kağıdı ve İşleyici" : "Wallpaper & Renderer";
-        if (PerfActiveTypeLabel != null) PerfActiveTypeLabel.Text = isTr ? "Aktif Tür ve Oynatma" : "Active Type & Playback";
-        if (PerfRendererWindowLabel != null) PerfRendererWindowLabel.Text = isTr ? "İşleyici Penceresi (HWND)" : "Renderer Window (HWND)";
-        if (PerfSourceResolutionLabel != null) PerfSourceResolutionLabel.Text = isTr ? "Kaynak Çözünürlüğü" : "Source Resolution";
-        if (PerfDecodeResolutionLabel != null) PerfDecodeResolutionLabel.Text = isTr ? "Çözümleme Çözünürlüğü ve Bellek" : "Decode Resolution & Memory";
-        if (PerfMediaDetailsLabel != null) PerfMediaDetailsLabel.Text = isTr ? "Medya Ayrıntıları" : "Media Details";
+        if (PerfWallpaperRendererHeader != null) PerfWallpaperRendererHeader.Text = isTr ? "Duvar KaÄŸÄ±dÄ± ve Ä°ÅŸleyici" : "Wallpaper & Renderer";
+        if (PerfActiveTypeLabel != null) PerfActiveTypeLabel.Text = isTr ? "Aktif TÃ¼r ve Oynatma" : "Active Type & Playback";
+        if (PerfRendererWindowLabel != null) PerfRendererWindowLabel.Text = isTr ? "Ä°ÅŸleyici Penceresi (HWND)" : "Renderer Window (HWND)";
+        if (PerfSourceResolutionLabel != null) PerfSourceResolutionLabel.Text = isTr ? "Kaynak Ã‡Ã¶zÃ¼nÃ¼rlÃ¼ÄŸÃ¼" : "Source Resolution";
+        if (PerfDecodeResolutionLabel != null) PerfDecodeResolutionLabel.Text = isTr ? "Ã‡Ã¶zÃ¼mleme Ã‡Ã¶zÃ¼nÃ¼rlÃ¼ÄŸÃ¼ ve Bellek" : "Decode Resolution & Memory";
+        if (PerfMediaDetailsLabel != null) PerfMediaDetailsLabel.Text = isTr ? "Medya AyrÄ±ntÄ±larÄ±" : "Media Details";
 
-        if (PerfGuardrailsHeader != null) PerfGuardrailsHeader.Text = isTr ? "Masaüstü Korumaları" : "Desktop guardrails";
-        if (PerfDesktopHostLabel != null) PerfDesktopHostLabel.Text = isTr ? "Masaüstü Ana Bilgisayarı (WorkerW)" : "Desktop Host (WorkerW)";
+        if (PerfGuardrailsHeader != null) PerfGuardrailsHeader.Text = isTr ? "MasaÃ¼stÃ¼ KorumalarÄ±" : "Desktop guardrails";
+        if (PerfDesktopHostLabel != null) PerfDesktopHostLabel.Text = isTr ? "MasaÃ¼stÃ¼ Ana BilgisayarÄ± (WorkerW)" : "Desktop Host (WorkerW)";
         if (PerfPauseReasonsLabel != null) PerfPauseReasonsLabel.Text = isTr ? "Aktif Duraklatma Nedenleri" : "Active Pause Reasons";
-        if (PerfFullscreenPolicyLabel != null) PerfFullscreenPolicyLabel.Text = isTr ? "Tam Ekran İlkesi" : "Fullscreen Policy";
-        if (PerfPowerPolicyLabel != null) PerfPowerPolicyLabel.Text = isTr ? "Güç / Pil İlkesi" : "Power / Battery Policy";
-        if (PerfSessionLockPolicyLabel != null) PerfSessionLockPolicyLabel.Text = isTr ? "Oturum Kilidi İlkesi" : "Session Lock Policy";
-        if (PerfDisplayPowerPolicyLabel != null) PerfDisplayPowerPolicyLabel.Text = isTr ? "Ekran Güç İlkesi" : "Display Power Policy";
+        if (PerfFullscreenPolicyLabel != null) PerfFullscreenPolicyLabel.Text = isTr ? "Tam Ekran Ä°lkesi" : "Fullscreen Policy";
+        if (PerfPowerPolicyLabel != null) PerfPowerPolicyLabel.Text = isTr ? "GÃ¼Ã§ / Pil Ä°lkesi" : "Power / Battery Policy";
+        if (PerfSessionLockPolicyLabel != null) PerfSessionLockPolicyLabel.Text = isTr ? "Oturum Kilidi Ä°lkesi" : "Session Lock Policy";
+        if (PerfDisplayPowerPolicyLabel != null) PerfDisplayPowerPolicyLabel.Text = isTr ? "Ekran GÃ¼Ã§ Ä°lkesi" : "Display Power Policy";
 
-        if (PerfAuditTrailHeader != null) PerfAuditTrailHeader.Text = isTr ? "Denetim Kaydı" : "Audit Trail";
-        if (PerfGpuHeader != null) PerfGpuHeader.Text = isTr ? "GPU Ölçümü" : "GPU Measurement";
-        if (PerfPrivacyHeader != null) PerfPrivacyHeader.Text = isTr ? "Gizlilik ve Yerel Şeffaflık" : "Privacy & Local Transparency";
-        if (PerfPrivacySubtitle != null) PerfPrivacySubtitle.Text = isTr ? "Metrikler bu cihazda kalır. Hiçbir telemetri gönderilmez." : "Metrics stay on this device. No performance telemetry is sent.";
+        if (PerfAuditTrailHeader != null) PerfAuditTrailHeader.Text = isTr ? "Denetim KaydÄ±" : "Audit Trail";
+        if (PerfGpuHeader != null) PerfGpuHeader.Text = isTr ? "GPU Ã–lÃ§Ã¼mÃ¼" : "GPU Measurement";
+        if (PerfPrivacyHeader != null) PerfPrivacyHeader.Text = isTr ? "Gizlilik ve Yerel ÅeffaflÄ±k" : "Privacy & Local Transparency";
+        if (PerfPrivacySubtitle != null) PerfPrivacySubtitle.Text = isTr ? "Metrikler bu cihazda kalÄ±r. HiÃ§bir telemetri gÃ¶nderilmez." : "Metrics stay on this device. No performance telemetry is sent.";
 
         if (PerformanceLiveIndicator != null) PerformanceLiveIndicator.Text = PerformanceSnapshotFormatter.FormatLiveIndicator(loc);
 
@@ -4225,10 +4260,10 @@ public sealed partial class DesktopTestWindow : Window
         }
         else
         {
-            RenderPerformanceUnavailable(isTr ? "Çalışma motoru bekleniyor." : "Waiting for runtime.");
+            RenderPerformanceUnavailable(isTr ? "Ã‡alÄ±ÅŸma motoru bekleniyor." : "Waiting for runtime.");
         }
     }
 
     private static string FormatDimensions(uint? w, uint? h) =>
-        w.HasValue && h.HasValue ? $"{w.Value} x {h.Value}" : (LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish ? "Kullanılamıyor" : "Unavailable");
+        w.HasValue && h.HasValue ? $"{w.Value} x {h.Value}" : (LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish ? "KullanÄ±lamÄ±yor" : "Unavailable");
 }

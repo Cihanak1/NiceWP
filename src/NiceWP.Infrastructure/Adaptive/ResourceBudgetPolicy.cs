@@ -34,4 +34,14 @@ public static class ResourceBudgetPolicy
         if (budget != ResourceBudget.Low) return false;
         return string.Equals(wallpaperType, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
     }
+
+    public static ResourceBudget ResolveAutomaticBudget(bool isOnBattery, bool isBatterySaver, bool isPressureSustained)
+    {
+        if (isBatterySaver || isPressureSustained)
+        {
+            return ResourceBudget.Low;
+        }
+
+        return ResourceBudget.Balanced;
+    }
 }
