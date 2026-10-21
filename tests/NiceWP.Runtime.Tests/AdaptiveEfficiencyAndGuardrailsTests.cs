@@ -430,6 +430,7 @@ public sealed class AdaptiveEfficiencyAndGuardrailsTests : IDisposable
     private sealed class FakeRuntimeEventNotifier : IRuntimeEventNotifier
     {
         public event EventHandler? ForegroundWindowChanged;
+        public event Action<string?>? ForegroundProcessChanged;
         public event Action<bool>? SessionLockChanged;
         public event Action<bool>? DisplayPowerChanged;
         public event EventHandler? PowerStatusChanged;
@@ -438,8 +439,14 @@ public sealed class AdaptiveEfficiencyAndGuardrailsTests : IDisposable
         public bool IsSessionNotificationActive { get; set; } = true;
         public bool IsDisplayNotificationActive { get; set; } = true;
         public bool IsPowerNotificationActive { get; set; } = true;
+        public string? CurrentForegroundProcessName { get; set; }
 
         public void RaiseForegroundWindowChanged() => ForegroundWindowChanged?.Invoke(this, EventArgs.Empty);
+        public void RaiseForegroundProcessChanged(string? processName)
+        {
+            CurrentForegroundProcessName = processName;
+            ForegroundProcessChanged?.Invoke(processName);
+        }
         public void RaiseSessionLockChanged(bool isLocked) => SessionLockChanged?.Invoke(isLocked);
         public void RaiseDisplayPowerChanged(bool isDisplayOn) => DisplayPowerChanged?.Invoke(isDisplayOn);
         public void RaisePowerStatusChanged() => PowerStatusChanged?.Invoke(this, EventArgs.Empty);

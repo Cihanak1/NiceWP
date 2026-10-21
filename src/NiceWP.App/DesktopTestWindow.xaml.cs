@@ -26,6 +26,7 @@ using NiceWP.Infrastructure.Remote;
 using NiceWP.Infrastructure.Rotation;
 using NiceWP.Infrastructure.Localization;
 using NiceWP.Infrastructure.Scheduling;
+using NiceWP.Infrastructure.Adaptive;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 
@@ -40,6 +41,7 @@ public sealed partial class DesktopTestWindow : Window
     private readonly AutostartManager autostartManager = new();
     private readonly SettingsService settingsService = new();
     private readonly WallpaperThumbnailService thumbnailService = new();
+    private readonly AppRuleMatchingService appRuleMatchingService = new();
     private readonly WallpaperLibraryController libraryController;
     private readonly HashSet<Border> realizedCardBorders = [];
     private readonly List<(string Id, string FilePath, string Type, string DisplayName, bool IsMissing, bool IsFavorite)> renderedLibrarySnapshot = [];
@@ -172,6 +174,8 @@ public sealed partial class DesktopTestWindow : Window
             UpdateRotationDetailsUI();
             libraryController.Schedule.Initialize(settings);
             UpdateScheduleDetailsUI();
+            appRuleMatchingService.UpdateRules(settings.AppRules);
+            RenderAppRules();
             if (settings.EffectiveScheduleMode == ScheduleModeExtensions.ModeDayNight)
             {
                 _ = libraryController.Schedule.EvaluateAndApplyCurrentSlotAsync();
@@ -3682,6 +3686,262 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
+    private void RenderAppRules()
+    {
+        if (AppRulesListContainer == null) return;
+        AppRulesListContainer.Children.Clear();
+        var rules = appRuleMatchingService.CurrentRules;
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+
+        if (rules.Count == 0)
+        {
+            var emptyText = new TextBlock
+            {
+                Text = isTr ? "Yapılandırılmış uygulama kuralı yok." : "No application rules configured.",
+                FontSize = 12,
+                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            };
+            AppRulesListContainer.Children.Add(emptyText);
+            return;
+        }
+
+        foreach (var rule in rules)
+        {
+            var border = new Border
+            {
+                Background = (Brush)Application.Current.Resources["ControlFillColorDefaultBrush"],
+                BorderBrush = (Brush)Application.Current.Resources["ControlStrokeBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(12, 8, 12, 8)
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var infoPanel = new StackPanel { Spacing = 2 };
+            var procText = new TextBlock { Text = rule.ProcessName, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+            var behaviorDesc = FormatAppRuleBehavior(rule.Behavior, isTr);
+            var descText = new TextBlock
+            {
+                Text = behaviorDesc,
+                FontSize = 12,
+                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            };
+            infoPanel.Children.Add(procText);
+            infoPanel.Children.Add(descText);
+            Grid.SetColumn(infoPanel, 0);
+            grid.Children.Add(infoPanel);
+
+            var editBtn = new Button
+            {
+                Content = isTr ? "Düzenle" : "Edit",
+                Margin = new Thickness(8, 0, 4, 0),
+                FontSize = 12
+            };
+            var currentRule = rule;
+            editBtn.Click += async (_, _) => await ShowAppRuleEditDialogAsync(currentRule);
+            Grid.SetColumn(editBtn, 1);
+            grid.Children.Add(editBtn);
+
+            var removeBtn = new Button
+            {
+                Content = isTr ? "Kaldır" : "Remove",
+                Margin = new Thickness(4, 0, 0, 0),
+                FontSize = 12
+            };
+            removeBtn.Click += async (_, _) => await RemoveAppRuleAsync(currentRule.ProcessName);
+            Grid.SetColumn(removeBtn, 2);
+            grid.Children.Add(removeBtn);
+
+            border.Child = grid;
+            AppRulesListContainer.Children.Add(border);
+        }
+    }
+
+    private static string FormatAppRuleBehavior(AppRuleBehavior behavior, bool isTr) => behavior switch
+    {
+        AppRuleBehavior.Focus => isTr ? "Odak Profili: Video duraklatılır, resim korunur" : "Focus Profile: Pauses video, keeps images",
+        AppRuleBehavior.Gaming => isTr ? "Oyun Profili: Video duraklatılır ve dondurulur" : "Gaming Profile: Pauses & deep freezes video",
+        AppRuleBehavior.Presentation => isTr ? "Sunum Profili: Hareket durdurulur, sunum duvar kağıdı açılır" : "Presentation Profile: Halts motion, uses presentation wallpaper",
+        AppRuleBehavior.Cinema => isTr ? "Sinema Profili: Video duraklatılır" : "Cinema Profile: Pauses video during media",
+        AppRuleBehavior.Pause => isTr ? "Duraklat: Duvar kağıdını duraklat" : "Pause: Pauses wallpaper",
+        AppRuleBehavior.DeepFreeze => isTr ? "Derin Dondur: Video kaynaklarını bırak" : "Deep Freeze: Releases video decoder resources",
+        AppRuleBehavior.UseWallpaper => isTr ? "Duvar Kağıdı Uygula: Özel duvar kağıdına geç" : "Use Wallpaper: Switches to designated wallpaper",
+        _ => isTr ? "İşlem Yok" : "No Action"
+    };
+
+    private async Task RemoveAppRuleAsync(string processName)
+    {
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.AppRules.RemoveAll(r => string.Equals(r.ProcessName, processName, StringComparison.OrdinalIgnoreCase));
+            await settingsService.SaveAsync(cur);
+            appRuleMatchingService.UpdateRules(cur.AppRules);
+            RenderAppRules();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error removing app rule: {ex}");
+        }
+    }
+
+    private async void OnAddAppRuleClicked(object sender, RoutedEventArgs e)
+    {
+        await ShowAppRuleEditDialogAsync(null);
+    }
+
+    private async void OnAddFromRunningAppClicked(object sender, RoutedEventArgs e)
+    {
+        await ShowRunningAppPickerDialogAsync();
+    }
+
+    private async Task ShowAppRuleEditDialogAsync(AppRule? existingRule, string? initialProcessName = null)
+    {
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        var panel = new StackPanel { Spacing = 12, Width = 340 };
+
+        var procBox = new TextBox
+        {
+            Header = isTr ? "Uygulama Adı (.exe)" : "Application Executable (.exe)",
+            PlaceholderText = "ör. devenv.exe, powerpnt.exe",
+            Text = existingRule?.ProcessName ?? initialProcessName ?? string.Empty
+        };
+        panel.Children.Add(procBox);
+
+        var behaviorBox = new ComboBox
+        {
+            Header = isTr ? "Davranış / Profil" : "Behavior / Profile",
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        behaviorBox.Items.Add(new ComboBoxItem { Content = isTr ? "Odak (Focus)" : "Focus", Tag = AppRuleBehavior.Focus });
+        behaviorBox.Items.Add(new ComboBoxItem { Content = isTr ? "Oyun (Gaming)" : "Gaming", Tag = AppRuleBehavior.Gaming });
+        behaviorBox.Items.Add(new ComboBoxItem { Content = isTr ? "Sunum (Presentation)" : "Presentation", Tag = AppRuleBehavior.Presentation });
+        behaviorBox.Items.Add(new ComboBoxItem { Content = isTr ? "Sinema (Cinema)" : "Cinema", Tag = AppRuleBehavior.Cinema });
+        behaviorBox.Items.Add(new ComboBoxItem { Content = isTr ? "Duraklat (Pause)" : "Pause", Tag = AppRuleBehavior.Pause });
+        behaviorBox.Items.Add(new ComboBoxItem { Content = isTr ? "Derin Dondur (Deep Freeze)" : "Deep Freeze", Tag = AppRuleBehavior.DeepFreeze });
+
+        var initialBehavior = existingRule?.Behavior ?? AppRuleBehavior.Focus;
+        var matchingItem = behaviorBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (AppRuleBehavior)i.Tag == initialBehavior);
+        behaviorBox.SelectedItem = matchingItem ?? behaviorBox.Items[0];
+        panel.Children.Add(behaviorBox);
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = this.Content.XamlRoot,
+            Title = existingRule != null
+                ? (isTr ? "Uygulama Kuralını Düzenle" : "Edit Application Rule")
+                : (isTr ? "Uygulama Kuralı Ekle" : "Add Application Rule"),
+            PrimaryButtonText = isTr ? "Kaydet" : "Save",
+            CloseButtonText = isTr ? "İptal" : "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            Content = panel
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            var rawProc = procBox.Text?.Trim();
+            var normalizedProc = AppRuleNormalizer.NormalizeProcessName(rawProc);
+            if (string.IsNullOrEmpty(normalizedProc)) return;
+
+            var chosenBehavior = (AppRuleBehavior)((ComboBoxItem)behaviorBox.SelectedItem).Tag;
+
+            try
+            {
+                var cur = await settingsService.LoadAsync();
+                cur.AppRules.RemoveAll(r => string.Equals(r.ProcessName, normalizedProc, StringComparison.OrdinalIgnoreCase));
+                if (existingRule != null && !string.Equals(existingRule.ProcessName, normalizedProc, StringComparison.OrdinalIgnoreCase))
+                {
+                    cur.AppRules.RemoveAll(r => string.Equals(r.ProcessName, existingRule.ProcessName, StringComparison.OrdinalIgnoreCase));
+                }
+
+                cur.AppRules.Add(new AppRule
+                {
+                    ProcessName = normalizedProc,
+                    Behavior = chosenBehavior,
+                    OptionalWallpaperId = existingRule?.OptionalWallpaperId
+                });
+
+                await settingsService.SaveAsync(cur);
+                appRuleMatchingService.UpdateRules(cur.AppRules);
+                RenderAppRules();
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Error saving app rule: {ex}");
+            }
+        }
+    }
+
+    private async Task ShowRunningAppPickerDialogAsync()
+    {
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        var apps = RunningApplicationPickerService.GetRunningApplications();
+
+        var panel = new StackPanel { Spacing = 12, Width = 340 };
+        var infoText = new TextBlock
+        {
+            Text = isTr
+                ? "Şu anda çalışan uygulamalardan birini seçin:"
+                : "Select from currently running applications:",
+            FontSize = 12,
+            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+        };
+        panel.Children.Add(infoText);
+
+        var appList = new ComboBox
+        {
+            Header = isTr ? "Çalışan Uygulamalar" : "Running Applications",
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+
+        foreach (var app in apps)
+        {
+            appList.Items.Add(new ComboBoxItem
+            {
+                Content = $"{app.DisplayName} ({app.ProcessName})",
+                Tag = app.ProcessName
+            });
+        }
+
+        if (appList.Items.Count > 0)
+        {
+            appList.SelectedIndex = 0;
+        }
+        else
+        {
+            appList.Items.Add(new ComboBoxItem
+            {
+                Content = isTr ? "Çalışan uygun uygulama bulunamadı" : "No suitable running applications found",
+                Tag = null,
+                IsEnabled = false
+            });
+            appList.SelectedIndex = 0;
+        }
+
+        panel.Children.Add(appList);
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = this.Content.XamlRoot,
+            Title = isTr ? "Çalışan Uygulamadan Kural Oluştur" : "Create Rule from Running Application",
+            PrimaryButtonText = isTr ? "Seç" : "Select",
+            CloseButtonText = isTr ? "İptal" : "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            Content = panel
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary && appList.SelectedItem is ComboBoxItem sel && sel.Tag is string procName)
+        {
+            await ShowAppRuleEditDialogAsync(null, procName);
+        }
+    }
+
     private void UpdateSettingsLocalization()
     {
         var loc = LocalizationService.Instance;
@@ -3846,6 +4106,14 @@ public sealed partial class DesktopTestWindow : Window
         }
 
         UpdateScheduleSettingsStatus();
+
+        if (SettingsAppRulesHeader != null) SettingsAppRulesHeader.Text = isTr ? "Uygulama Kuralları" : "Application Rules";
+        if (SettingsAppRulesSubtitle != null) SettingsAppRulesSubtitle.Text = isTr
+            ? "Belirli uygulamalar aktif olduğunda atanacak masaüstü profilini veya davranışını belirleyin."
+            : "Assign specific desktop profiles or behaviors when selected applications are active.";
+        if (AddAppRuleButton != null) AddAppRuleButton.Content = isTr ? "Kural Ekle" : "Add Rule";
+        if (AddFromRunningAppButton != null) AddFromRunningAppButton.Content = isTr ? "Çalışan Uygulamalardan…" : "Add from Running…";
+        RenderAppRules();
 
         if (SettingsStorageHeader != null) SettingsStorageHeader.Text = isTr ? "Sistem Tepsisi ve Yerel Depolama" : "System Tray & Local Storage";
         if (SettingsStorageSubtitle != null) SettingsStorageSubtitle.Text = isTr

@@ -633,6 +633,17 @@
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="SettingsAppRulesHeader" Text="Application Rules" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsAppRulesSubtitle" Text="Assign specific desktop profiles or behaviors when selected applications are active." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <StackPanel x:Name="AppRulesListContainer" Spacing="8" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="AddAppRuleButton" Content="Add Rule" Click="OnAddAppRuleClicked" />
+                                <Button x:Name="AddFromRunningAppButton" Content="Add from Running…" Click="OnAddFromRunningAppClicked" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="8">
                             <TextBlock x:Name="SettingsStorageHeader" Text="System Tray &amp; Local Storage" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <TextBlock x:Name="SettingsStorageSubtitle" Text="NiceWP stays in the system tray when you close this window. Your wallpaper keeps running." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

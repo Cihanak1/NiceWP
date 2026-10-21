@@ -196,7 +196,8 @@ public sealed class SettingsServiceTests : IDisposable
             Assert.True(root.TryGetProperty("RotationOrder", out _));
             Assert.True(root.TryGetProperty("RotationIntervalMinutes", out _));
             Assert.False(root.TryGetProperty("Autostart", out _));
-            Assert.Equal(6, root.EnumerateObject().Count());
+            Assert.True(root.TryGetProperty("AppRules", out _));
+            Assert.Equal(7, root.EnumerateObject().Count());
         }
 
         var loaded = await service.LoadAsync();
