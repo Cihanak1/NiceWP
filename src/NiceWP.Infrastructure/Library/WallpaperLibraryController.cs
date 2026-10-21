@@ -3,6 +3,7 @@ using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
 using NiceWP.Infrastructure.Remote;
 using NiceWP.Infrastructure.Rotation;
+using NiceWP.Infrastructure.Scheduling;
 
 namespace NiceWP.Infrastructure.Library;
 
@@ -148,6 +149,8 @@ public sealed class WallpaperLibraryController : IDisposable
 
     public WallpaperRotationService Rotation { get; }
 
+    public WallpaperScheduleService Schedule { get; }
+
     public RuntimeIpcClient IpcClient => ipcClient;
 
     public IReadOnlyList<WallpaperLibraryEntryView> Items => visibleItems;
@@ -239,7 +242,8 @@ public sealed class WallpaperLibraryController : IDisposable
         Func<CancellationToken, Task<IpcResponse>>? ensureHostRunningAsync = null,
         Action<string>? openFileLocationAction = null,
         RemoteWallpaperImportService? remoteImportService = null,
-        WallpaperRotationService? rotationService = null)
+        WallpaperRotationService? rotationService = null,
+        WallpaperScheduleService? scheduleService = null)
     {
         Service = service ?? new WallpaperLibraryService();
         RemoteImportService = remoteImportService ?? new RemoteWallpaperImportService(Service);
@@ -255,6 +259,12 @@ public sealed class WallpaperLibraryController : IDisposable
             getHostStatus: ct => this.ipcClient.GetStatusAsync(cancellationToken: ct),
             pauseHost: ct => this.ipcClient.PauseWallpaperAsync(cancellationToken: ct),
             resumeHost: ct => this.ipcClient.ResumeWallpaperAsync(cancellationToken: ct));
+
+        Schedule = scheduleService ?? new WallpaperScheduleService(
+            getItemById: id => GetLibraryItemsSnapshot().FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.OrdinalIgnoreCase)),
+            applyItem: (item, ct) => ApplyItemAsync(item, ct),
+            getHostStatus: ct => this.ipcClient.GetStatusAsync(cancellationToken: ct),
+            onScheduleApplied: () => Rotation.ResetTimer());
     }
 
     private IReadOnlyList<WallpaperLibraryItem> GetLibraryItemsSnapshot()
@@ -279,6 +289,7 @@ public sealed class WallpaperLibraryController : IDisposable
 
     public void Dispose()
     {
+        Schedule.Dispose();
         Rotation.Dispose();
     }
 

@@ -568,7 +568,7 @@ public sealed class RuntimeHostTests
             var shutdown = await client.ShutdownAsync(timeoutMs: 3000);
             Assert.True(shutdown.Success);
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            while (!host.IsShuttingDown && sw.ElapsedMilliseconds < 2000)
+            while ((!host.IsShuttingDown || renderers[1].DisposeCount == 0) && sw.ElapsedMilliseconds < 2000)
             {
                 await Task.Delay(20);
             }
@@ -738,7 +738,7 @@ public sealed class RuntimeHostTests
             var shutdown = await client.ShutdownAsync(timeoutMs: 3000);
             Assert.True(shutdown.Success);
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            while (!host.IsShuttingDown && sw.ElapsedMilliseconds < 2000)
+            while ((!host.IsShuttingDown || renderers[1].DisposeCount == 0) && sw.ElapsedMilliseconds < 2000)
             {
                 await Task.Delay(20);
             }

@@ -186,6 +186,19 @@ public sealed class WallpaperRotationService : IDisposable
         NotifyStatusChanged();
     }
 
+    /// <summary>
+    /// Resets the rotation timer to a full interval (called when an external action, such as a schedule transition, applies a wallpaper).
+    /// </summary>
+    public void ResetTimer()
+    {
+        lock (_syncLock)
+        {
+            if (_isDisposed || Mode == RotationMode.Off) return;
+            ScheduleNextTimerLocked();
+        }
+        NotifyStatusChanged();
+    }
+
     public Task<WallpaperRotationResult> RotateNextAsync(string trigger = "Next", CancellationToken cancellationToken = default) =>
         RotateCoreAsync(isNext: true, trigger: trigger, cancellationToken: cancellationToken);
 
