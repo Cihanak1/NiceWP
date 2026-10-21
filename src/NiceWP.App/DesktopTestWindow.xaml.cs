@@ -93,6 +93,19 @@ public sealed partial class DesktopTestWindow : Window
         libraryController.Rotation.WallpaperRotated += OnRotationWallpaperRotated;
         libraryController.Rotation.StatusChanged += OnRotationStatusChanged;
         libraryController.Schedule.StatusChanged += OnScheduleStatusChanged;
+        libraryController.Rotation.RotationPrecondition = () =>
+        {
+            var p = trayIcon?.CurrentProfile ?? NiceWP.Core.AdaptiveDesktopProfile.Automatic;
+            return p != NiceWP.Core.AdaptiveDesktopProfile.Presentation &&
+                   p != NiceWP.Core.AdaptiveDesktopProfile.Gaming &&
+                   p != NiceWP.Core.AdaptiveDesktopProfile.Cinema;
+        };
+        libraryController.Schedule.SchedulePrecondition = () =>
+        {
+            var p = trayIcon?.CurrentProfile ?? NiceWP.Core.AdaptiveDesktopProfile.Automatic;
+            return p != NiceWP.Core.AdaptiveDesktopProfile.Presentation &&
+                   p != NiceWP.Core.AdaptiveDesktopProfile.Gaming;
+        };
 
         controller = new TrayLifecycleController(
             runtimeClient.IpcClient,
@@ -111,6 +124,8 @@ public sealed partial class DesktopTestWindow : Window
         trayIcon.OpenRequested += OnTrayOpenRequested;
         trayIcon.StopWallpaperRequested += OnTrayStopWallpaperRequested;
         trayIcon.ExitRequested += OnTrayExitRequested;
+        trayIcon.ProfileSelected += OnTrayProfileSelected;
+        trayIcon.BudgetSelected += OnTrayBudgetSelected;
         trayIcon.Initialize();
 
         try
@@ -2228,7 +2243,7 @@ public sealed partial class DesktopTestWindow : Window
             ActiveEfficiencyProfileText.Text = PerformanceSnapshotFormatter.FormatEfficiencyProfile(profileTag, loc);
         }
 
-                if (ActiveWallpaperCostText != null)
+        if (ActiveWallpaperCostText != null)
         {
             if (!hasWallpaper)
             {
@@ -2263,18 +2278,24 @@ public sealed partial class DesktopTestWindow : Window
             }
         }
 
-                if (ActiveAdaptiveProfileText != null)
+        if (ActiveAdaptiveProfileText != null)
         {
-            var p = trayIcon?.CurrentProfile ?? AdaptiveDesktopProfile.Normal;
-            ActiveAdaptiveProfileText.Text = p switch
+            var p = trayIcon?.CurrentProfile ?? NiceWP.Core.AdaptiveDesktopProfile.Automatic;
+            var pLabel = p switch
             {
-                AdaptiveDesktopProfile.Focus => isTr ? "Odak" : "Focus",
-                AdaptiveDesktopProfile.Gaming => isTr ? "Oyun" : "Gaming",
-                AdaptiveDesktopProfile.Presentation => isTr ? "Sunum" : "Presentation",
-                AdaptiveDesktopProfile.BatterySaver => isTr ? "Pil Tasarrufu" : "Battery Saver",
-                AdaptiveDesktopProfile.Cinema => isTr ? "Sinema" : "Cinema",
-                _ => isTr ? "Normal" : "Normal"
+                NiceWP.Core.AdaptiveDesktopProfile.Automatic => isTr ? "Profil: Otomatik" : "Profile: Auto",
+                NiceWP.Core.AdaptiveDesktopProfile.Normal => isTr ? "Profil: Normal" : "Profile: Normal",
+                NiceWP.Core.AdaptiveDesktopProfile.Focus => isTr ? "Profil: Odak" : "Profile: Focus",
+                NiceWP.Core.AdaptiveDesktopProfile.Gaming => isTr ? "Profil: Oyun" : "Profile: Gaming",
+                NiceWP.Core.AdaptiveDesktopProfile.Presentation => isTr ? "Profil: Sunum" : "Profile: Presentation",
+                NiceWP.Core.AdaptiveDesktopProfile.BatterySaver => isTr ? "Profil: Pil Tasarrufu" : "Profile: Battery Saver",
+                NiceWP.Core.AdaptiveDesktopProfile.Cinema => isTr ? "Profil: Sinema" : "Profile: Cinema",
+                _ => p.ToString()
             };
+            ActiveAdaptiveProfileText.Text = pLabel;
+            ToolTipService.SetToolTip(ActiveAdaptiveProfileText, isTr
+                ? $"Etkin masaÃ¼stÃ¼ profili: {pLabel}"
+                : $"Effective desktop profile: {pLabel}");
         }
 
         PauseResumeWallpaperButton.Content = resolvedPaused ? loc.GetString(LocalizationKeys.ActiveResume) : loc.GetString(LocalizationKeys.ActivePause);
@@ -3324,6 +3345,11 @@ public sealed partial class DesktopTestWindow : Window
         PerfCurrentActionText.Text = isTr ? "Ã‡alÄ±ÅŸma motoru baÄŸlantÄ±sÄ± yok" : "Runtime host disconnected";
         PerfRecentEventsCountText.Text = isTr ? "0 olay" : "0 events";
         PerfRecentEventsListText.Text = isTr ? "KullanÄ±lamÄ±yor." : "Unavailable.";
+
+        if (PerfResourceGuardText != null) PerfResourceGuardText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
+        if (PerfDecoderStateText != null) PerfDecoderStateText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
+        if (PerfResourceBudgetText != null) PerfResourceBudgetText.Text = isTr ? "KullanÄ±lamÄ±yor" : "Unavailable";
+        if (PerfLastActionText != null) PerfLastActionText.Text = isTr ? "BaÄŸlantÄ± kesildi" : "Disconnected";
     }
 
     private async void OnExportReportClicked(object sender, RoutedEventArgs args)
@@ -3685,7 +3711,66 @@ public sealed partial class DesktopTestWindow : Window
         SelectComboBoxByTag(ScheduleDayWallpaperComboBox, settings.DayWallpaperId);
         SelectComboBoxByTag(ScheduleNightWallpaperComboBox, settings.NightWallpaperId);
         SelectComboBoxByTag(PresentationWallpaperComboBox, settings.PresentationWallpaperId);
+        SelectComboBoxByTag(AdaptiveProfileComboBox, settings.EffectiveAdaptiveProfile.ToString());
+        SelectComboBoxByTag(ResourceBudgetComboBox, settings.EffectiveResourceBudget.ToString());
+        trayIcon.CurrentProfile = settings.EffectiveAdaptiveProfile;
+        trayIcon.CurrentBudget = settings.EffectiveResourceBudget;
         UpdateScheduleSettingsStatus();
+        UpdateAdaptiveSettingsStatus();
+    }
+
+    private async void OnAdaptiveProfileSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        var tag = (AdaptiveProfileComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Automatic";
+        var parsed = Enum.TryParse<AdaptiveDesktopProfile>(tag, true, out var p) ? p : AdaptiveDesktopProfile.Automatic;
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.EffectiveAdaptiveProfile = parsed;
+            await settingsService.SaveAsync(cur);
+            trayIcon.CurrentProfile = parsed;
+            UpdateAdaptiveSettingsStatus();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving AdaptiveProfile: {ex}");
+        }
+    }
+
+    private async void OnResourceBudgetSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        var tag = (ResourceBudgetComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Automatic";
+        var parsed = Enum.TryParse<ResourceBudget>(tag, true, out var b) ? b : ResourceBudget.Automatic;
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.EffectiveResourceBudget = parsed;
+            await settingsService.SaveAsync(cur);
+            trayIcon.CurrentBudget = parsed;
+            UpdateAdaptiveSettingsStatus();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving ResourceBudget: {ex}");
+        }
+    }
+
+    private void UpdateAdaptiveSettingsStatus()
+    {
+        if (AdaptiveSettingsStatusText == null) return;
+        var loc = LocalizationService.Instance;
+        var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
+
+        var profileTag = (AdaptiveProfileComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Automatic";
+        var budgetTag = (ResourceBudgetComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Automatic";
+
+        AdaptiveSettingsStatusText.Text = isTr
+            ? $"Etkin yapÄ±landÄ±rma: Profil = {profileTag}, Kaynak BÃ¼tÃ§esi = {budgetTag}. Arka plan motoru bu kurallara gÃ¶re uyarlanÄ±r."
+            : $"Active configuration: Profile = {profileTag}, Budget = {budgetTag}. Background engine adapts according to these rules.";
     }
 
     private async void OnPresentationWallpaperSelectionChanged(object sender, SelectionChangedEventArgs args)
@@ -4256,6 +4341,48 @@ public sealed partial class DesktopTestWindow : Window
             ? "Bu pencereyi kapattÄ±ÄŸÄ±nÄ±zda NiceWP sistem tepsisinde Ã§alÄ±ÅŸmaya devam eder. Duvar kaÄŸÄ±dÄ±nÄ±z aktif kalÄ±r."
             : "NiceWP stays in the system tray when you close this window. Your wallpaper keeps running.";
 
+        if (SettingsAdaptiveHeader != null) SettingsAdaptiveHeader.Text = isTr ? "Adaptif MasaÃ¼stÃ¼ ZekasÄ±" : "Adaptive Desktop Intelligence";
+        if (SettingsAdaptiveSubtitle != null) SettingsAdaptiveSubtitle.Text = isTr ? "Otomatik davranÄ±ÅŸ profillerini ve donanÄ±m kaynak sÄ±nÄ±rlarÄ±nÄ± yapÄ±landÄ±rÄ±n." : "Configure automatic behavior profiles and hardware resource limits.";
+        if (SettingsAdaptiveProfileLabel != null) SettingsAdaptiveProfileLabel.Text = isTr ? "VarsayÄ±lan Profil" : "Default Profile";
+        if (SettingsResourceBudgetLabel != null) SettingsResourceBudgetLabel.Text = isTr ? "Kaynak BÃ¼tÃ§esi" : "Resource Budget";
+
+        if (AdaptiveProfileComboBox != null)
+        {
+            foreach (var item in AdaptiveProfileComboBox.Items.OfType<ComboBoxItem>())
+            {
+                var tag = item.Tag as string;
+                item.Content = tag switch
+                {
+                    "Automatic" => isTr ? "Otomatik (BaÄŸlama duyarlÄ±)" : "Automatic (Context-aware)",
+                    "Normal" => isTr ? "Normal" : "Normal",
+                    "Focus" => isTr ? "Odak (Ã‡alÄ±ÅŸma)" : "Focus",
+                    "Gaming" => isTr ? "Oyun (DÃ¼ÅŸÃ¼k gecikme)" : "Gaming",
+                    "Presentation" => isTr ? "Sunum" : "Presentation",
+                    "BatterySaver" => isTr ? "Pil Tasarrufu" : "Battery Saver",
+                    "Cinema" => isTr ? "Sinema (Medya)" : "Cinema",
+                    _ => item.Content
+                };
+            }
+        }
+
+        if (ResourceBudgetComboBox != null)
+        {
+            foreach (var item in ResourceBudgetComboBox.Items.OfType<ComboBoxItem>())
+            {
+                var tag = item.Tag as string;
+                item.Content = tag switch
+                {
+                    "Automatic" => isTr ? "Otomatik (Dengeli / GÃ¼Ã§ duyarlÄ±)" : "Automatic (Balanced / Power-aware)",
+                    "Low" => isTr ? "DÃ¼ÅŸÃ¼k (Agresif tasarruf)" : "Low (Aggressive savings)",
+                    "Balanced" => isTr ? "Dengeli (Ã–nerilen)" : "Balanced (Recommended)",
+                    "High" => isTr ? "YÃ¼ksek (YÃ¼ksek performans)" : "High (High performance)",
+                    _ => item.Content
+                };
+            }
+        }
+
+        UpdateAdaptiveSettingsStatus();
+
         if (RotationModeComboBox?.SelectedItem is ComboBoxItem selMode &&
             RotationOrderComboBox?.SelectedItem is ComboBoxItem selOrder &&
             RotationIntervalComboBox?.SelectedItem is ComboBoxItem selInterval)
@@ -4300,6 +4427,10 @@ public sealed partial class DesktopTestWindow : Window
         if (PerfPowerPolicyLabel != null) PerfPowerPolicyLabel.Text = isTr ? "GÃ¼Ã§ / Pil Ä°lkesi" : "Power / Battery Policy";
         if (PerfSessionLockPolicyLabel != null) PerfSessionLockPolicyLabel.Text = isTr ? "Oturum Kilidi Ä°lkesi" : "Session Lock Policy";
         if (PerfDisplayPowerPolicyLabel != null) PerfDisplayPowerPolicyLabel.Text = isTr ? "Ekran GÃ¼Ã§ Ä°lkesi" : "Display Power Policy";
+        if (PerfResourceGuardLabel != null) PerfResourceGuardLabel.Text = isTr ? "Kaynak KorumasÄ±" : "Resource Guard";
+        if (PerfDecoderStateLabel != null) PerfDecoderStateLabel.Text = isTr ? "DonanÄ±m Ã‡Ã¶zÃ¼cÃ¼ Durumu" : "Hardware Decoder State";
+        if (PerfResourceBudgetLabel != null) PerfResourceBudgetLabel.Text = isTr ? "Kaynak BÃ¼tÃ§esi" : "Resource Budget";
+        if (PerfLastActionLabel != null) PerfLastActionLabel.Text = isTr ? "Son Otomatik Ä°ÅŸlem" : "Last Automatic Action";
 
         if (PerfAuditTrailHeader != null) PerfAuditTrailHeader.Text = isTr ? "Denetim KaydÄ±" : "Audit Trail";
         if (PerfGpuHeader != null) PerfGpuHeader.Text = isTr ? "GPU Ã–lÃ§Ã¼mÃ¼" : "GPU Measurement";
