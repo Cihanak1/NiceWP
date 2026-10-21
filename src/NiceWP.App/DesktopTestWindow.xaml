@@ -243,10 +243,12 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <TextBlock x:Name="ActiveRotationStateText" Text="Rotation: Off" TextWrapping="Wrap" FontWeight="SemiBold" Grid.Row="0" Grid.ColumnSpan="2" FontSize="12" />
                         <TextBlock x:Name="ActiveRotationPositionText" Text="Position: - / -" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Grid.Row="1" />
                         <TextBlock x:Name="ActiveRotationCountdownText" Text="Next change: Inactive" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Grid.Row="1" Grid.Column="1" />
+                        <TextBlock x:Name="ActiveScheduleStateText" Text="Schedule: Off" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Grid.Row="2" Grid.ColumnSpan="2" />
                     </Grid>
                     <Grid Height="200" CornerRadius="4" Background="{ThemeResource ControlAltFillColorSecondaryBrush}" HorizontalAlignment="Left" x:Name="ActivePreviewFrame" Width="356" MaxHeight="360" Visibility="{Binding Visibility, ElementName=ActiveDetailsPanel}">
                         <SymbolIcon x:Name="ActivePlaceholderIcon" Symbol="SlideShow" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -574,6 +576,60 @@
                                 </StackPanel>
                             </Grid>
                             <TextBlock x:Name="RotationSettingsStatusText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="SettingsScheduleHeader" Text="Wallpaper Schedule" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsScheduleSubtitle" Text="Automatically transition between Day and Night wallpapers." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsScheduleModeLabel" Text="Schedule" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="ScheduleModeComboBox" SelectionChanged="OnScheduleModeSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Schedule mode">
+                                        <ComboBoxItem Content="Off" Tag="Off" />
+                                        <ComboBoxItem Content="Day &amp; Night" Tag="DayNight" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6" x:Name="ScheduleDayStartPanel">
+                                    <TextBlock x:Name="SettingsDayStartLabel" Text="Day begins" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="ScheduleDayStartComboBox" SelectionChanged="OnScheduleDayStartSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Day start time">
+                                        <ComboBoxItem Content="06:00" Tag="06:00" />
+                                        <ComboBoxItem Content="07:00" Tag="07:00" />
+                                        <ComboBoxItem Content="08:00" Tag="08:00" />
+                                        <ComboBoxItem Content="09:00" Tag="09:00" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6" x:Name="ScheduleNightStartPanel">
+                                    <TextBlock x:Name="SettingsNightStartLabel" Text="Night begins" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="ScheduleNightStartComboBox" SelectionChanged="OnScheduleNightStartSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Night start time">
+                                        <ComboBoxItem Content="18:00" Tag="18:00" />
+                                        <ComboBoxItem Content="19:00" Tag="19:00" />
+                                        <ComboBoxItem Content="20:00" Tag="20:00" />
+                                        <ComboBoxItem Content="21:00" Tag="21:00" />
+                                        <ComboBoxItem Content="22:00" Tag="22:00" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                            <Grid ColumnSpacing="16" RowSpacing="12" x:Name="ScheduleWallpapersGrid">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsDayWallpaperLabel" Text="Day wallpaper" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="ScheduleDayWallpaperComboBox" SelectionChanged="OnScheduleDayWallpaperSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Day wallpaper" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock x:Name="SettingsNightWallpaperLabel" Text="Night wallpaper" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="ScheduleNightWallpaperComboBox" SelectionChanged="OnScheduleNightWallpaperSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Night wallpaper" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock x:Name="ScheduleSettingsStatusText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">

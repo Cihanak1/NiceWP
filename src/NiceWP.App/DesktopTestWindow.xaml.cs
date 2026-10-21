@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -23,6 +24,7 @@ using NiceWP.Infrastructure.Tray;
 using NiceWP.Infrastructure.Remote;
 using NiceWP.Infrastructure.Rotation;
 using NiceWP.Infrastructure.Localization;
+using NiceWP.Infrastructure.Scheduling;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 
@@ -93,6 +95,7 @@ public sealed partial class DesktopTestWindow : Window
             hostLauncher: runtimeClient.Launcher);
         libraryController.Rotation.WallpaperRotated += OnRotationWallpaperRotated;
         libraryController.Rotation.StatusChanged += OnRotationStatusChanged;
+        libraryController.Schedule.StatusChanged += OnScheduleStatusChanged;
 
         controller = new TrayLifecycleController(
             runtimeClient.IpcClient,
@@ -164,6 +167,13 @@ public sealed partial class DesktopTestWindow : Window
 
             await libraryController.Rotation.InitializeAsync(settings);
             UpdateRotationDetailsUI();
+            libraryController.Schedule.Initialize(settings);
+            SelectScheduleSettingsItems(settings);
+            UpdateScheduleDetailsUI();
+            if (settings.EffectiveScheduleMode == ScheduleModeExtensions.ModeDayNight)
+            {
+                _ = libraryController.Schedule.EvaluateAndApplyCurrentSlotAsync();
+            }
         }
         catch (Exception exception)
         {
@@ -225,6 +235,7 @@ public sealed partial class DesktopTestWindow : Window
                 activePlaybackState = status.PlaybackState;
                 controller.SetActiveWallpaper(activeWallpaperPath, activeWallpaperType);
                 UpdateActiveDetails(status.IsPaused, status.PlaybackState, statusKnown: true);
+                libraryController?.Schedule?.NotifyPauseState(status.IsPaused);
 
                 if (!string.Equals(previousPath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1859,6 +1870,7 @@ public sealed partial class DesktopTestWindow : Window
         LibraryEmptyText.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
         LibraryListView.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
         UpdateLibraryActionState();
+        PopulateScheduleWallpaperComboBoxes();
     }
 
         private void UpdateFeedbackVisuals()
@@ -3288,7 +3300,257 @@ public sealed partial class DesktopTestWindow : Window
 
         UpdateActiveDetails(activeWallpaperPaused, activePlaybackState, statusKnown: true);
         UpdateRotationDetailsUI();
+        UpdateScheduleDetailsUI();
     }
+    private void OnScheduleStatusChanged(object? sender, WallpaperScheduleStatus status)
+    {
+        if (closed) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            UpdateScheduleDetailsUI(status);
+            UpdateScheduleSettingsStatus(status);
+        });
+    }
+
+    private void UpdateScheduleDetailsUI(WallpaperScheduleStatus? status = null)
+    {
+        if (ActiveScheduleStateText == null || closed) return;
+        var loc = LocalizationService.Instance;
+        var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
+        status ??= libraryController?.Schedule?.GetStatus();
+        if (status == null || !status.IsActive)
+        {
+            var offLabel = isTr ? "Kapalı" : "Off";
+            ActiveScheduleStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveSchedule)}: {offLabel}";
+            return;
+        }
+
+        var slotLabel = status.CurrentSlot switch
+        {
+            DayNightSlot.Day => loc.GetString(LocalizationKeys.ActiveScheduleDay),
+            DayNightSlot.Night => loc.GetString(LocalizationKeys.ActiveScheduleNight),
+            _ => isTr ? "Aktif" : "Active"
+        };
+
+        if (status.IsOverdue)
+        {
+            var overdue = isTr ? "Gecikmiş (duraklatıldı)" : "Overdue (paused)";
+            ActiveScheduleStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveSchedule)}: {slotLabel} • {overdue}";
+            return;
+        }
+
+        if (status.NextTransitionUtc.HasValue)
+        {
+            var nextLocal = status.NextTransitionUtc.Value.ToLocalTime();
+            var nextSlotLabel = status.NextSlot switch
+            {
+                DayNightSlot.Day => loc.GetString(LocalizationKeys.ActiveScheduleDay),
+                DayNightSlot.Night => loc.GetString(LocalizationKeys.ActiveScheduleNight),
+                _ => string.Empty
+            };
+            var timeStr = nextLocal.ToString("HH:mm");
+            var nextFormat = isTr
+                ? $"Sonraki: {nextSlotLabel} {timeStr}"
+                : $"Next: {nextSlotLabel} at {timeStr}";
+            ActiveScheduleStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveSchedule)}: {slotLabel} • {nextFormat}";
+        }
+        else
+        {
+            ActiveScheduleStateText.Text = $"{loc.GetString(LocalizationKeys.ActiveSchedule)}: {slotLabel}";
+        }
+    }
+
+    private void UpdateScheduleSettingsStatus(WallpaperScheduleStatus? status = null)
+    {
+        if (ScheduleSettingsStatusText == null || closed) return;
+        var loc = LocalizationService.Instance;
+        var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
+        status ??= libraryController?.Schedule?.GetStatus();
+        if (status == null || !status.IsActive)
+        {
+            ScheduleSettingsStatusText.Text = isTr ? "Program devre dışı." : "Schedule is disabled.";
+            if (ScheduleDayStartPanel != null) ScheduleDayStartPanel.Opacity = 0.5;
+            if (ScheduleNightStartPanel != null) ScheduleNightStartPanel.Opacity = 0.5;
+            if (ScheduleWallpapersGrid != null) ScheduleWallpapersGrid.Opacity = 0.5;
+            return;
+        }
+
+        if (ScheduleDayStartPanel != null) ScheduleDayStartPanel.Opacity = 1.0;
+        if (ScheduleNightStartPanel != null) ScheduleNightStartPanel.Opacity = 1.0;
+        if (ScheduleWallpapersGrid != null) ScheduleWallpapersGrid.Opacity = 1.0;
+
+        var dayName = !string.IsNullOrEmpty(status.CurrentWallpaperId) && libraryController?.Items?.FirstOrDefault(x => string.Equals(x.Id, status.CurrentWallpaperId, StringComparison.OrdinalIgnoreCase)) is { } item
+            ? item.DisplayName : (isTr ? "Seçilmedi" : "None");
+        ScheduleSettingsStatusText.Text = isTr
+            ? $"Aktif: Gündüz / Gece Programı • Şu anki: {dayName}"
+            : $"Active: Day / Night Schedule • Current: {dayName}";
+    }
+
+    private void PopulateScheduleWallpaperComboBoxes()
+    {
+        if (ScheduleDayWallpaperComboBox == null || ScheduleNightWallpaperComboBox == null) return;
+        var items = libraryController?.Items ?? (IReadOnlyList<WallpaperLibraryEntryView>)Array.Empty<WallpaperLibraryEntryView>();
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        var noneLabel = isTr ? "(Seçilmedi)" : "(None selected)";
+
+        var selectedDayTag = (ScheduleDayWallpaperComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        var selectedNightTag = (ScheduleNightWallpaperComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+
+        ScheduleDayWallpaperComboBox.Items.Clear();
+        ScheduleNightWallpaperComboBox.Items.Clear();
+
+        ScheduleDayWallpaperComboBox.Items.Add(new ComboBoxItem { Content = noneLabel, Tag = "" });
+        ScheduleNightWallpaperComboBox.Items.Add(new ComboBoxItem { Content = noneLabel, Tag = "" });
+
+        foreach (var it in items)
+        {
+            ScheduleDayWallpaperComboBox.Items.Add(new ComboBoxItem { Content = it.DisplayName, Tag = it.Id });
+            ScheduleNightWallpaperComboBox.Items.Add(new ComboBoxItem { Content = it.DisplayName, Tag = it.Id });
+        }
+
+        // Restore selections
+        SelectComboBoxByTag(ScheduleDayWallpaperComboBox, selectedDayTag ?? libraryController?.Schedule?.DayWallpaperId);
+        SelectComboBoxByTag(ScheduleNightWallpaperComboBox, selectedNightTag ?? libraryController?.Schedule?.NightWallpaperId);
+    }
+
+    private static void SelectComboBoxByTag(ComboBox? cb, string? tag)
+    {
+        if (cb == null) return;
+        var target = tag ?? "";
+        for (var i = 0; i < cb.Items.Count; i++)
+        {
+            if (cb.Items[i] is ComboBoxItem item && string.Equals(item.Tag as string ?? "", target, StringComparison.OrdinalIgnoreCase))
+            {
+                cb.SelectedIndex = i;
+                return;
+            }
+        }
+        cb.SelectedIndex = 0;
+    }
+
+    private void SelectScheduleSettingsItems(AppSettings settings)
+    {
+        SelectComboBoxByTag(ScheduleModeComboBox, settings.EffectiveScheduleMode);
+        SelectComboBoxByTag(ScheduleDayStartComboBox, settings.EffectiveDayStartTime);
+        SelectComboBoxByTag(ScheduleNightStartComboBox, settings.EffectiveNightStartTime);
+        PopulateScheduleWallpaperComboBoxes();
+        SelectComboBoxByTag(ScheduleDayWallpaperComboBox, settings.DayWallpaperId);
+        SelectComboBoxByTag(ScheduleNightWallpaperComboBox, settings.NightWallpaperId);
+        UpdateScheduleSettingsStatus();
+    }
+
+    private async void OnScheduleModeSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed || libraryController == null) return;
+        var tag = (ScheduleModeComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Off";
+        var parsed = ScheduleModeExtensions.ParseMode(tag);
+        var dayStart = TimeOnly.TryParse((ScheduleDayStartComboBox?.SelectedItem as ComboBoxItem)?.Tag as string, out var ds) ? ds : new TimeOnly(8, 0);
+        var nightStart = TimeOnly.TryParse((ScheduleNightStartComboBox?.SelectedItem as ComboBoxItem)?.Tag as string, out var ns) ? ns : new TimeOnly(20, 0);
+        var dayWall = (ScheduleDayWallpaperComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var nightWall = (ScheduleNightWallpaperComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+
+        libraryController.Schedule.Configure(parsed, dayStart, nightStart, dayWall, nightWall);
+        UpdateScheduleSettingsStatus();
+        UpdateScheduleDetailsUI();
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.ScheduleMode = tag == "Off" ? null : tag;
+            await settingsService.SaveAsync(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving ScheduleMode: {ex}");
+        }
+    }
+
+    private async void OnScheduleDayStartSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed || libraryController == null) return;
+        var tag = (ScheduleDayStartComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "08:00";
+        var dayStart = TimeOnly.TryParse(tag, out var ds) ? ds : new TimeOnly(8, 0);
+        var nightStart = TimeOnly.TryParse((ScheduleNightStartComboBox?.SelectedItem as ComboBoxItem)?.Tag as string, out var ns) ? ns : new TimeOnly(20, 0);
+
+        libraryController.Schedule.Configure(libraryController.Schedule.Mode, dayStart, nightStart, libraryController.Schedule.DayWallpaperId, libraryController.Schedule.NightWallpaperId);
+        UpdateScheduleSettingsStatus();
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.DayStartTime = tag == "08:00" ? null : tag;
+            await settingsService.SaveAsync(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving DayStartTime: {ex}");
+        }
+    }
+
+    private async void OnScheduleNightStartSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed || libraryController == null) return;
+        var tag = (ScheduleNightStartComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "20:00";
+        var nightStart = TimeOnly.TryParse(tag, out var ns) ? ns : new TimeOnly(20, 0);
+        var dayStart = TimeOnly.TryParse((ScheduleDayStartComboBox?.SelectedItem as ComboBoxItem)?.Tag as string, out var ds) ? ds : new TimeOnly(8, 0);
+
+        libraryController.Schedule.Configure(libraryController.Schedule.Mode, dayStart, nightStart, libraryController.Schedule.DayWallpaperId, libraryController.Schedule.NightWallpaperId);
+        UpdateScheduleSettingsStatus();
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.NightStartTime = tag == "20:00" ? null : tag;
+            await settingsService.SaveAsync(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving NightStartTime: {ex}");
+        }
+    }
+
+    private async void OnScheduleDayWallpaperSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed || libraryController == null) return;
+        var tag = (ScheduleDayWallpaperComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var dayWall = string.IsNullOrEmpty(tag) ? null : tag;
+
+        libraryController.Schedule.Configure(libraryController.Schedule.Mode, libraryController.Schedule.DayStartTime, libraryController.Schedule.NightStartTime, dayWall, libraryController.Schedule.NightWallpaperId);
+        UpdateScheduleSettingsStatus();
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.DayWallpaperId = dayWall;
+            await settingsService.SaveAsync(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving DayWallpaperId: {ex}");
+        }
+    }
+
+    private async void OnScheduleNightWallpaperSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed || libraryController == null) return;
+        var tag = (ScheduleNightWallpaperComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var nightWall = string.IsNullOrEmpty(tag) ? null : tag;
+
+        libraryController.Schedule.Configure(libraryController.Schedule.Mode, libraryController.Schedule.DayStartTime, libraryController.Schedule.NightStartTime, libraryController.Schedule.DayWallpaperId, nightWall);
+        UpdateScheduleSettingsStatus();
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.NightWallpaperId = nightWall;
+            await settingsService.SaveAsync(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving NightWallpaperId: {ex}");
+        }
+    }
+
     private void UpdateSettingsLocalization()
     {
         var loc = LocalizationService.Instance;
@@ -3429,6 +3691,30 @@ public sealed partial class DesktopTestWindow : Window
                 }
             }
         }
+
+        if (SettingsScheduleHeader != null) SettingsScheduleHeader.Text = loc.GetString(LocalizationKeys.SetWallpaperSchedule);
+        if (SettingsScheduleSubtitle != null) SettingsScheduleSubtitle.Text = isTr ? "Gündüz ve gece duvar kağıtları arasında otomatik geçiş yapın." : "Automatically transition between Day and Night wallpapers.";
+        if (SettingsScheduleModeLabel != null) SettingsScheduleModeLabel.Text = loc.GetString(LocalizationKeys.SetScheduleMode);
+        if (SettingsDayStartLabel != null) SettingsDayStartLabel.Text = isTr ? "Gündüz başlangıcı" : "Day begins";
+        if (SettingsNightStartLabel != null) SettingsNightStartLabel.Text = isTr ? "Gece başlangıcı" : "Night begins";
+        if (SettingsDayWallpaperLabel != null) SettingsDayWallpaperLabel.Text = loc.GetString(LocalizationKeys.SetDayWallpaper);
+        if (SettingsNightWallpaperLabel != null) SettingsNightWallpaperLabel.Text = loc.GetString(LocalizationKeys.SetNightWallpaper);
+
+        if (ScheduleModeComboBox != null)
+        {
+            foreach (var item in ScheduleModeComboBox.Items.OfType<ComboBoxItem>())
+            {
+                var tag = item.Tag as string;
+                item.Content = tag switch
+                {
+                    "Off" => isTr ? "Kapalı" : "Off",
+                    "DayNight" => isTr ? "Gündüz ve Gece" : "Day & Night",
+                    _ => item.Content
+                };
+            }
+        }
+
+        UpdateScheduleSettingsStatus();
 
         if (SettingsStorageHeader != null) SettingsStorageHeader.Text = isTr ? "Sistem Tepsisi ve Yerel Depolama" : "System Tray & Local Storage";
         if (SettingsStorageSubtitle != null) SettingsStorageSubtitle.Text = isTr
