@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -3231,7 +3231,7 @@ public sealed partial class DesktopTestWindow : Window
 
         if (PerfDecoderStateText != null)
         {
-            var isFrozen = snap.WallpaperState == NiceWP.Core.RendererLifecycleState.DeepFrozen.ToString() ||
+            var isFrozen = snap.WallpaperState == IpcConstants.PlaybackStateDeepFrozen ||
                            snap.WallpaperState == "DeepFrozen";
             PerfDecoderStateText.Text = isFrozen
                 ? (isTr ? "Derin Donduruldu (DonanÄ±m bÄ±rakÄ±ldÄ±)" : "Deep Frozen (Hardware released)")
