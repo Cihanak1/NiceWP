@@ -39,6 +39,7 @@ public sealed class WallpaperRotationService : IDisposable
     public bool IsOverdue { get; private set; }
     public string? CurrentItemId { get; private set; }
     public string? CurrentWallpaperPath { get; private set; }
+    public Func<bool>? RotationPrecondition { get; set; }
 
     public IReadOnlyList<WallpaperRotationHistoryEntry> History
     {
@@ -290,7 +291,7 @@ public sealed class WallpaperRotationService : IDisposable
             _lastKnownPauseReasons = hostStatus.PauseReasons;
 
             // If auto-triggered and runtime is paused, defer
-            if (string.Equals(trigger, "Auto", StringComparison.OrdinalIgnoreCase) && hostStatus.IsPaused)
+            if (string.Equals(trigger, "Auto", StringComparison.OrdinalIgnoreCase) && (hostStatus.IsPaused || (RotationPrecondition != null && !RotationPrecondition())))
             {
                 IsOverdue = true;
                 LogAudit("RotationPausedDeferred", $"Rotation deferred because host is paused ({hostStatus.PauseReasons ?? "Unknown"}).");
