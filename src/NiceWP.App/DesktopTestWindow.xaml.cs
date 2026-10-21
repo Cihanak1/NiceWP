@@ -3201,6 +3201,46 @@ public sealed partial class DesktopTestWindow : Window
         PerfSessionLockPolicyText.Text = PerformanceSnapshotFormatter.FormatSessionLockPolicy(snap.SessionLockedPauseActive, loc);
         PerfDisplayPowerPolicyText.Text = PerformanceSnapshotFormatter.FormatDisplayPowerPolicy(snap.DisplayOffPauseActive, loc);
 
+        if (PerfResourceGuardText != null)
+        {
+            PerfResourceGuardText.Text = snap.ResourceGuardActive
+                ? (isTr ? "Etkin (YÃ¼ksek yÃ¼k nedeniyle kÄ±sÄ±tlandÄ±)" : "Active (Throttling video resources)")
+                : (isTr ? "Etkin DeÄŸil (Normal yÃ¼k)" : "Inactive (Normal load)");
+        }
+
+        if (PerfDecoderStateText != null)
+        {
+            var isFrozen = snap.WallpaperState == NiceWP.Core.RendererLifecycleState.DeepFrozen.ToString() ||
+                           snap.WallpaperState == "DeepFrozen";
+            PerfDecoderStateText.Text = isFrozen
+                ? (isTr ? "Derin Donduruldu (DonanÄ±m bÄ±rakÄ±ldÄ±)" : "Deep Frozen (Hardware released)")
+                : (isTr ? "Aktif" : "Active");
+        }
+
+        if (PerfResourceBudgetText != null)
+        {
+            var b = trayIcon?.CurrentBudget ?? NiceWP.Core.ResourceBudget.Automatic;
+            PerfResourceBudgetText.Text = b switch
+            {
+                NiceWP.Core.ResourceBudget.Low => isTr ? "DÃ¼ÅŸÃ¼k (Tasarruf)" : "Low (Aggressive savings)",
+                NiceWP.Core.ResourceBudget.Balanced => isTr ? "Dengeli" : "Balanced",
+                NiceWP.Core.ResourceBudget.High => isTr ? "YÃ¼ksek Performans" : "High Performance",
+                _ => isTr ? "Otomatik" : "Automatic"
+            };
+        }
+
+        if (PerfLastActionText != null)
+        {
+            if (snap.LastAutomaticAction != null)
+            {
+                PerfLastActionText.Text = $"{snap.LastAutomaticAction.ActionType}: {snap.LastAutomaticAction.Reason}";
+            }
+            else
+            {
+                PerfLastActionText.Text = isTr ? "Otomatik iÅŸlem yapÄ±lmadÄ±" : "No automatic actions";
+            }
+        }
+
         PerfEfficiencyProfileText.Text = PerformanceSnapshotFormatter.FormatEfficiencyProfile(snap.EfficiencyProfile, loc);
         PerfRuntimeHealthText.Text = PerformanceSnapshotFormatter.FormatHealth(snap.RuntimeHealth, loc);
         PerfRuntimeHealthText.Style = (Style)Application.Current.Resources[

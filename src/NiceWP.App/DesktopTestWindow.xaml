@@ -230,7 +230,7 @@
                                 <TextBlock Text="Â·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="ActiveWallpaperCostText" Text="Light" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Text="Â·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock x:Name="ActiveAdaptiveProfileText" Text="Automatic" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="ActiveAdaptiveProfileText" Text="Profile: Auto" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                             <TextBlock x:Name="ActiveFullPathText" Text="Select a wallpaper from the Library or choose a file below." FontSize="12" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                             <TextBlock x:Name="ActiveMissingWarningText" Text="The wallpaper file is missing." TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -420,6 +420,8 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="2" Grid.Column="0" Spacing="8">
                                     <TextBlock x:Name="PerfDesktopHostLabel" Text="Desktop Host (WorkerW)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
@@ -444,6 +446,22 @@
                                 <StackPanel Grid.Row="4" Grid.Column="1" Spacing="8">
                                     <TextBlock x:Name="PerfDisplayPowerPolicyLabel" Text="Display Power Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfDisplayPowerPolicyText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="5" Grid.Column="0" Spacing="8">
+                                    <TextBlock x:Name="PerfResourceGuardLabel" Text="Resource Guard" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfResourceGuardText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="5" Grid.Column="1" Spacing="8">
+                                    <TextBlock x:Name="PerfDecoderStateLabel" Text="Hardware Decoder State" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfDecoderStateText" Text="Active" FontSize="13" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="6" Grid.Column="0" Spacing="8">
+                                    <TextBlock x:Name="PerfResourceBudgetLabel" Text="Resource Budget" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfResourceBudgetText" Text="Automatic" FontSize="13" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="6" Grid.Column="1" Spacing="8">
+                                    <TextBlock x:Name="PerfLastActionLabel" Text="Last Automatic Action" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfLastActionText" Text="None" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
@@ -653,6 +671,40 @@
                                 <TextBlock x:Name="SettingsPresentationWallpaperSubtitle" Text="Wallpaper to show during meetings or screen share sessions." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <ComboBox x:Name="PresentationWallpaperComboBox" HorizontalAlignment="Stretch" SelectionChanged="OnPresentationWallpaperSelectionChanged" />
                             </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="SettingsAdaptiveHeader" Text="Adaptive Desktop Intelligence" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsAdaptiveSubtitle" Text="Configure automatic behavior profiles and hardware resource limits." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsAdaptiveProfileLabel" Text="Default Profile" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="AdaptiveProfileComboBox" SelectionChanged="OnAdaptiveProfileSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Adaptive profile">
+                                        <ComboBoxItem Content="Automatic (Context-aware)" Tag="Automatic" />
+                                        <ComboBoxItem Content="Normal" Tag="Normal" />
+                                        <ComboBoxItem Content="Focus" Tag="Focus" />
+                                        <ComboBoxItem Content="Gaming" Tag="Gaming" />
+                                        <ComboBoxItem Content="Presentation" Tag="Presentation" />
+                                        <ComboBoxItem Content="Battery Saver" Tag="BatterySaver" />
+                                        <ComboBoxItem Content="Cinema" Tag="Cinema" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock x:Name="SettingsResourceBudgetLabel" Text="Resource Budget" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="ResourceBudgetComboBox" SelectionChanged="OnResourceBudgetSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Resource budget">
+                                        <ComboBoxItem Content="Automatic (Balanced / Power-aware)" Tag="Automatic" />
+                                        <ComboBoxItem Content="Low (Aggressive savings)" Tag="Low" />
+                                        <ComboBoxItem Content="Balanced (Recommended)" Tag="Balanced" />
+                                        <ComboBoxItem Content="High (High performance)" Tag="High" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock x:Name="AdaptiveSettingsStatusText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
