@@ -229,6 +229,8 @@
                                 <TextBlock x:Name="ActiveEfficiencyProfileText" Text="Balanced" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Text="Â·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="ActiveWallpaperCostText" Text="Light" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Â·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="ActiveAdaptiveProfileText" Text="Automatic" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                             <TextBlock x:Name="ActiveFullPathText" Text="Select a wallpaper from the Library or choose a file below." FontSize="12" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                             <TextBlock x:Name="ActiveMissingWarningText" Text="The wallpaper file is missing." TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

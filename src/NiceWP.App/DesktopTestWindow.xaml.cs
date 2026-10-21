@@ -2263,6 +2263,20 @@ public sealed partial class DesktopTestWindow : Window
             }
         }
 
+                if (ActiveAdaptiveProfileText != null)
+        {
+            var p = trayIcon?.CurrentProfile ?? AdaptiveDesktopProfile.Normal;
+            ActiveAdaptiveProfileText.Text = p switch
+            {
+                AdaptiveDesktopProfile.Focus => isTr ? "Odak" : "Focus",
+                AdaptiveDesktopProfile.Gaming => isTr ? "Oyun" : "Gaming",
+                AdaptiveDesktopProfile.Presentation => isTr ? "Sunum" : "Presentation",
+                AdaptiveDesktopProfile.BatterySaver => isTr ? "Pil Tasarrufu" : "Battery Saver",
+                AdaptiveDesktopProfile.Cinema => isTr ? "Sinema" : "Cinema",
+                _ => isTr ? "Normal" : "Normal"
+            };
+        }
+
         PauseResumeWallpaperButton.Content = resolvedPaused ? loc.GetString(LocalizationKeys.ActiveResume) : loc.GetString(LocalizationKeys.ActivePause);
         ActivePlaceholderIcon.Symbol = !hasWallpaper
             ? Symbol.SlideShow
