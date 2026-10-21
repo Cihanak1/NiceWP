@@ -1120,10 +1120,22 @@ public sealed class RuntimeHostApp : IDisposable
                 {
                     healthTracker.RecordSuccess();
                     ClearPauseReasons();
-                    currentState = new RuntimeWallpaperState(normalizedType, fullPath, IpcConstants.PlaybackStateRunning);
+                    var shouldStartDeepFrozen = string.Equals(settings.LastWallpaperState, IpcConstants.PlaybackStateDeepFrozen, StringComparison.OrdinalIgnoreCase);
+                    if (shouldStartDeepFrozen)
+                    {
+                        compositionRoot.WallpaperService.DeepFreeze();
+                        currentState = new RuntimeWallpaperState(normalizedType, fullPath, IpcConstants.PlaybackStateDeepFrozen);
+                        auditTrail.Record("WallpaperRestoredDeepFrozen", $"Startup wallpaper restored directly into deep freeze: {Path.GetFileName(fullPath)}");
+                        Trace.WriteLine($"Startup wallpaper restored directly into deep freeze: type={normalizedType}, path={fullPath}");
+                    }
+                    else
+                    {
+                        currentState = new RuntimeWallpaperState(normalizedType, fullPath, IpcConstants.PlaybackStateRunning);
+                        auditTrail.Record("WallpaperRestored", $"Startup wallpaper restored: {Path.GetFileName(fullPath)}");
+                        Trace.WriteLine($"Startup wallpaper restored: type={normalizedType}, path={fullPath}");
+                        SynchronizeAutoPauseStateOnDispatcher();
+                    }
                     NotifyPolicyStateChanged();
-                    auditTrail.Record("WallpaperRestored", $"Startup wallpaper restored: {Path.GetFileName(fullPath)}");
-                    Trace.WriteLine($"Startup wallpaper restored: type={normalizedType}, path={fullPath}");
                 }
                 else if (result.Success)
                 {
