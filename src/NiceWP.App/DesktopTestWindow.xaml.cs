@@ -4451,4 +4451,38 @@ public sealed partial class DesktopTestWindow : Window
 
     private static string FormatDimensions(uint? w, uint? h) =>
         w.HasValue && h.HasValue ? $"{w.Value} x {h.Value}" : (LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish ? "KullanÄ±lamÄ±yor" : "Unavailable");
+
+    private async void OnTrayProfileSelected(AdaptiveDesktopProfile profile)
+    {
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.EffectiveAdaptiveProfile = profile;
+            await settingsService.SaveAsync(cur);
+            trayIcon.CurrentProfile = profile;
+            SelectComboBoxByTag(AdaptiveProfileComboBox, profile.ToString());
+            StatusText.Text = $"Adaptive Profile: {profile}";
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error changing profile from tray: {ex}");
+        }
+    }
+
+    private async void OnTrayBudgetSelected(ResourceBudget budget)
+    {
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.EffectiveResourceBudget = budget;
+            await settingsService.SaveAsync(cur);
+            trayIcon.CurrentBudget = budget;
+            SelectComboBoxByTag(ResourceBudgetComboBox, budget.ToString());
+            StatusText.Text = $"Resource Budget: {budget}";
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error changing budget from tray: {ex}");
+        }
+    }
 }
