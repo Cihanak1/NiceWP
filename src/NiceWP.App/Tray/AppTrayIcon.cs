@@ -25,6 +25,12 @@ public sealed class AppTrayIcon : IDisposable
     public event Action? StopWallpaperRequested;
     public event Action? ExitRequested;
 
+    public NiceWP.Core.AdaptiveDesktopProfile CurrentProfile { get; set; } = NiceWP.Core.AdaptiveDesktopProfile.Automatic;
+    public NiceWP.Core.ResourceBudget CurrentBudget { get; set; } = NiceWP.Core.ResourceBudget.Automatic;
+
+    public event Action<NiceWP.Core.AdaptiveDesktopProfile>? ProfileSelected;
+    public event Action<NiceWP.Core.ResourceBudget>? BudgetSelected;
+
     public AppTrayIcon(IntPtr hWnd)
     {
         _hWnd = hWnd;
@@ -156,6 +162,38 @@ public sealed class AppTrayIcon : IDisposable
             var loc = NiceWP.Infrastructure.Localization.LocalizationService.Instance;
             TrayInterop.AppendMenu(hMenu, TrayInterop.MF_STRING, (IntPtr)TrayInterop.CmdOpen, loc.GetString(NiceWP.Infrastructure.Localization.LocalizationKeys.TrayOpen));
             TrayInterop.AppendMenu(hMenu, TrayInterop.MF_STRING, (IntPtr)TrayInterop.CmdStop, loc.GetString(NiceWP.Infrastructure.Localization.LocalizationKeys.TrayStopWallpaper));
+            TrayInterop.AppendMenu(hMenu, TrayInterop.MF_SEPARATOR, IntPtr.Zero, string.Empty);
+
+            // Submenu for Adaptive Profiles
+            var hProfileMenu = TrayInterop.CreatePopupMenu();
+            if (hProfileMenu != IntPtr.Zero)
+            {
+                var isTr = loc.CurrentLanguage == NiceWP.Core.EffectiveLanguage.Turkish;
+                AppendProfileItem(hProfileMenu, TrayInterop.CmdProfileAuto, isTr ? "Otomatik" : "Automatic", CurrentProfile == NiceWP.Core.AdaptiveDesktopProfile.Automatic);
+                AppendProfileItem(hProfileMenu, TrayInterop.CmdProfileNormal, isTr ? "Normal" : "Normal", CurrentProfile == NiceWP.Core.AdaptiveDesktopProfile.Normal);
+                AppendProfileItem(hProfileMenu, TrayInterop.CmdProfileFocus, isTr ? "Odak" : "Focus", CurrentProfile == NiceWP.Core.AdaptiveDesktopProfile.Focus);
+                AppendProfileItem(hProfileMenu, TrayInterop.CmdProfileGaming, isTr ? "Oyun" : "Gaming", CurrentProfile == NiceWP.Core.AdaptiveDesktopProfile.Gaming);
+                AppendProfileItem(hProfileMenu, TrayInterop.CmdProfilePresentation, isTr ? "Sunum" : "Presentation", CurrentProfile == NiceWP.Core.AdaptiveDesktopProfile.Presentation);
+                AppendProfileItem(hProfileMenu, TrayInterop.CmdProfileBatterySaver, isTr ? "Pil Tasarrufu" : "Battery Saver", CurrentProfile == NiceWP.Core.AdaptiveDesktopProfile.BatterySaver);
+                AppendProfileItem(hProfileMenu, TrayInterop.CmdProfileCinema, isTr ? "Sinema" : "Cinema", CurrentProfile == NiceWP.Core.AdaptiveDesktopProfile.Cinema);
+
+                TrayInterop.AppendMenu(hMenu, TrayInterop.MF_POPUP, hProfileMenu, isTr ? "Masaüstü Profili" : "Desktop Profile");
+            }
+
+            // Submenu for Resource Budget
+            var hBudgetMenu = TrayInterop.CreatePopupMenu();
+            if (hBudgetMenu != IntPtr.Zero)
+            {
+                var isTr = loc.CurrentLanguage == NiceWP.Core.EffectiveLanguage.Turkish;
+                AppendBudgetItem(hBudgetMenu, TrayInterop.CmdBudgetAuto, isTr ? "Otomatik" : "Automatic", CurrentBudget == NiceWP.Core.ResourceBudget.Automatic);
+                AppendBudgetItem(hBudgetMenu, TrayInterop.CmdBudgetLow, isTr ? "Düşük (Low)" : "Low", CurrentBudget == NiceWP.Core.ResourceBudget.Low);
+                AppendBudgetItem(hBudgetMenu, TrayInterop.CmdBudgetBalanced, isTr ? "Dengeli (Balanced)" : "Balanced", CurrentBudget == NiceWP.Core.ResourceBudget.Balanced);
+                AppendBudgetItem(hBudgetMenu, TrayInterop.CmdBudgetHigh, isTr ? "Yüksek (High)" : "High", CurrentBudget == NiceWP.Core.ResourceBudget.High);
+
+                TrayInterop.AppendMenu(hMenu, TrayInterop.MF_POPUP, hBudgetMenu, isTr ? "Kaynak Bütçesi" : "Resource Budget");
+            }
+
+            TrayInterop.AppendMenu(hMenu, TrayInterop.MF_SEPARATOR, IntPtr.Zero, string.Empty);
             TrayInterop.AppendMenu(hMenu, TrayInterop.MF_STRING, (IntPtr)TrayInterop.CmdExit, loc.GetString(NiceWP.Infrastructure.Localization.LocalizationKeys.TrayExit));
 
             TrayInterop.GetCursorPos(out var pt);
@@ -182,12 +220,57 @@ public sealed class AppTrayIcon : IDisposable
                 case TrayInterop.CmdExit:
                     ExitRequested?.Invoke();
                     break;
+                case TrayInterop.CmdProfileAuto:
+                    ProfileSelected?.Invoke(NiceWP.Core.AdaptiveDesktopProfile.Automatic);
+                    break;
+                case TrayInterop.CmdProfileNormal:
+                    ProfileSelected?.Invoke(NiceWP.Core.AdaptiveDesktopProfile.Normal);
+                    break;
+                case TrayInterop.CmdProfileFocus:
+                    ProfileSelected?.Invoke(NiceWP.Core.AdaptiveDesktopProfile.Focus);
+                    break;
+                case TrayInterop.CmdProfileGaming:
+                    ProfileSelected?.Invoke(NiceWP.Core.AdaptiveDesktopProfile.Gaming);
+                    break;
+                case TrayInterop.CmdProfilePresentation:
+                    ProfileSelected?.Invoke(NiceWP.Core.AdaptiveDesktopProfile.Presentation);
+                    break;
+                case TrayInterop.CmdProfileBatterySaver:
+                    ProfileSelected?.Invoke(NiceWP.Core.AdaptiveDesktopProfile.BatterySaver);
+                    break;
+                case TrayInterop.CmdProfileCinema:
+                    ProfileSelected?.Invoke(NiceWP.Core.AdaptiveDesktopProfile.Cinema);
+                    break;
+                case TrayInterop.CmdBudgetAuto:
+                    BudgetSelected?.Invoke(NiceWP.Core.ResourceBudget.Automatic);
+                    break;
+                case TrayInterop.CmdBudgetLow:
+                    BudgetSelected?.Invoke(NiceWP.Core.ResourceBudget.Low);
+                    break;
+                case TrayInterop.CmdBudgetBalanced:
+                    BudgetSelected?.Invoke(NiceWP.Core.ResourceBudget.Balanced);
+                    break;
+                case TrayInterop.CmdBudgetHigh:
+                    BudgetSelected?.Invoke(NiceWP.Core.ResourceBudget.High);
+                    break;
             }
         }
         finally
         {
             TrayInterop.DestroyMenu(hMenu);
         }
+    }
+
+    private static void AppendProfileItem(IntPtr hMenu, int cmd, string text, bool isChecked)
+    {
+        var flags = TrayInterop.MF_STRING | (isChecked ? TrayInterop.MF_CHECKED : TrayInterop.MF_UNCHECKED);
+        TrayInterop.AppendMenu(hMenu, flags, (IntPtr)cmd, text);
+    }
+
+    private static void AppendBudgetItem(IntPtr hMenu, int cmd, string text, bool isChecked)
+    {
+        var flags = TrayInterop.MF_STRING | (isChecked ? TrayInterop.MF_CHECKED : TrayInterop.MF_UNCHECKED);
+        TrayInterop.AppendMenu(hMenu, flags, (IntPtr)cmd, text);
     }
 
     public void Dispose()
