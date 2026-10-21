@@ -45,7 +45,8 @@ public sealed class AdaptiveProfileIntegrationTests
         var input = new AdaptiveStateResolverInput
         {
             IsFullscreenActive = true,
-            ForegroundProcessName = "steam.exe"
+            ForegroundProcessName = "steam.exe",
+            CurrentWallpaperType = IpcConstants.WallpaperTypeVideo
         };
 
         var state = AdaptiveDesktopStateResolver.Resolve(input);
@@ -62,7 +63,8 @@ public sealed class AdaptiveProfileIntegrationTests
         var input = new AdaptiveStateResolverInput
         {
             IsOnBattery = true,
-            IsBatterySaverActive = true
+            IsBatterySaverActive = true,
+            CurrentWallpaperType = IpcConstants.WallpaperTypeVideo
         };
 
         var state = AdaptiveDesktopStateResolver.Resolve(input);

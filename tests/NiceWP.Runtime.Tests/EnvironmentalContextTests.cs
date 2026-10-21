@@ -34,7 +34,7 @@ public sealed class EnvironmentalContextTests
         var input = new AdaptiveStateResolverInput
         {
             IsSessionLocked = true,
-            IsManualPaused = true,
+            IsManualPauseActive = true,
             ForegroundProcessName = "powerpnt.exe",
             IsFullscreenActive = true
         };
@@ -52,7 +52,7 @@ public sealed class EnvironmentalContextTests
     {
         var input = new AdaptiveStateResolverInput
         {
-            IsManualPaused = true,
+            IsManualPauseActive = true,
             ForegroundProcessName = "powerpnt.exe"
         };
 
@@ -60,7 +60,7 @@ public sealed class EnvironmentalContextTests
 
         Assert.True(state.ShouldPause);
         Assert.Equal(AdaptiveDesktopProfile.Presentation, state.EffectiveProfile);
-        Assert.Contains("Manually paused", state.Reason);
+        Assert.Contains("Manual pause", state.Reason);
     }
 
     [Fact]
