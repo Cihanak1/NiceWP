@@ -36,6 +36,9 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ResourceBudget { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AdaptiveProfile { get; set; }
+
     public string RotationMode { get; set; } = RotationModeExtensions.ModeOff;
 
     public string RotationOrder { get; set; } = RotationOrderExtensions.OrderSequential;
@@ -77,6 +80,20 @@ public sealed class AppSettings
     [JsonIgnore]
     public string EffectiveNightStartTime => NightStartTime ?? DefaultNightStartTime;
 
+    [JsonIgnore]
+    public AdaptiveDesktopProfile EffectiveAdaptiveProfile
+    {
+        get => Enum.TryParse<AdaptiveDesktopProfile>(AdaptiveProfile, true, out var p) ? p : AdaptiveDesktopProfile.Automatic;
+        set => AdaptiveProfile = value == AdaptiveDesktopProfile.Automatic ? null : value.ToString();
+    }
+
+    [JsonIgnore]
+    public ResourceBudget EffectiveResourceBudget
+    {
+        get => Enum.TryParse<ResourceBudget>(ResourceBudget, true, out var b) ? b : ResourceBudget.Automatic;
+        set => ResourceBudget = value == ResourceBudget.Automatic ? null : value.ToString();
+    }
+
     public static AppSettings CreateDefault() => new()
     {
         RestoreLastWallpaper = true,
@@ -87,6 +104,7 @@ public sealed class AppSettings
         Theme = null,
         EfficiencyProfile = null,
         ResourceBudget = null,
+        AdaptiveProfile = null,
         RotationMode = RotationModeExtensions.ModeOff,
         RotationOrder = RotationOrderExtensions.OrderSequential,
         RotationIntervalMinutes = 30,
@@ -125,6 +143,7 @@ public sealed class AppSettings
             Theme = NormalizeTheme(Theme),
             EfficiencyProfile = NormalizeEfficiencyProfile(EfficiencyProfile),
             ResourceBudget = NormalizeResourceBudget(ResourceBudget),
+            AdaptiveProfile = NormalizeAdaptiveProfile(AdaptiveProfile),
             RotationMode = NormalizeRotationMode(RotationMode),
             RotationOrder = NormalizeRotationOrder(RotationOrder),
             RotationIntervalMinutes = NormalizeRotationIntervalMinutes(RotationIntervalMinutes),
@@ -230,5 +249,15 @@ public sealed class AppSettings
         if (!TimeOnly.TryParse(time.Trim(), out var parsed)) return null;
         var formatted = parsed.ToString("HH:mm");
         return formatted == DefaultNightStartTime ? null : formatted;
+    }
+
+    public static string? NormalizeAdaptiveProfile(string? profile)
+    {
+        if (string.IsNullOrWhiteSpace(profile)) return null;
+        if (Enum.TryParse<AdaptiveDesktopProfile>(profile.Trim(), true, out var p))
+        {
+            return p == AdaptiveDesktopProfile.Automatic ? null : p.ToString();
+        }
+        return null;
     }
 }
