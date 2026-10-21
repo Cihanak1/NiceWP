@@ -35,10 +35,27 @@ internal static class TrayInterop
     public const int TPM_RIGHTBUTTON = 0x0002;
 
     public const int MF_STRING = 0x00000000;
+    public const int MF_POPUP = 0x00000010;
+    public const int MF_SEPARATOR = 0x00000800;
+    public const int MF_CHECKED = 0x00000008;
+    public const int MF_UNCHECKED = 0x00000000;
 
     public const int CmdOpen = 1001;
     public const int CmdStop = 1002;
     public const int CmdExit = 1003;
+
+    public const int CmdProfileAuto = 2000;
+    public const int CmdProfileNormal = 2001;
+    public const int CmdProfileFocus = 2002;
+    public const int CmdProfileGaming = 2003;
+    public const int CmdProfilePresentation = 2004;
+    public const int CmdProfileBatterySaver = 2005;
+    public const int CmdProfileCinema = 2006;
+
+    public const int CmdBudgetAuto = 2100;
+    public const int CmdBudgetLow = 2101;
+    public const int CmdBudgetBalanced = 2102;
+    public const int CmdBudgetHigh = 2103;
 
     public const int SW_HIDE = 0;
     public const int SW_SHOW = 5;
