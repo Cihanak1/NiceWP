@@ -118,7 +118,9 @@ public static class AdaptiveDesktopStateResolver
                 ActiveProcessName = input.ForegroundProcessName,
                 Reason = isRule
                     ? $"Gaming rule active for {input.ForegroundProcessName}"
-                    : (input.IsFullscreenActive ? "Fullscreen application active" : "Gaming profile active")
+                    : (GamingProfileBehavior.IsGamingProcess(input.ForegroundProcessName)
+                        ? $"Gaming application active: {input.ForegroundProcessName}"
+                        : (input.IsFullscreenActive ? "Fullscreen application active" : "Gaming profile active"))
             };
         }
 
@@ -266,8 +268,8 @@ public static class AdaptiveDesktopStateResolver
             return AdaptiveDesktopProfile.BatterySaver;
         }
 
-        // Then Fullscreen -> Gaming
-        if (input.IsFullscreenActive)
+        // Then Gaming (Fullscreen or recognized gaming process)
+        if (input.IsFullscreenActive || GamingProfileBehavior.IsGamingProcess(input.ForegroundProcessName))
         {
             return AdaptiveDesktopProfile.Gaming;
         }
