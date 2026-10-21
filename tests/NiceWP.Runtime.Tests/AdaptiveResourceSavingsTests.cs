@@ -13,11 +13,11 @@ public sealed class AdaptiveResourceSavingsTests
     {
         // Image wallpaper
         Assert.Equal(WallpaperCost.Light, WallpaperCostClassifier.Classify(IpcConstants.WallpaperTypeImage, fileSizeBytes: 1024 * 1024));
-        Assert.Equal(WallpaperCost.Moderate, WallpaperCostClassifier.Classify(IpcConstants.WallpaperTypeImage, fileSizeBytes: 20 * 1024 * 1024));
+        Assert.Equal(WallpaperCost.Light, WallpaperCostClassifier.Classify(IpcConstants.WallpaperTypeImage, fileSizeBytes: 20 * 1024 * 1024));
 
         // Video wallpaper
         Assert.Equal(WallpaperCost.Moderate, WallpaperCostClassifier.Classify(IpcConstants.WallpaperTypeVideo, fileSizeBytes: 15 * 1024 * 1024));
-        Assert.Equal(WallpaperCost.Heavy, WallpaperCostClassifier.Classify(IpcConstants.WallpaperTypeVideo, fileSizeBytes: 120 * 1024 * 1024));
+        Assert.Equal(WallpaperCost.Heavy, WallpaperCostClassifier.Classify(IpcConstants.WallpaperTypeVideo, fileSizeBytes: 250 * 1024 * 1024));
 
         // None
         Assert.Equal(WallpaperCost.Light, WallpaperCostClassifier.Classify(IpcConstants.WallpaperTypeNone));

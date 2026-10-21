@@ -50,6 +50,6 @@ public sealed class ResourceBudgetPersistenceTests : IDisposable
 
         var loaded = await service.LoadAsync();
         Assert.Equal("Low", loaded.ResourceBudget);
-        Assert.Equal("Low", loaded.EffectiveResourceBudget);
+        Assert.Equal(ResourceBudget.Low, loaded.EffectiveResourceBudget);
     }
 }
