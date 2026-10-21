@@ -64,6 +64,7 @@ public sealed partial class DesktopTestWindow : Window
         LocalizationService.Instance.LanguageChanged += OnLocalizationLanguageChanged;
         UpdateNavigationLocalization();
         UpdateLibraryLocalization();
+        UpdateActiveWallpaperLocalization();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Brand", "nicewp-app.ico"));
         StatusText.RegisterPropertyChangedCallback(TextBlock.TextProperty, (_, _) => UpdateFeedbackVisuals());
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1060, 720));
@@ -1990,13 +1991,18 @@ public sealed partial class DesktopTestWindow : Window
         ActiveEmptyState.Visibility = hasWallpaper ? Visibility.Collapsed : Visibility.Visible;
         ActiveDetailsPanel.Visibility = hasWallpaper ? Visibility.Visible : Visibility.Collapsed;
 
-        WallpaperTypeText.Text = hasWallpaper ? activeWallpaperType : "None";
+        var loc = LocalizationService.Instance;
+        WallpaperTypeText.Text = !hasWallpaper
+            ? (loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Yok" : "None")
+            : isVideo
+                ? loc.GetString(LocalizationKeys.ActiveVideo)
+                : loc.GetString(LocalizationKeys.ActiveImage);
         var measured = latestPerformanceStatus?.Snapshot;
         ActiveResolutionText.Text = hasWallpaper && measured != null &&
             string.Equals(measured.ActiveWallpaperPath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase)
                 ? FormatDimensions(isVideo ? measured.VideoWidth : measured.SourceWidth,
                     isVideo ? measured.VideoHeight : measured.SourceHeight)
-                : "Available in Performance";
+                : (loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Performans sekmesinde mevcut" : "Available in Performance");
 
         var resolvedPaused = isPaused ||
             string.Equals(playbackState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase);
@@ -2010,10 +2016,10 @@ public sealed partial class DesktopTestWindow : Window
             : !hasWallpaper
                 ? "None"
                 : resolvedPaused
-                    ? "Paused"
-                    : "Running";
+                    ? loc.GetString(LocalizationKeys.ActivePaused)
+                    : loc.GetString(LocalizationKeys.ActiveRunning);
 
-        PauseResumeWallpaperButton.Content = resolvedPaused ? "Resume" : "Pause";
+        PauseResumeWallpaperButton.Content = resolvedPaused ? loc.GetString(LocalizationKeys.ActiveResume) : loc.GetString(LocalizationKeys.ActivePause);
         ActivePlaceholderIcon.Symbol = !hasWallpaper
             ? Symbol.SlideShow
             : isVideo
@@ -2382,12 +2388,12 @@ public sealed partial class DesktopTestWindow : Window
 
         if (ActiveRotationStateText != null)
         {
-            ActiveRotationStateText.Text = $"Rotation: {status.FormattedState}";
+            ActiveRotationStateText.Text = $"{LocalizationService.Instance.GetString(LocalizationKeys.ActiveRotation)}: {status.FormattedState}";
         }
 
         if (ActiveRotationPositionText != null)
         {
-            ActiveRotationPositionText.Text = $"Position: {status.FormattedPosition}";
+            ActiveRotationPositionText.Text = $"{LocalizationService.Instance.GetString(LocalizationKeys.ActivePosition)}: {status.FormattedPosition}";
         }
 
         UpdateRotationCountdownUI(status);
@@ -2396,16 +2402,20 @@ public sealed partial class DesktopTestWindow : Window
     private void UpdateRotationCountdownUI(WallpaperRotationStatus? status = null)
     {
         if (ActiveRotationCountdownText == null || closed) return;
+        var loc = LocalizationService.Instance;
+        var nextLabel = loc.GetString(LocalizationKeys.ActiveNextChange);
         status ??= libraryController?.Rotation?.GetStatus();
         if (status == null || !status.IsActive)
         {
-            ActiveRotationCountdownText.Text = "Next change: Inactive";
+            var inactive = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Devre dışı" : "Inactive";
+            ActiveRotationCountdownText.Text = $"{nextLabel}: {inactive}";
             return;
         }
 
         if (status.IsOverdue)
         {
-            ActiveRotationCountdownText.Text = "Next change: Overdue (paused)";
+            var overdue = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Gecikmiş (duraklatıldı)" : "Overdue (paused)";
+            ActiveRotationCountdownText.Text = $"{nextLabel}: {overdue}";
             return;
         }
 
@@ -2414,19 +2424,30 @@ public sealed partial class DesktopTestWindow : Window
             var remaining = status.NextDueTimeUtc.Value - DateTimeOffset.UtcNow;
             if (remaining <= TimeSpan.Zero)
             {
-                ActiveRotationCountdownText.Text = "Next change: Imminent";
+                var imminent = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Uygulanıyor..." : "Imminent";
+                ActiveRotationCountdownText.Text = $"{nextLabel}: {imminent}";
             }
             else
             {
                 var formatted = remaining.TotalHours >= 1
                     ? $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m {remaining.Seconds:D2}s"
                     : $"{remaining.Minutes:D2}m {remaining.Seconds:D2}s";
-                ActiveRotationCountdownText.Text = $"Next change in {formatted}";
+                if (remaining.TotalMinutes >= 1)
+                {
+                    var mins = (int)Math.Ceiling(remaining.TotalMinutes);
+                    ActiveRotationCountdownText.Text = loc.Format(LocalizationKeys.FormatCountdownMin, mins);
+                }
+                else
+                {
+                    var secs = Math.Max(1, (int)remaining.TotalSeconds);
+                    ActiveRotationCountdownText.Text = loc.Format(LocalizationKeys.FormatCountdownSec, secs);
+                }
             }
         }
         else
         {
-            ActiveRotationCountdownText.Text = "Next change: Inactive";
+            var inactive = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Devre dışı" : "Inactive";
+            ActiveRotationCountdownText.Text = $"{nextLabel}: {inactive}";
         }
     }
 
@@ -2991,7 +3012,9 @@ public sealed partial class DesktopTestWindow : Window
         {
             UpdateNavigationLocalization();
         UpdateLibraryLocalization();
+        UpdateActiveWallpaperLocalization();
             UpdateLibraryLocalization();
+        UpdateActiveWallpaperLocalization();
             UpdateActiveWallpaperLocalization();
             UpdateSettingsLocalization();
             UpdatePerformanceLocalization();
@@ -3082,7 +3105,19 @@ public sealed partial class DesktopTestWindow : Window
 
         RenderLibraryItems();
     }
-    private void UpdateActiveWallpaperLocalization() { }
+    private void UpdateActiveWallpaperLocalization()
+    {
+        var loc = LocalizationService.Instance;
+        if (ActiveWallpaperTitleText != null) ActiveWallpaperTitleText.Text = loc.GetString(LocalizationKeys.NavActiveWallpaper);
+        if (PreviousWallpaperButton != null) PreviousWallpaperButton.Content = loc.GetString(LocalizationKeys.ActivePrevious);
+        if (NextWallpaperButton != null) NextWallpaperButton.Content = loc.GetString(LocalizationKeys.ActiveNext);
+        if (StopActiveWallpaperButton != null) StopActiveWallpaperButton.Content = loc.GetString(LocalizationKeys.ActiveStop);
+        if (SelectImageButton != null) SelectImageButton.Content = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Dosya Seç…" : "Choose File…";
+        if (RefreshActiveStatusButton != null) RefreshActiveStatusButton.Content = loc.CurrentLanguage == EffectiveLanguage.Turkish ? "Yenile" : "Refresh";
+
+        UpdateActiveDetails(activeWallpaperPaused, activePlaybackState, statusKnown: true);
+        UpdateRotationDetailsUI();
+    }
     private void UpdateSettingsLocalization() { }
     private void UpdatePerformanceLocalization() { }
 

@@ -209,7 +209,7 @@
             <ScrollViewer x:Name="ActivePage" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled" SizeChanged="OnActiveLayoutSizeChanged" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="12" MaxWidth="1120" HorizontalAlignment="Stretch" x:Name="ActiveContentPanel">
                     <StackPanel Spacing="8">
-                        <TextBlock Text="Active Wallpaper" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="ActiveWallpaperTitleText" Text="Active Wallpaper" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
                     </StackPanel>
                     <StackPanel x:Name="ActiveEmptyState" Spacing="8" Margin="0,16,0,8">
                         <TextBlock Text="No wallpaper active" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
