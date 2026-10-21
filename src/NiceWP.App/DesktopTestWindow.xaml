@@ -270,7 +270,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Spacing="8" VerticalAlignment="Center">
-                            <TextBlock Text="Performance" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="PerformanceTitleText" Text="Performance" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
                             <TextBlock x:Name="PerformanceSubtitleText" Text="A clear view of your desktop. Metrics stay on this device." FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -280,19 +280,19 @@
                     <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="240" ItemHeight="136" SizeChanged="OnResponsivePanelSizeChanged" HorizontalAlignment="Stretch">
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Runtime Health" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfRuntimeHealthLabel" Text="Runtime Health" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfRuntimeHealthText" Text="Awaiting status" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Efficiency Mode" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfEfficiencyModeLabel" Text="Efficiency Mode" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfEfficiencyProfileText" Text="Awaiting status" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Current Action" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfCurrentActionLabel" Text="Current Action" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfCurrentActionText" Text="Awaiting status" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
@@ -315,42 +315,42 @@
                     <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="240" ItemHeight="144" SizeChanged="OnResponsivePanelSizeChanged" HorizontalAlignment="Stretch">
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="CPU" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfCpuLabel" Text="CPU" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfCpuCurrentText" Text="--%" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock x:Name="PerfCpuStatsText" Text="Avg: --% • Peak: --%" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Memory · working set" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfWorkingSetLabel" Text="Memory · working set" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfWorkingSetText" Text="-- MB" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock x:Name="PerfRamStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Private Memory" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfPrivateMemoryLabel" Text="Private Memory" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfPrivateMemoryText" Text="-- MB" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock x:Name="PerfPrivateStatsText" Text="Avg: -- MB • Peak: -- MB" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Threads" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfThreadsLabel" Text="Threads" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfThreadsText" Text="--" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock x:Name="PerfThreadPeakText" Text="Peak: --" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Handles" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfHandlesLabel" Text="Handles" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfHandlesText" Text="--" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock x:Name="PerfHandlePeakText" Text="Peak: --" FontSize="12" FontWeight="Normal" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource ControlSurfaceStyle}" Margin="0,0,12,12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Uptime" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="PerfUptimeLabel" Text="Uptime" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PerfUptimeText" Text="--" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock x:Name="PerfSampleCountText" Text="0 samples" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" TextWrapping="Wrap" FontWeight="Normal" />
                             </StackPanel>
@@ -358,7 +358,7 @@
                     </VariableSizedWrapGrid>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Wallpaper &amp; Renderer" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="PerfWallpaperRendererHeader" Text="Wallpaper &amp; Renderer" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <Grid ColumnSpacing="16" RowSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -370,23 +370,23 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0" Grid.Column="0" Spacing="8">
-                                    <TextBlock Text="Active Type &amp; Playback" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfActiveTypeLabel" Text="Active Type &amp; Playback" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfWallpaperTypeStateText" Text="None • Inactive" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="1" Spacing="8">
-                                    <TextBlock Text="Renderer Window (HWND)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfRendererWindowLabel" Text="Renderer Window (HWND)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfRendererStatusText" Text="Inactive" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
-                                    <TextBlock Text="Source Resolution" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfSourceResolutionLabel" Text="Source Resolution" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfSourceResolutionText" Text="Unavailable" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8">
-                                    <TextBlock Text="Decode Resolution &amp; Memory" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfDecodeResolutionLabel" Text="Decode Resolution &amp; Memory" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfDecodeResolutionText" Text="Unavailable" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="8">
-                                    <TextBlock Text="Media Details" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfMediaDetailsLabel" Text="Media Details" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfMediaDetailsText" Text="None" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Grid>
@@ -395,7 +395,7 @@
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="12">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Desktop guardrails" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Left" />
+                                <TextBlock x:Name="PerfGuardrailsHeader" Text="Desktop guardrails" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Left" />
                                 <Border x:Name="PerfEfficiencyStatusBadge" HorizontalAlignment="Left" CornerRadius="4" Padding="8,4" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
                                     <TextBlock x:Name="PerfEfficiencyStatusText" Text="Efficiency: Active" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                                 </Border>
@@ -413,27 +413,27 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="2" Grid.Column="0" Spacing="8">
-                                    <TextBlock Text="Desktop Host (WorkerW)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfDesktopHostLabel" Text="Desktop Host (WorkerW)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfDesktopHostStateText" Text="Disconnected" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="2" Grid.Column="1" Spacing="8">
-                                    <TextBlock Text="Active Pause Reasons" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfPauseReasonsLabel" Text="Active Pause Reasons" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfPauseReasonsText" Text="None" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="3" Grid.Column="0" Spacing="8">
-                                    <TextBlock Text="Fullscreen Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfFullscreenPolicyLabel" Text="Fullscreen Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfFullscreenPolicyText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="3" Grid.Column="1" Spacing="8">
-                                    <TextBlock Text="Power / Battery Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfPowerPolicyLabel" Text="Power / Battery Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfPowerPolicyText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="4" Grid.Column="0" Spacing="8">
-                                    <TextBlock Text="Session Lock Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfSessionLockPolicyLabel" Text="Session Lock Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfSessionLockPolicyText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="4" Grid.Column="1" Spacing="8">
-                                    <TextBlock Text="Display Power Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PerfDisplayPowerPolicyLabel" Text="Display Power Policy" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="PerfDisplayPowerPolicyText" Text="Inactive" FontSize="13" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Grid>
@@ -442,7 +442,7 @@
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="8">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Audit Trail" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Left" />
+                                <TextBlock x:Name="PerfAuditTrailHeader" Text="Audit Trail" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Left" />
                                 <TextBlock x:Name="PerfRecentEventsCountText" Text="0 events" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
                             <Border BorderThickness="2,0,0,0" BorderBrush="{ThemeResource ControlStrokeBrush}" Padding="16,0,0,0">
@@ -452,7 +452,7 @@
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="GPU Measurement" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="PerfGpuHeader" Text="GPU Measurement" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <TextBlock x:Name="PerfGpuStatusText" Text="GPU metrics: Unavailable. Windows process-level GPU counters require full D3D engine enumeration across all processes, adding 2+ seconds overhead per sample." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </Border>
@@ -460,9 +460,9 @@
                         <StackPanel Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <SymbolIcon Symbol="ProtectedDocument" VerticalAlignment="Center" />
-                                <TextBlock Text="Privacy &amp; Local Transparency" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PerfPrivacyHeader" Text="Privacy &amp; Local Transparency" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
-                            <TextBlock Text="Metrics stay on this device. No performance telemetry is sent." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="PerfPrivacySubtitle" Text="Metrics stay on this device. No performance telemetry is sent." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
