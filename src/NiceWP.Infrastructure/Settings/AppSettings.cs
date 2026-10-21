@@ -38,6 +38,33 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LastRotationItemId { get; set; }
 
+    public const string DefaultDayStartTime = "08:00";
+    public const string DefaultNightStartTime = "20:00";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ScheduleMode { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DayStartTime { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NightStartTime { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DayWallpaperId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NightWallpaperId { get; set; }
+
+    [JsonIgnore]
+    public string EffectiveScheduleMode => ScheduleMode ?? ScheduleModeExtensions.ModeOff;
+
+    [JsonIgnore]
+    public string EffectiveDayStartTime => DayStartTime ?? DefaultDayStartTime;
+
+    [JsonIgnore]
+    public string EffectiveNightStartTime => NightStartTime ?? DefaultNightStartTime;
+
     public static AppSettings CreateDefault() => new()
     {
         RestoreLastWallpaper = true,
@@ -49,7 +76,12 @@ public sealed class AppSettings
         RotationMode = RotationModeExtensions.ModeOff,
         RotationOrder = RotationOrderExtensions.OrderSequential,
         RotationIntervalMinutes = 30,
-        LastRotationItemId = null
+        LastRotationItemId = null,
+        ScheduleMode = null,
+        DayStartTime = null,
+        NightStartTime = null,
+        DayWallpaperId = null,
+        NightWallpaperId = null
     };
 
     /// <summary>
@@ -78,7 +110,12 @@ public sealed class AppSettings
             RotationMode = NormalizeRotationMode(RotationMode),
             RotationOrder = NormalizeRotationOrder(RotationOrder),
             RotationIntervalMinutes = NormalizeRotationIntervalMinutes(RotationIntervalMinutes),
-            LastRotationItemId = string.IsNullOrWhiteSpace(LastRotationItemId) ? null : LastRotationItemId.Trim()
+            LastRotationItemId = string.IsNullOrWhiteSpace(LastRotationItemId) ? null : LastRotationItemId.Trim(),
+            ScheduleMode = NormalizeScheduleMode(ScheduleMode),
+            DayStartTime = NormalizeDayStartTime(DayStartTime),
+            NightStartTime = NormalizeNightStartTime(NightStartTime),
+            DayWallpaperId = string.IsNullOrWhiteSpace(DayWallpaperId) ? null : DayWallpaperId.Trim(),
+            NightWallpaperId = string.IsNullOrWhiteSpace(NightWallpaperId) ? null : NightWallpaperId.Trim()
         };
     }
 
@@ -140,4 +177,26 @@ public sealed class AppSettings
         5 or 15 or 30 or 60 or 180 or 360 or 720 or 1440 => minutes,
         _ => 30
     };
+
+    public static string? NormalizeScheduleMode(string? mode)
+    {
+        var parsed = ScheduleModeExtensions.ParseMode(mode);
+        return parsed == NiceWP.Core.ScheduleMode.Off ? null : parsed.ToConfigString();
+    }
+
+    public static string? NormalizeDayStartTime(string? time)
+    {
+        if (string.IsNullOrWhiteSpace(time)) return null;
+        if (!TimeOnly.TryParse(time.Trim(), out var parsed)) return null;
+        var formatted = parsed.ToString("HH:mm");
+        return formatted == DefaultDayStartTime ? null : formatted;
+    }
+
+    public static string? NormalizeNightStartTime(string? time)
+    {
+        if (string.IsNullOrWhiteSpace(time)) return null;
+        if (!TimeOnly.TryParse(time.Trim(), out var parsed)) return null;
+        var formatted = parsed.ToString("HH:mm");
+        return formatted == DefaultNightStartTime ? null : formatted;
+    }
 }
