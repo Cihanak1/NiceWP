@@ -1,3 +1,4 @@
+using System.Globalization;
 using NiceWP.Core;
 
 namespace NiceWP.Infrastructure.Localization;
@@ -35,6 +36,10 @@ public sealed class LocalizationService : ILocalizationService
         }
     }
 
+    public CultureInfo Culture => CurrentLanguage == EffectiveLanguage.Turkish
+        ? CultureInfo.GetCultureInfo("tr-TR")
+        : CultureInfo.GetCultureInfo("en-US");
+
     public void SetLanguage(EffectiveLanguage language)
     {
         bool changed = false;
@@ -45,6 +50,21 @@ public sealed class LocalizationService : ILocalizationService
                 _currentLanguage = language;
                 changed = true;
             }
+        }
+
+        try
+        {
+            var culture = language == EffectiveLanguage.Turkish
+                ? CultureInfo.GetCultureInfo("tr-TR")
+                : CultureInfo.GetCultureInfo("en-US");
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+            CultureInfo.DefaultThreadCurrentCulture = culture;
+            CultureInfo.DefaultThreadCurrentUICulture = culture;
+        }
+        catch
+        {
+            // Fallback gracefully if system locale data cannot be overridden
         }
 
         if (changed)
@@ -82,7 +102,7 @@ public sealed class LocalizationService : ILocalizationService
         var template = GetString(key);
         try
         {
-            return string.Format(template, args);
+            return string.Format(Culture, template, args);
         }
         catch
         {

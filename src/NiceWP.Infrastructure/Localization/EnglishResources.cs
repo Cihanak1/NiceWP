@@ -123,6 +123,11 @@ internal static class EnglishResources
         service.RegisterEnglish(LocalizationKeys.SetStorageTitle, "Local Storage & Data");
         service.RegisterEnglish(LocalizationKeys.SetOpenStorageFolder, "Open Data Folder");
 
+        // Tray Menu
+        service.RegisterEnglish(LocalizationKeys.TrayOpen, "Open NiceWP");
+        service.RegisterEnglish(LocalizationKeys.TrayStopWallpaper, "Stop Wallpaper");
+        service.RegisterEnglish(LocalizationKeys.TrayExit, "Exit NiceWP");
+
         // Performance Interface
         service.RegisterEnglish(LocalizationKeys.PerfHealth, "Health");
         service.RegisterEnglish(LocalizationKeys.PerfEfficiency, "Efficiency");
@@ -137,6 +142,11 @@ internal static class EnglishResources
         service.RegisterEnglish(LocalizationKeys.PerfExport, "Export Report");
         service.RegisterEnglish(LocalizationKeys.PerfHostConnected, "Runtime Host: Connected");
         service.RegisterEnglish(LocalizationKeys.PerfHostDisconnected, "Runtime Host: Disconnected");
+        service.RegisterEnglish(LocalizationKeys.PerfRuntimeHostPidUptimeTemplate, "PID: {0} • Uptime: {1}");
+        service.RegisterEnglish(LocalizationKeys.PerfLive, "LIVE");
+        service.RegisterEnglish(LocalizationKeys.PerfAvgPeakTemplate, "Avg: {0} • Peak: {1}");
+        service.RegisterEnglish(LocalizationKeys.PerfPeakTemplate, "Peak: {0}");
+        service.RegisterEnglish(LocalizationKeys.PerfSamplesTemplate, "{0} samples (~{0}s)");
 
         // Status Messages & Feedback
         service.RegisterEnglish(LocalizationKeys.StatusRuntimeRecovered, "Runtime host recovered successfully.");

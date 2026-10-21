@@ -153,9 +153,10 @@ public sealed class AppTrayIcon : IDisposable
 
         try
         {
-            TrayInterop.AppendMenu(hMenu, TrayInterop.MF_STRING, (IntPtr)TrayInterop.CmdOpen, "Open NiceWP");
-            TrayInterop.AppendMenu(hMenu, TrayInterop.MF_STRING, (IntPtr)TrayInterop.CmdStop, "Stop Wallpaper");
-            TrayInterop.AppendMenu(hMenu, TrayInterop.MF_STRING, (IntPtr)TrayInterop.CmdExit, "Exit NiceWP");
+            var loc = NiceWP.Infrastructure.Localization.LocalizationService.Instance;
+            TrayInterop.AppendMenu(hMenu, TrayInterop.MF_STRING, (IntPtr)TrayInterop.CmdOpen, loc.GetString(NiceWP.Infrastructure.Localization.LocalizationKeys.TrayOpen));
+            TrayInterop.AppendMenu(hMenu, TrayInterop.MF_STRING, (IntPtr)TrayInterop.CmdStop, loc.GetString(NiceWP.Infrastructure.Localization.LocalizationKeys.TrayStopWallpaper));
+            TrayInterop.AppendMenu(hMenu, TrayInterop.MF_STRING, (IntPtr)TrayInterop.CmdExit, loc.GetString(NiceWP.Infrastructure.Localization.LocalizationKeys.TrayExit));
 
             TrayInterop.GetCursorPos(out var pt);
             TrayInterop.SetForegroundWindow(hWnd);

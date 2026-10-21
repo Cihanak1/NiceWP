@@ -121,7 +121,12 @@ public static class LocalizationKeys
     public const string SetStorageTitle = "Set.StorageTitle";
     public const string SetOpenStorageFolder = "Set.OpenStorageFolder";
 
-    // Performance Interface
+    // Tray Menu
+    public const string TrayOpen = "Tray.Open";
+    public const string TrayStopWallpaper = "Tray.StopWallpaper";
+    public const string TrayExit = "Tray.Exit";
+
+    // Performance Interface Details & Templates
     public const string PerfHealth = "Perf.Health";
     public const string PerfEfficiency = "Perf.Efficiency";
     public const string PerfCurrentAction = "Perf.CurrentAction";
@@ -135,6 +140,11 @@ public static class LocalizationKeys
     public const string PerfExport = "Perf.Export";
     public const string PerfHostConnected = "Perf.HostConnected";
     public const string PerfHostDisconnected = "Perf.HostDisconnected";
+    public const string PerfRuntimeHostPidUptimeTemplate = "Perf.HostPidUptimeTemplate";
+    public const string PerfLive = "Perf.Live";
+    public const string PerfAvgPeakTemplate = "Perf.AvgPeakTemplate";
+    public const string PerfPeakTemplate = "Perf.PeakTemplate";
+    public const string PerfSamplesTemplate = "Perf.SamplesTemplate";
 
     // Status Messages & Feedback
     public const string StatusRuntimeRecovered = "Status.RuntimeRecovered";

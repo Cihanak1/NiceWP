@@ -124,6 +124,11 @@ internal static class TurkishResources
         service.RegisterTurkish(LocalizationKeys.SetStorageTitle, "Yerel Depolama ve Veri");
         service.RegisterTurkish(LocalizationKeys.SetOpenStorageFolder, "Veri Klasörünü Aç");
 
+        // Tray Menu
+        service.RegisterTurkish(LocalizationKeys.TrayOpen, "NiceWP'yi Aç");
+        service.RegisterTurkish(LocalizationKeys.TrayStopWallpaper, "Duvar Kağıdını Durdur");
+        service.RegisterTurkish(LocalizationKeys.TrayExit, "NiceWP'den Çıkış");
+
         // Performance Interface
         service.RegisterTurkish(LocalizationKeys.PerfHealth, "Sağlık");
         service.RegisterTurkish(LocalizationKeys.PerfEfficiency, "Verimlilik");
@@ -136,8 +141,13 @@ internal static class TurkishResources
         service.RegisterTurkish(LocalizationKeys.PerfUptime, "Çalışma Süresi");
         service.RegisterTurkish(LocalizationKeys.PerfRecentActivity, "Son Etkinlikler");
         service.RegisterTurkish(LocalizationKeys.PerfExport, "Raporu Dışa Aktar");
-        service.RegisterTurkish(LocalizationKeys.PerfHostConnected, "Çalışma Zamanı: Bağlı");
-        service.RegisterTurkish(LocalizationKeys.PerfHostDisconnected, "Çalışma Zamanı: Bağlantı Kesildi");
+        service.RegisterTurkish(LocalizationKeys.PerfHostConnected, "Çalışma Motoru: Bağlı");
+        service.RegisterTurkish(LocalizationKeys.PerfHostDisconnected, "Çalışma Motoru: Bağlantı Yok");
+        service.RegisterTurkish(LocalizationKeys.PerfRuntimeHostPidUptimeTemplate, "PID: {0} • Çalışma Süresi: {1}");
+        service.RegisterTurkish(LocalizationKeys.PerfLive, "CANLI");
+        service.RegisterTurkish(LocalizationKeys.PerfAvgPeakTemplate, "Ort.: {0} • En Yüksek: {1}");
+        service.RegisterTurkish(LocalizationKeys.PerfPeakTemplate, "En Yüksek: {0}");
+        service.RegisterTurkish(LocalizationKeys.PerfSamplesTemplate, "{0} örnek (~{0} sn)");
 
         // Status Messages & Feedback
         service.RegisterTurkish(LocalizationKeys.StatusRuntimeRecovered, "Çalışma zamanı başarıyla kurtarıldı.");

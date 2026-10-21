@@ -60,20 +60,23 @@ public sealed record WallpaperLibraryEntryView(
 
     public bool IsVideo => string.Equals(Type, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
 
-    public string ToolTipText
+    public string ToolTipText => GetLocalizedToolTipText(isTurkish: false);
+
+    public string GetLocalizedToolTipText(bool isTurkish)
     {
-        get
+        if (IsMissing)
         {
-            if (IsMissing)
-            {
-                return $"{DisplayName}\n{FilePath}\nStatus: File not found on disk";
-            }
-            if (IsRemoteImported && !string.IsNullOrWhiteSpace(SourceHost))
-            {
-                return $"{DisplayName}\n{FilePath}\nSource: {SourceHost}";
-            }
-            return $"{DisplayName}\n{FilePath}";
+            return isTurkish
+                ? $"{DisplayName}\n{FilePath}\nDurum: Dosya diskte bulunamadı"
+                : $"{DisplayName}\n{FilePath}\nStatus: File not found on disk";
         }
+        if (IsRemoteImported && !string.IsNullOrWhiteSpace(SourceHost))
+        {
+            return isTurkish
+                ? $"{DisplayName}\n{FilePath}\nKaynak: {SourceHost}"
+                : $"{DisplayName}\n{FilePath}\nSource: {SourceHost}";
+        }
+        return $"{DisplayName}\n{FilePath}";
     }
 
     public string DisplayLabel =>

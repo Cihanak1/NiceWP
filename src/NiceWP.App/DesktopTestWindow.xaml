@@ -9,7 +9,7 @@
             </Style>
             <DataTemplate x:Key="RemoteImportTemplate">
                 <StackPanel Spacing="16" MaxWidth="480">
-                    <TextBlock Text="Paste a direct media or supported wallpaper page URL." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="RemoteInstructionsText" Text="Paste a direct media or supported wallpaper page URL." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <TextBox x:Name="RemoteUrlBox" Header="Wallpaper URL" PlaceholderText="https://…" HorizontalAlignment="Stretch" AutomationProperties.Name="Wallpaper URL" />
                     <CheckBox x:Name="RemoteApplyCheckBox" Content="Apply after download" IsChecked="True" />
                     <StackPanel Spacing="8">
@@ -21,8 +21,8 @@
                     </StackPanel>
                     <Border BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="0,1,0,0" Padding="0,16,0,0">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="Downloaded locally and validated before use." FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock Text="NiceWP only accesses the network when you explicitly import a remote wallpaper." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="RemoteSecurityHeader" Text="Downloaded locally and validated before use." FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="RemoteSecurityText" Text="NiceWP only accesses the network when you explicitly import a remote wallpaper." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -41,7 +41,7 @@
                 </Image>
                 <StackPanel Grid.Column="1" Spacing="4">
                     <TextBlock Text="NiceWP" FontSize="22" FontWeight="SemiBold" CharacterSpacing="-20" />
-                    <TextBlock Text="DESKTOP CONTROL" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" CharacterSpacing="100" />
+                    <TextBlock x:Name="AppTaglineText" Text="DESKTOP CONTROL" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" CharacterSpacing="100" />
                 </StackPanel>
             </Grid>
         </NavigationView.PaneHeader>
@@ -201,8 +201,8 @@
                 <Border x:Name="DropOverlayBorder" Grid.RowSpan="4" Visibility="Collapsed" Background="#E618181B" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="2" CornerRadius="12" Margin="-8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Canvas.ZIndex="999" IsHitTestVisible="False">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
                         <FontIcon Glyph="&#xE898;" FontSize="48" Foreground="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center" />
-                        <TextBlock Text="Drop wallpapers here" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
-                        <TextBlock Text="Images (.png, .jpg) and videos (.mp4) supported" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" />
+                        <TextBlock x:Name="DropOverlayTitleText" Text="Drop wallpapers here" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
+                        <TextBlock x:Name="DropOverlaySubtitleText" Text="Images (.png, .jpg) and videos (.mp4) supported" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -212,8 +212,8 @@
                         <TextBlock x:Name="ActiveWallpaperTitleText" Text="Active Wallpaper" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
                     </StackPanel>
                     <StackPanel x:Name="ActiveEmptyState" Spacing="8" Margin="0,16,0,8">
-                        <TextBlock Text="No wallpaper active" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock Text="Apply a wallpaper from Library or choose a file below." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="ActiveEmptyTitleText" Text="No wallpaper active" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock x:Name="ActiveEmptySubtitleText" Text="Apply a wallpaper from Library or choose a file below." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                     <Border x:Name="ActiveDetailsPanel" Visibility="Collapsed" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="8" VerticalAlignment="Center">
@@ -223,7 +223,7 @@
                                 <TextBlock Text="·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="PlaybackStatusText" Text="None" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="12" />
                                 <TextBlock Text="·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Text="{Binding SelectedItem.Tag, ElementName=EfficiencyProfileComboBox}" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="ActiveEfficiencyProfileText" Text="Balanced" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                             <TextBlock x:Name="ActiveFullPathText" Text="Select a wallpaper from the Library or choose a file below." FontSize="12" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                             <TextBlock x:Name="ActiveMissingWarningText" Text="The wallpaper file is missing." TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -255,7 +255,7 @@
                         <Image x:Name="ActivePreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
                     </Grid>
                     <StackPanel Spacing="8" Visibility="{Binding Visibility, ElementName=ActiveDetailsPanel}">
-                        <TextBlock Text="Source resolution · last measurement" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="ActiveSourceResolutionHeader" Text="Source resolution · last measurement" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock Text="Available in Performance" TextWrapping="Wrap" x:Name="ActiveResolutionText" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="8">
