@@ -169,7 +169,9 @@ public static class AdaptiveDesktopStateResolver
                 ActiveProcessName = input.ForegroundProcessName,
                 Reason = isRule
                     ? $"Focus rule active for {input.ForegroundProcessName}"
-                    : "Focus profile active"
+                    : (FocusProfileBehavior.IsFocusProcess(input.ForegroundProcessName)
+                        ? $"Focus application active: {input.ForegroundProcessName}"
+                        : "Focus profile active")
             };
         }
 
@@ -268,6 +270,12 @@ public static class AdaptiveDesktopStateResolver
         if (input.IsFullscreenActive)
         {
             return AdaptiveDesktopProfile.Gaming;
+        }
+
+        // Then Focus processes
+        if (FocusProfileBehavior.IsFocusProcess(input.ForegroundProcessName))
+        {
+            return AdaptiveDesktopProfile.Focus;
         }
 
         return AdaptiveDesktopProfile.Normal;
