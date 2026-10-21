@@ -33,6 +33,9 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? EfficiencyProfile { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ResourceBudget { get; set; }
+
     public string RotationMode { get; set; } = RotationModeExtensions.ModeOff;
 
     public string RotationOrder { get; set; } = RotationOrderExtensions.OrderSequential;
@@ -83,6 +86,7 @@ public sealed class AppSettings
         Language = null,
         Theme = null,
         EfficiencyProfile = null,
+        ResourceBudget = null,
         RotationMode = RotationModeExtensions.ModeOff,
         RotationOrder = RotationOrderExtensions.OrderSequential,
         RotationIntervalMinutes = 30,
@@ -120,6 +124,7 @@ public sealed class AppSettings
             Language = NormalizeLanguage(Language),
             Theme = NormalizeTheme(Theme),
             EfficiencyProfile = NormalizeEfficiencyProfile(EfficiencyProfile),
+            ResourceBudget = NormalizeResourceBudget(ResourceBudget),
             RotationMode = NormalizeRotationMode(RotationMode),
             RotationOrder = NormalizeRotationOrder(RotationOrder),
             RotationIntervalMinutes = NormalizeRotationIntervalMinutes(RotationIntervalMinutes),
@@ -174,6 +179,18 @@ public sealed class AppSettings
 
         return null;
     }
+
+    public static string NormalizeResourceBudget(string? budget)
+    {
+        if (Enum.TryParse<ResourceBudget>(budget, true, out var parsed))
+        {
+            return parsed.ToString();
+        }
+        return Core.ResourceBudget.Automatic.ToString();
+    }
+
+    [JsonIgnore]
+    public string EffectiveResourceBudget => NormalizeResourceBudget(ResourceBudget);
 
     public static string? NormalizeEfficiencyProfile(string? profile)
     {
