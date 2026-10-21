@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Adaptive;
 using NiceWP.Infrastructure.Ipc;
+using ResourceBudgetMode = NiceWP.Core.ResourceBudget;
 
 namespace NiceWP.Infrastructure.Settings;
 
@@ -88,10 +89,10 @@ public sealed class AppSettings
     }
 
     [JsonIgnore]
-    public ResourceBudget EffectiveResourceBudget
+    public ResourceBudgetMode EffectiveResourceBudget
     {
-        get => Enum.TryParse<ResourceBudget>(ResourceBudget, true, out var b) ? b : ResourceBudget.Automatic;
-        set => ResourceBudget = value == ResourceBudget.Automatic ? null : value.ToString();
+        get => Enum.TryParse<ResourceBudgetMode>(ResourceBudget, true, out var b) ? b : ResourceBudgetMode.Automatic;
+        set => ResourceBudget = value == ResourceBudgetMode.Automatic ? null : value.ToString();
     }
 
     public static AppSettings CreateDefault() => new()
@@ -201,15 +202,12 @@ public sealed class AppSettings
 
     public static string NormalizeResourceBudget(string? budget)
     {
-        if (Enum.TryParse<ResourceBudget>(budget, true, out var parsed))
+        if (Enum.TryParse<ResourceBudgetMode>(budget, true, out var parsed))
         {
             return parsed.ToString();
         }
-        return Core.ResourceBudget.Automatic.ToString();
+        return ResourceBudgetMode.Automatic.ToString();
     }
-
-    [JsonIgnore]
-    public string EffectiveResourceBudget => NormalizeResourceBudget(ResourceBudget);
 
     public static string? NormalizeEfficiencyProfile(string? profile)
     {
