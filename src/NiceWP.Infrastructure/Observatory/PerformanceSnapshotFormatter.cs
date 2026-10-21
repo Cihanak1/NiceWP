@@ -169,6 +169,15 @@ public static class PerformanceSnapshotFormatter
         return $"{trType} • {trState}";
     }
 
+    public static string FormatResourceGuardStatus(bool isActive, ILocalizationService? loc = null)
+    {
+        loc ??= LocalizationService.Instance;
+        var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
+        return isActive
+            ? (isTr ? "Aktif" : "Active")
+            : (isTr ? "Beklemede" : "Standby");
+    }
+
     public static string FormatRendererStatus(bool isAlive, ILocalizationService? loc = null)
     {
         loc ??= LocalizationService.Instance;

@@ -14,6 +14,7 @@ public sealed class IpcResponse
     public string? ActivePath { get; set; }
     public bool IsPaused { get; set; }
     public string? PauseReasons { get; set; }
+    public bool ResourceGuardActive { get; set; }
     public string PlaybackState { get; set; } = IpcConstants.PlaybackStateNone;
     public Observatory.RuntimePerformanceStatus? Performance { get; set; }
 
@@ -51,6 +52,7 @@ public sealed class IpcResponse
             IsPaused = string.Equals(performance?.Snapshot?.WallpaperState, IpcConstants.PlaybackStatePaused, StringComparison.OrdinalIgnoreCase) ||
                        string.Equals(performance?.Snapshot?.WallpaperState, IpcConstants.PlaybackStateDeepFrozen, StringComparison.OrdinalIgnoreCase),
             PauseReasons = performance?.Snapshot?.PauseReasons,
+            ResourceGuardActive = performance?.Snapshot?.ResourceGuardActive ?? false,
             PlaybackState = performance?.Snapshot?.WallpaperState ?? IpcConstants.PlaybackStateNone,
             Performance = performance
         };

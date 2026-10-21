@@ -45,6 +45,7 @@ public sealed class RuntimePerformanceSnapshot
     public bool ManualPauseActive { get; init; }
     public bool SessionLockedPauseActive { get; init; }
     public bool DisplayOffPauseActive { get; init; }
+    public bool ResourceGuardActive { get; init; }
 
     // Adaptive Efficiency & Health Guardrails
     public string EfficiencyProfile { get; init; } = "Balanced";
