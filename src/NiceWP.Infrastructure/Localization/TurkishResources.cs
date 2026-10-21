@@ -167,5 +167,18 @@ internal static class TurkishResources
         service.RegisterTurkish(LocalizationKeys.StatusConfirmRemoveTitle, "Kaldırmayı Onayla");
         service.RegisterTurkish(LocalizationKeys.StatusCancel, "İptal");
         service.RegisterTurkish(LocalizationKeys.StatusRemoveButton, "Kaldır");
+
+        // Adaptive Desktop Intelligence
+        service.RegisterTurkish(LocalizationKeys.SetAdaptiveHeader, "Adaptif Masaüstü Zekası");
+        service.RegisterTurkish(LocalizationKeys.SetAdaptiveSubtitle, "Otomatik davranış profillerini ve donanım kaynak sınırlarını yapılandırın.");
+        service.RegisterTurkish(LocalizationKeys.SetAdaptiveDefaultProfile, "Varsayılan Profil");
+        service.RegisterTurkish(LocalizationKeys.SetAdaptiveResourceBudget, "Kaynak Bütçesi");
+        service.RegisterTurkish(LocalizationKeys.SetAppRulesHeader, "Uygulama Kuralları");
+        service.RegisterTurkish(LocalizationKeys.SetAppRulesSubtitle, "Seçili uygulamalar aktifken özel masaüstü profilleri veya davranışları atayın.");
+        service.RegisterTurkish(LocalizationKeys.SetAddAppRule, "Kural Ekle");
+        service.RegisterTurkish(LocalizationKeys.SetAddFromRunning, "Çalışan Uygulamadan Ekle…");
+        service.RegisterTurkish(LocalizationKeys.SetPresentationWallpaper, "Sunum Profili Duvar Kağıdı (İsteğe Bağlı)");
+        service.RegisterTurkish(LocalizationKeys.TrayProfile, "Masaüstü Profili");
+        service.RegisterTurkish(LocalizationKeys.TrayBudget, "Kaynak Bütçesi");
     }
 }

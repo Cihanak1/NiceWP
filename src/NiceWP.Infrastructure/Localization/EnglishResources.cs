@@ -166,5 +166,18 @@ internal static class EnglishResources
         service.RegisterEnglish(LocalizationKeys.StatusConfirmRemoveTitle, "Confirm Removal");
         service.RegisterEnglish(LocalizationKeys.StatusCancel, "Cancel");
         service.RegisterEnglish(LocalizationKeys.StatusRemoveButton, "Remove");
+
+        // Adaptive Desktop Intelligence
+        service.RegisterEnglish(LocalizationKeys.SetAdaptiveHeader, "Adaptive Desktop Intelligence");
+        service.RegisterEnglish(LocalizationKeys.SetAdaptiveSubtitle, "Configure automatic behavior profiles and hardware resource limits.");
+        service.RegisterEnglish(LocalizationKeys.SetAdaptiveDefaultProfile, "Default Profile");
+        service.RegisterEnglish(LocalizationKeys.SetAdaptiveResourceBudget, "Resource Budget");
+        service.RegisterEnglish(LocalizationKeys.SetAppRulesHeader, "Application Rules");
+        service.RegisterEnglish(LocalizationKeys.SetAppRulesSubtitle, "Assign specific desktop profiles or behaviors when selected applications are active.");
+        service.RegisterEnglish(LocalizationKeys.SetAddAppRule, "Add Rule");
+        service.RegisterEnglish(LocalizationKeys.SetAddFromRunning, "Add from Running…");
+        service.RegisterEnglish(LocalizationKeys.SetPresentationWallpaper, "Presentation Profile Wallpaper (Optional)");
+        service.RegisterEnglish(LocalizationKeys.TrayProfile, "Desktop Profile");
+        service.RegisterEnglish(LocalizationKeys.TrayBudget, "Resource Budget");
     }
 }

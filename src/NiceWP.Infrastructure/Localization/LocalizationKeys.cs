@@ -164,4 +164,17 @@ public static class LocalizationKeys
     public const string StatusConfirmRemoveTitle = "Status.ConfirmRemoveTitle";
     public const string StatusCancel = "Status.Cancel";
     public const string StatusRemoveButton = "Status.RemoveButton";
+
+    // Adaptive Desktop Intelligence
+    public const string SetAdaptiveHeader = "Set.AdaptiveHeader";
+    public const string SetAdaptiveSubtitle = "Set.AdaptiveSubtitle";
+    public const string SetAdaptiveDefaultProfile = "Set.AdaptiveDefaultProfile";
+    public const string SetAdaptiveResourceBudget = "Set.AdaptiveResourceBudget";
+    public const string SetAppRulesHeader = "Set.AppRulesHeader";
+    public const string SetAppRulesSubtitle = "Set.AppRulesSubtitle";
+    public const string SetAddAppRule = "Set.AddAppRule";
+    public const string SetAddFromRunning = "Set.AddFromRunning";
+    public const string SetPresentationWallpaper = "Set.PresentationWallpaper";
+    public const string TrayProfile = "Tray.Profile";
+    public const string TrayBudget = "Tray.Budget";
 }
