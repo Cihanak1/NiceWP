@@ -40,6 +40,7 @@ public sealed class WallpaperScheduleService : IDisposable
     public DateTimeOffset? NextTransitionUtc { get; private set; }
 
     public bool IsOverdue { get; private set; }
+    public Func<bool>? SchedulePrecondition { get; set; }
 
     public event EventHandler<WallpaperScheduleStatus>? StatusChanged;
 
@@ -266,7 +267,8 @@ public sealed class WallpaperScheduleService : IDisposable
                     lock (_syncLock) { isPaused = _lastKnownIsPaused; }
                 }
 
-                if (isPaused)
+                var isAllowed = SchedulePrecondition == null || SchedulePrecondition();
+                if (isPaused || !isAllowed)
                 {
                     lock (_syncLock)
                     {
