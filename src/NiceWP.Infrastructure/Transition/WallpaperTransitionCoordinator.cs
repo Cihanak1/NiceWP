@@ -13,6 +13,7 @@ namespace NiceWP.Infrastructure.Transition;
 public sealed class WallpaperTransitionCoordinator : IDisposable
 {
     private readonly SemaphoreSlim _syncLock = new(1, 1);
+    private readonly TransitionAnimationController _animationController = new();
     private readonly Func<WallpaperRotationService?> _getRotationService;
     private readonly Func<AppSettings> _getSettings;
     private readonly Func<ResourceBudget>? _getResourceBudget;
@@ -228,7 +229,19 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
     /// <summary>
     /// Cancels the active gesture, animating the paper curl back to rest.
     /// </summary>
-    public async Task CancelAsync(string reason = "UserCancelled", CancellationToken cancellationToken = default)
+    public Task CancelAsync(string reason, CancellationToken cancellationToken) =>
+        CancelAsync(reason, animate: true, cancellationToken);
+
+    /// <summary>
+    /// Cancels the active gesture, animating the paper curl back to rest.
+    /// </summary>
+    public Task CancelAsync(CancellationToken cancellationToken) =>
+        CancelAsync("UserCancelled", animate: true, cancellationToken);
+
+    /// <summary>
+    /// Cancels the active gesture, optionally animating the paper curl back to rest.
+    /// </summary>
+    public async Task CancelAsync(string reason = "UserCancelled", bool animate = true, CancellationToken cancellationToken = default)
     {
         if (State != TransitionState.Dragging && State != TransitionState.HoverPreview)
         {
@@ -240,6 +253,31 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
         {
             SetState(TransitionState.Cancelling);
             LogAudit("GestureCancelled", $"Corner gesture cancelled. Reason: {reason}.");
+
+            if (animate && _currentContext != null && _currentContext.Progress > 0.0)
+            {
+                var startProgress = _currentContext.Progress;
+                try
+                {
+                    await _animationController.AnimateProgressAsync(
+                        startProgress,
+                        0.0,
+                        TransitionAnimationController.DefaultCancelDuration,
+                        p =>
+                        {
+                            if (_currentContext != null)
+                            {
+                                _currentContext = _currentContext with { Progress = p };
+                                GestureUpdated?.Invoke(_currentContext);
+                            }
+                        },
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Ignore cancellation during animation
+                }
+            }
 
             _currentContext = null;
             _dragTracker = null;
@@ -257,11 +295,17 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
     /// <summary>
     /// Commits the active gesture, advancing to the peeked next wallpaper.
     /// </summary>
-    public async Task<bool> CommitAsync(CancellationToken cancellationToken = default)
+    public Task<bool> CommitAsync(CancellationToken cancellationToken) =>
+        CommitAsync(animate: true, cancellationToken);
+
+    /// <summary>
+    /// Commits the active gesture, advancing to the peeked next wallpaper.
+    /// </summary>
+    public async Task<bool> CommitAsync(bool animate = true, CancellationToken cancellationToken = default)
     {
         if (State != TransitionState.Dragging || _currentContext == null || !_currentContext.CanCommit)
         {
-            await CancelAsync("InsufficientProgress", cancellationToken).ConfigureAwait(false);
+            await CancelAsync("InsufficientProgress", animate, cancellationToken).ConfigureAwait(false);
             return false;
         }
 
@@ -269,6 +313,32 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
         try
         {
             SetState(TransitionState.Completing);
+
+            if (animate && _currentContext != null && _currentContext.Progress < 1.0)
+            {
+                var startProgress = _currentContext.Progress;
+                try
+                {
+                    await _animationController.AnimateProgressAsync(
+                        startProgress,
+                        1.0,
+                        TransitionAnimationController.DefaultCommitDuration,
+                        p =>
+                        {
+                            if (_currentContext != null)
+                            {
+                                _currentContext = _currentContext with { Progress = p };
+                                GestureUpdated?.Invoke(_currentContext);
+                            }
+                        },
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Ignore cancellation during animation
+                }
+            }
+
             var targetCandidate = _peekedCandidate;
             var rotation = _getRotationService();
 
