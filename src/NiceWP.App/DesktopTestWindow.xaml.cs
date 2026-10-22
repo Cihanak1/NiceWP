@@ -134,7 +134,6 @@ public sealed partial class DesktopTestWindow : Window
                         var nextPath = libraryController.TransitionCoordinator.PeekedCandidate?.FilePath;
                         var curPath = activeWallpaperPath ?? libraryController.Rotation.CurrentWallpaperPath ?? currentLoadedSettings.LastWallpaperPath;
                         visualOverlay?.ShowDragFrame(context, nextPath, curPath);
-                        LogGestureAudit("OverlayRendered", $"Overlay rendered frame #{visualOverlay?.RenderedFrameCount} at Progress {context.Progress:P1}.");
                     }
                 });
             };
@@ -3809,12 +3808,21 @@ public sealed partial class DesktopTestWindow : Window
 
     private static void LogGestureAudit(string eventType, string detail)
     {
-        var entry = $"[{DateTime.UtcNow:HH:mm:ss.fff}] [{eventType}] {detail}";
-        try
+        if (string.Equals(eventType, "OverlayRendered", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(eventType, "ProgressChanged", StringComparison.OrdinalIgnoreCase))
         {
-            File.AppendAllText(Path.Combine(Path.GetTempPath(), "NiceWP-gesture-audit.log"), entry + Environment.NewLine);
+            return;
         }
-        catch { }
+
+        var entry = $"[{DateTime.UtcNow:HH:mm:ss.fff}] [{eventType}] {detail}";
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                File.AppendAllText(Path.Combine(Path.GetTempPath(), "NiceWP-gesture-audit.log"), entry + Environment.NewLine);
+            }
+            catch { }
+        });
         Trace.WriteLine($"[InteractiveTransition] {entry}");
     }
 

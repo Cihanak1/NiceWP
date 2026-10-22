@@ -81,6 +81,9 @@ public sealed class DesktopGestureInputMonitor : IDisposable
     public event Action<double, double, bool>? DragReleased;
     public event Action<string>? DragCancelled;
 
+    private MonitorBounds _cachedBounds;
+    private long _lastBoundsRefreshTicks;
+
     public DesktopGestureInputMonitor(
         WallpaperTransitionCoordinator coordinator,
         Func<WallpaperRotationService?> getRotation,
@@ -89,6 +92,8 @@ public sealed class DesktopGestureInputMonitor : IDisposable
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _getRotation = getRotation ?? throw new ArgumentNullException(nameof(getRotation));
         _externalAuditLogger = auditLogger;
+        _cachedBounds = GetPrimaryMonitorBounds();
+        _lastBoundsRefreshTicks = Stopwatch.GetTimestamp();
 
         _hookProcDelegate = LowLevelMouseHookProc;
     }
@@ -168,6 +173,17 @@ public sealed class DesktopGestureInputMonitor : IDisposable
         return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
     }
 
+    private MonitorBounds GetCurrentMonitorBounds()
+    {
+        var now = Stopwatch.GetTimestamp();
+        if (now - _lastBoundsRefreshTicks > Stopwatch.Frequency * 2)
+        {
+            _cachedBounds = GetPrimaryMonitorBounds();
+            _lastBoundsRefreshTicks = now;
+        }
+        return _cachedBounds;
+    }
+
     /// <summary>
     /// Processes a single mouse event in screen-space coordinates.
     /// </summary>
@@ -175,7 +191,7 @@ public sealed class DesktopGestureInputMonitor : IDisposable
     {
         if (!_isEnabled || _isDisposed) return;
 
-        var bounds = GetPrimaryMonitorBounds();
+        var bounds = GetCurrentMonitorBounds();
         var inHotCorner = IsInTopRightCorner(x, y, bounds);
 
         switch (msg)
@@ -214,9 +230,6 @@ public sealed class DesktopGestureInputMonitor : IDisposable
             // Global drag tracking across entire screen
             _coordinator.UpdateGesture(x, y);
             DragMoved?.Invoke(x, y);
-
-            var progress = _coordinator.CurrentContext?.Progress ?? 0.0;
-            LogAudit("ProgressChanged", $"Drag moved to ({x},{y}), Progress: {progress:P1}");
             return;
         }
 
@@ -390,6 +403,13 @@ public sealed class DesktopGestureInputMonitor : IDisposable
 
     private void LogAudit(string eventType, string detail)
     {
+        // Suppress per-frame or high-frequency event spam from disk and trace
+        if (string.Equals(eventType, "ProgressChanged", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(eventType, "OverlayRendered", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         var entry = $"[{DateTime.UtcNow:HH:mm:ss.fff}] [{eventType}] {detail}";
         lock (_logLock)
         {
@@ -400,14 +420,17 @@ public sealed class DesktopGestureInputMonitor : IDisposable
             }
         }
 
-        try
+        ThreadPool.QueueUserWorkItem(_ =>
         {
-            File.AppendAllText(LogFilePath, entry + Environment.NewLine);
-        }
-        catch
-        {
-            // Ignore concurrent disk access errors
-        }
+            try
+            {
+                File.AppendAllText(LogFilePath, entry + Environment.NewLine);
+            }
+            catch
+            {
+                // Ignore concurrent disk access errors
+            }
+        });
 
         Trace.WriteLine($"[DesktopGestureInputMonitor] {entry}");
         _externalAuditLogger?.Invoke(eventType, detail);
