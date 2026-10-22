@@ -201,5 +201,40 @@ internal static class TurkishResources
         service.RegisterTurkish(LocalizationKeys.TransitionStatusDragging, "Sayfa çevriliyor: {0:P0}");
         service.RegisterTurkish(LocalizationKeys.TransitionStatusCancelled, "Geçiş iptal edildi.");
         service.RegisterTurkish(LocalizationKeys.TransitionStatusCommitted, "Sonraki duvar kağıdına geçildi: {0}");
+
+        // Smart Scenes (0.0.19)
+        service.RegisterTurkish(LocalizationKeys.SetSmartScenesHeader, "Akıllı Sahneler");
+        service.RegisterTurkish(LocalizationKeys.SetSmartScenesSubtitle, "NiceWP, mevcut masaüstü bağlamına uygun duvar kağıdını otomatik seçer.");
+        service.RegisterTurkish(LocalizationKeys.SetSmartScenesEnabled, "Akıllı Sahneler");
+        service.RegisterTurkish(LocalizationKeys.SetSmartScenesScene, "Sahne");
+        service.RegisterTurkish(LocalizationKeys.SetSmartRotation, "Akıllı Döngü");
+        service.RegisterTurkish(LocalizationKeys.SetSmartScenesAvoidRecent, "Son Kullanılanları Atla");
+        service.RegisterTurkish(LocalizationKeys.SetSmartScenesPreferFavorites, "Favorilere Öncelik Ver");
+
+        service.RegisterTurkish(LocalizationKeys.SmartSceneOff, "Kapalı");
+        service.RegisterTurkish(LocalizationKeys.SmartSceneAutomatic, "Otomatik");
+        service.RegisterTurkish(LocalizationKeys.SmartSceneFocus, "Odak");
+        service.RegisterTurkish(LocalizationKeys.SmartSceneGaming, "Oyun");
+        service.RegisterTurkish(LocalizationKeys.SmartSceneRelax, "Rahatlama");
+        service.RegisterTurkish(LocalizationKeys.SmartSceneNight, "Gece");
+        service.RegisterTurkish(LocalizationKeys.SmartSceneBatterySaver, "Pil Tasarrufu");
+
+        service.RegisterTurkish(LocalizationKeys.FilterDark, "Koyu");
+        service.RegisterTurkish(LocalizationKeys.FilterLight, "Açık");
+        service.RegisterTurkish(LocalizationKeys.FilterLowResource, "Düşük Kaynak");
+        service.RegisterTurkish(LocalizationKeys.FilterHighResolution, "Yüksek Çözünürlük");
+        service.RegisterTurkish(LocalizationKeys.FilterStatic, "Statik");
+        service.RegisterTurkish(LocalizationKeys.FilterVideo, "Video");
+        service.RegisterTurkish(LocalizationKeys.FilterLowMotion, "Düşük Hareket");
+
+        service.RegisterTurkish(LocalizationKeys.ActiveSmartSceneLabel, "Akıllı Sahne");
+        service.RegisterTurkish(LocalizationKeys.ActiveSmartSceneSelectedFor, "{0} sahnesi için seçildi");
+        service.RegisterTurkish(LocalizationKeys.ActiveSmartSceneWhy, "Neden");
+        service.RegisterTurkish(LocalizationKeys.ActiveSelectedForFocus, "Odak sahnesi için seçildi");
+        service.RegisterTurkish(LocalizationKeys.ActiveReasonDark, "Koyu");
+        service.RegisterTurkish(LocalizationKeys.ActiveReasonLowMotion, "Düşük hareket");
+        service.RegisterTurkish(LocalizationKeys.ActiveReasonLightResource, "Hafif kaynak kullanımı");
+
+        service.RegisterTurkish(LocalizationKeys.StatusAnalyzingWallpapers, "{0} duvar kağıdı analiz ediliyor...");
     }
 }

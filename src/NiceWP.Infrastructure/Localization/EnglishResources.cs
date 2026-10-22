@@ -200,5 +200,40 @@ internal static class EnglishResources
         service.RegisterEnglish(LocalizationKeys.TransitionStatusDragging, "Turning page: {0:P0}");
         service.RegisterEnglish(LocalizationKeys.TransitionStatusCancelled, "Transition cancelled.");
         service.RegisterEnglish(LocalizationKeys.TransitionStatusCommitted, "Advanced to next wallpaper: {0}");
+
+        // Smart Scenes (0.0.19)
+        service.RegisterEnglish(LocalizationKeys.SetSmartScenesHeader, "Smart Scenes");
+        service.RegisterEnglish(LocalizationKeys.SetSmartScenesSubtitle, "NiceWP automatically selects a wallpaper that fits your current desktop context.");
+        service.RegisterEnglish(LocalizationKeys.SetSmartScenesEnabled, "Smart Scenes");
+        service.RegisterEnglish(LocalizationKeys.SetSmartScenesScene, "Scene");
+        service.RegisterEnglish(LocalizationKeys.SetSmartRotation, "Smart Rotation");
+        service.RegisterEnglish(LocalizationKeys.SetSmartScenesAvoidRecent, "Avoid Recent Wallpapers");
+        service.RegisterEnglish(LocalizationKeys.SetSmartScenesPreferFavorites, "Prefer Favorites");
+
+        service.RegisterEnglish(LocalizationKeys.SmartSceneOff, "Off");
+        service.RegisterEnglish(LocalizationKeys.SmartSceneAutomatic, "Automatic");
+        service.RegisterEnglish(LocalizationKeys.SmartSceneFocus, "Focus");
+        service.RegisterEnglish(LocalizationKeys.SmartSceneGaming, "Gaming");
+        service.RegisterEnglish(LocalizationKeys.SmartSceneRelax, "Relax");
+        service.RegisterEnglish(LocalizationKeys.SmartSceneNight, "Night");
+        service.RegisterEnglish(LocalizationKeys.SmartSceneBatterySaver, "Battery Saver");
+
+        service.RegisterEnglish(LocalizationKeys.FilterDark, "Dark");
+        service.RegisterEnglish(LocalizationKeys.FilterLight, "Light");
+        service.RegisterEnglish(LocalizationKeys.FilterLowResource, "Low Resource");
+        service.RegisterEnglish(LocalizationKeys.FilterHighResolution, "High Resolution");
+        service.RegisterEnglish(LocalizationKeys.FilterStatic, "Static");
+        service.RegisterEnglish(LocalizationKeys.FilterVideo, "Video");
+        service.RegisterEnglish(LocalizationKeys.FilterLowMotion, "Low Motion");
+
+        service.RegisterEnglish(LocalizationKeys.ActiveSmartSceneLabel, "Smart Scene");
+        service.RegisterEnglish(LocalizationKeys.ActiveSmartSceneSelectedFor, "Selected for {0}");
+        service.RegisterEnglish(LocalizationKeys.ActiveSmartSceneWhy, "Why");
+        service.RegisterEnglish(LocalizationKeys.ActiveSelectedForFocus, "Selected for Focus");
+        service.RegisterEnglish(LocalizationKeys.ActiveReasonDark, "Dark");
+        service.RegisterEnglish(LocalizationKeys.ActiveReasonLowMotion, "Low motion");
+        service.RegisterEnglish(LocalizationKeys.ActiveReasonLightResource, "Light resource usage");
+
+        service.RegisterEnglish(LocalizationKeys.StatusAnalyzingWallpapers, "Analyzing {0} wallpapers...");
     }
 }

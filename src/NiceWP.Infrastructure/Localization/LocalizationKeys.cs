@@ -198,4 +198,39 @@ public static class LocalizationKeys
     public const string TransitionStatusDragging = "Transition.Status.Dragging";
     public const string TransitionStatusCancelled = "Transition.Status.Cancelled";
     public const string TransitionStatusCommitted = "Transition.Status.Committed";
+
+    // Smart Scenes (0.0.19)
+    public const string SetSmartScenesHeader = "Set.SmartScenesHeader";
+    public const string SetSmartScenesSubtitle = "Set.SmartScenesSubtitle";
+    public const string SetSmartScenesEnabled = "Set.SmartScenesEnabled";
+    public const string SetSmartScenesScene = "Set.SmartScenesScene";
+    public const string SetSmartRotation = "Set.SmartRotation";
+    public const string SetSmartScenesAvoidRecent = "Set.SmartScenesAvoidRecent";
+    public const string SetSmartScenesPreferFavorites = "Set.SmartScenesPreferFavorites";
+
+    public const string SmartSceneOff = "SmartScene.Off";
+    public const string SmartSceneAutomatic = "SmartScene.Automatic";
+    public const string SmartSceneFocus = "SmartScene.Focus";
+    public const string SmartSceneGaming = "SmartScene.Gaming";
+    public const string SmartSceneRelax = "SmartScene.Relax";
+    public const string SmartSceneNight = "SmartScene.Night";
+    public const string SmartSceneBatterySaver = "SmartScene.BatterySaver";
+
+    public const string FilterDark = "Filter.Dark";
+    public const string FilterLight = "Filter.Light";
+    public const string FilterLowResource = "Filter.LowResource";
+    public const string FilterHighResolution = "Filter.HighResolution";
+    public const string FilterStatic = "Filter.Static";
+    public const string FilterVideo = "Filter.Video";
+    public const string FilterLowMotion = "Filter.LowMotion";
+
+    public const string ActiveSmartSceneLabel = "Active.SmartSceneLabel";
+    public const string ActiveSmartSceneSelectedFor = "Active.SmartSceneSelectedFor";
+    public const string ActiveSmartSceneWhy = "Active.SmartSceneWhy";
+    public const string ActiveSelectedForFocus = "Active.SelectedForFocus";
+    public const string ActiveReasonDark = "Active.ReasonDark";
+    public const string ActiveReasonLowMotion = "Active.ReasonLowMotion";
+    public const string ActiveReasonLightResource = "Active.ReasonLightResource";
+
+    public const string StatusAnalyzingWallpapers = "Status.AnalyzingWallpapers";
 }
