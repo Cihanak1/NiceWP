@@ -617,6 +617,107 @@ public sealed class InteractiveRotationTransitionTests : IDisposable
 
     #endregion
 
+    #region 10. Desktop Gesture Window & Preconditions Integration
+
+    [Fact]
+    public async Task GestureWindow_CreationAndDisposal_CleansUpNativeResources()
+    {
+        var (coordinator, captureManager, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            var window = new TopRightGestureWindow(
+                coordinator,
+                captureManager,
+                () => rotation,
+                () => null,
+                committedItem => { });
+
+            try
+            {
+                Assert.NotEqual(IntPtr.Zero, window.Handle);
+                Assert.True(window.ScreenWidth > 0);
+                Assert.True(window.ScreenHeight > 0);
+                Assert.False(window.IsCapturing);
+
+                // Visibility update should succeed without error
+                window.UpdateVisibility();
+            }
+            finally
+            {
+                window.Dispose();
+            }
+
+            // Disposing again should be idempotent
+            window.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Preconditions_CoordinatorDynamicSettingsReflection()
+    {
+        var items = CreateSampleItems(3);
+        using var rotation = new WallpaperRotationService(
+            getItems: () => items,
+            applyItem: (it, ct) => Task.FromResult(new WallpaperLibraryApplyResult(true)),
+            getHostStatus: ct => Task.FromResult(IpcResponse.Ok("Running", "Running")));
+        await rotation.UpdateSettingsAsync("All", "Sequential", 30);
+
+        var currentSettings = new AppSettings { InteractiveTransitionEnabled = false };
+        using var coordinator = new WallpaperTransitionCoordinator(
+            getRotationService: () => rotation,
+            getSettings: () => currentSettings);
+
+        // Initially disabled
+        Assert.False(coordinator.CanInitiateTransition());
+
+        // Toggle enabled dynamically
+        currentSettings.InteractiveTransitionEnabled = true;
+        Assert.True(coordinator.CanInitiateTransition());
+
+        // Turn rotation off dynamically
+        await rotation.UpdateSettingsAsync("Off", "Sequential", 30);
+        Assert.False(coordinator.CanInitiateTransition());
+    }
+
+    [Fact]
+    public async Task WallpaperLibraryController_WiresLiveSettingsDelegate()
+    {
+        var currentSettings = new AppSettings { InteractiveTransitionEnabled = false };
+        var libraryFile = Path.Combine(_tempDir, "library.json");
+        var service = new WallpaperLibraryService(libraryFile);
+        var controller = new WallpaperLibraryController(
+            service: service,
+            getSettings: () => currentSettings);
+
+        try
+        {
+            Assert.NotNull(controller.TransitionCoordinator);
+            Assert.False(controller.TransitionCoordinator.CanInitiateTransition());
+
+            // Dynamically enable
+            currentSettings.InteractiveTransitionEnabled = true;
+            await controller.Rotation.UpdateSettingsAsync("All", "Sequential", 30);
+
+            // Add sample items to make rotation eligible
+            var filePath1 = Path.Combine(_tempDir, "w1.jpg");
+            File.WriteAllText(filePath1, "dummy");
+            await controller.AddFileAsync(filePath1);
+
+            var filePath2 = Path.Combine(_tempDir, "w2.jpg");
+            File.WriteAllText(filePath2, "dummy");
+            await controller.AddFileAsync(filePath2);
+
+            Assert.True(controller.TransitionCoordinator.CanInitiateTransition());
+        }
+        finally
+        {
+            controller.Dispose();
+        }
+    }
+
+    #endregion
+
     #region Test Helpers
 
     private async Task<(WallpaperTransitionCoordinator Coordinator, CornerPointerCaptureManager CaptureManager, WallpaperRotationService Rotation)> CreateTestPipelineAsync()
