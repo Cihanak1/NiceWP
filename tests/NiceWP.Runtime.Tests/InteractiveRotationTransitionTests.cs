@@ -617,40 +617,326 @@ public sealed class InteractiveRotationTransitionTests : IDisposable
 
     #endregion
 
-    #region 10. Desktop Gesture Window & Preconditions Integration
+    #region 10. Desktop Gesture Input Monitor & Visual Overlay Integration
 
     [Fact]
-    public async Task GestureWindow_CreationAndDisposal_CleansUpNativeResources()
+    public async Task InputMonitor_HookLifecycle_InstallsAndUninstallsCleanly()
     {
-        var (coordinator, captureManager, rotation) = await CreateTestPipelineAsync();
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
         using (coordinator)
         using (rotation)
         {
-            var window = new TopRightGestureWindow(
-                coordinator,
-                captureManager,
-                () => rotation,
-                () => null,
-                committedItem => { });
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            Assert.False(monitor.IsInstalled);
 
-            try
-            {
-                Assert.NotEqual(IntPtr.Zero, window.Handle);
-                Assert.True(window.ScreenWidth > 0);
-                Assert.True(window.ScreenHeight > 0);
-                Assert.False(window.IsCapturing);
+            var installed = monitor.InstallHook();
+            Assert.True(installed);
+            Assert.True(monitor.IsInstalled);
 
-                // Visibility update should succeed without error
-                window.UpdateVisibility();
-            }
-            finally
-            {
-                window.Dispose();
-            }
+            monitor.UninstallHook();
+            Assert.False(monitor.IsInstalled);
 
-            // Disposing again should be idempotent
-            window.Dispose();
+            // Dispose is idempotent
+            monitor.Dispose();
+            Assert.False(monitor.IsInstalled);
         }
+    }
+
+    [Fact]
+    public async Task InputMonitor_NoDuplicateHooks()
+    {
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            var first = monitor.InstallHook();
+            var second = monitor.InstallHook();
+
+            Assert.True(first);
+            Assert.True(second);
+            Assert.True(monitor.IsInstalled);
+        }
+    }
+
+    [Fact]
+    public void InputMonitor_MonitorBounds_ResolvesPositiveScreenArea()
+    {
+        var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+        Assert.True(bounds.Width > 0);
+        Assert.True(bounds.Height > 0);
+        Assert.True(bounds.Right > bounds.Left);
+        Assert.True(bounds.Bottom > bounds.Top);
+    }
+
+    [Fact]
+    public async Task InputMonitor_HotCornerCoordinates_BoundaryDetection()
+    {
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            monitor.HotCornerSize = 32;
+
+            var bounds = new MonitorBounds(0, 0, 1920, 1080, 1920, 1080);
+
+            // Inside corner
+            Assert.True(monitor.IsInTopRightCorner(1920, 0, bounds));
+            Assert.True(monitor.IsInTopRightCorner(1888, 32, bounds));
+            Assert.True(monitor.IsInTopRightCorner(1910, 15, bounds));
+
+            // Outside corner
+            Assert.False(monitor.IsInTopRightCorner(1887, 15, bounds));
+            Assert.False(monitor.IsInTopRightCorner(1900, 33, bounds));
+            Assert.False(monitor.IsInTopRightCorner(100, 100, bounds));
+        }
+    }
+
+    [Fact]
+    public async Task InputMonitor_HoverEnterAndExit_FiresEventsAndCoordinator()
+    {
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            monitor.HotCornerSize = 32;
+
+            var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+            var insideX = bounds.Right - 10;
+            var insideY = bounds.Top + 10;
+
+            var hoverReported = false;
+            monitor.HoverChanged += hovered => hoverReported = hovered;
+
+            // Move inside hot corner
+            monitor.ProcessMouseEvent(0x0200 /* WM_MOUSEMOVE */, insideX, insideY);
+            Assert.True(monitor.IsHovering);
+            Assert.True(hoverReported);
+            Assert.Equal(TransitionState.HoverPreview, coordinator.State);
+
+            // Move outside hot corner
+            monitor.ProcessMouseEvent(0x0200 /* WM_MOUSEMOVE */, bounds.Left + 100, bounds.Top + 100);
+            Assert.False(monitor.IsHovering);
+            Assert.False(hoverReported);
+            Assert.Equal(TransitionState.Idle, coordinator.State);
+        }
+    }
+
+    [Fact]
+    public async Task InputMonitor_LButtonDown_BeginsGestureWhenPermitted()
+    {
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            monitor.HotCornerSize = 32;
+
+            var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+            var insideX = bounds.Right - 10;
+            var insideY = bounds.Top + 10;
+
+            monitor.ProcessMouseEvent(0x0201 /* WM_LBUTTONDOWN */, insideX, insideY);
+
+            Assert.True(monitor.IsDragging);
+            Assert.Contains(monitor.EventLog, l => l.Contains("LButtonDownDetected"));
+            Assert.Contains(monitor.EventLog, l => l.Contains("GestureAccepted"));
+        }
+    }
+
+    [Fact]
+    public async Task InputMonitor_GlobalMoveTracksOutsideCorner()
+    {
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            monitor.HotCornerSize = 32;
+
+            var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+            var insideX = bounds.Right - 10;
+            var insideY = bounds.Top + 10;
+
+            monitor.ProcessMouseEvent(0x0201 /* WM_LBUTTONDOWN */, insideX, insideY);
+            Assert.True(monitor.IsDragging);
+
+            // Move far away to screen center
+            monitor.ProcessMouseEvent(0x0200 /* WM_MOUSEMOVE */, bounds.Width / 2, bounds.Height / 2);
+
+            Assert.True(monitor.IsDragging);
+            Assert.Contains(monitor.EventLog, l => l.Contains("ProgressChanged"));
+        }
+    }
+
+    [Fact]
+    public async Task InputMonitor_ReleaseShortDrag_TriggersCancel()
+    {
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            monitor.HotCornerSize = 32;
+
+            var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+            var startX = bounds.Right - 10;
+            var startY = bounds.Top + 10;
+
+            monitor.ProcessMouseEvent(0x0201 /* WM_LBUTTONDOWN */, startX, startY);
+
+            // Barely moved (short drag, progress < 0.30)
+            monitor.ProcessMouseEvent(0x0200 /* WM_MOUSEMOVE */, startX - 20, startY + 20);
+            monitor.ProcessMouseEvent(0x0202 /* WM_LBUTTONUP */, startX - 20, startY + 20);
+
+            Assert.False(monitor.IsDragging);
+            Assert.Contains(monitor.EventLog, l => l.Contains("CancelTriggered"));
+        }
+    }
+
+    [Fact]
+    public async Task InputMonitor_ReleaseLongDrag_TriggersCommit()
+    {
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            monitor.HotCornerSize = 32;
+
+            var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+            var startX = bounds.Right - 10;
+            var startY = bounds.Top + 10;
+
+            monitor.ProcessMouseEvent(0x0201 /* WM_LBUTTONDOWN */, startX, startY);
+
+            // Large drag across the screen (progress >= 0.30)
+            monitor.ProcessMouseEvent(0x0200 /* WM_MOUSEMOVE */, bounds.Left + 100, bounds.Bottom - 100);
+            monitor.ProcessMouseEvent(0x0202 /* WM_LBUTTONUP */, bounds.Left + 100, bounds.Bottom - 100);
+
+            Assert.False(monitor.IsDragging);
+            Assert.Contains(monitor.EventLog, l => l.Contains("CommitTriggered"));
+        }
+    }
+
+    [Fact]
+    public async Task InputMonitor_RightClickCancelsActiveGesture()
+    {
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            monitor.HotCornerSize = 32;
+
+            var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+            var startX = bounds.Right - 10;
+            var startY = bounds.Top + 10;
+
+            monitor.ProcessMouseEvent(0x0201 /* WM_LBUTTONDOWN */, startX, startY);
+            Assert.True(monitor.IsDragging);
+
+            // Right click during drag
+            monitor.ProcessMouseEvent(0x0204 /* WM_RBUTTONDOWN */, startX - 50, startY + 50);
+
+            Assert.False(monitor.IsDragging);
+            Assert.Contains(monitor.EventLog, l => l.Contains("RightClickCancelled"));
+        }
+    }
+
+    [Fact]
+    public async Task InputMonitor_DisabledFeature_SafeNoOp()
+    {
+        var (coordinator, _, rotation) = await CreateTestPipelineAsync();
+        using (coordinator)
+        using (rotation)
+        {
+            using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+            monitor.IsEnabled = false;
+
+            var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+            monitor.ProcessMouseEvent(0x0201 /* WM_LBUTTONDOWN */, bounds.Right - 10, bounds.Top + 10);
+
+            Assert.False(monitor.IsDragging);
+            Assert.False(monitor.IsHovering);
+        }
+    }
+
+    [Fact]
+    public async Task InputMonitor_PreconditionsNotMet_RotationOff_SafeNoOp()
+    {
+        var items = CreateSampleItems(3);
+        using var rotation = new WallpaperRotationService(
+            getItems: () => items,
+            applyItem: (it, ct) => Task.FromResult(new WallpaperLibraryApplyResult(true)),
+            getHostStatus: ct => Task.FromResult(IpcResponse.Ok("Running", "Running")));
+        await rotation.UpdateSettingsAsync("Off", "Sequential", 30);
+
+        using var coordinator = new WallpaperTransitionCoordinator(
+            getRotationService: () => rotation,
+            getSettings: () => new AppSettings { InteractiveTransitionEnabled = true });
+
+        using var monitor = new DesktopGestureInputMonitor(coordinator, () => rotation);
+        var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+
+        monitor.ProcessMouseEvent(0x0201 /* WM_LBUTTONDOWN */, bounds.Right - 10, bounds.Top + 10);
+
+        Assert.False(monitor.IsDragging);
+        Assert.Contains(monitor.EventLog, l => l.Contains("GestureRejected"));
+    }
+
+    [Fact]
+    public void PageTurnVisualOverlay_LifecycleAndFrameRendering()
+    {
+        var overlay = new PageTurnVisualOverlay();
+        try
+        {
+            Assert.NotEqual(IntPtr.Zero, overlay.Handle);
+            Assert.True(overlay.ScreenWidth > 0);
+            Assert.True(overlay.ScreenHeight > 0);
+            Assert.Equal(0, overlay.RenderedFrameCount);
+            Assert.False(overlay.IsVisible);
+
+            // Hover surface
+            overlay.ShowHover();
+            Assert.True(overlay.RenderedFrameCount > 0);
+            Assert.True(overlay.IsVisible);
+
+            // Hide
+            overlay.Hide();
+            Assert.False(overlay.IsVisible);
+
+            // Drag frame
+            var context = new CornerGestureContext(
+                StartX: overlay.ScreenWidth - 10,
+                StartY: 10,
+                CurrentX: overlay.ScreenWidth - 200,
+                CurrentY: 200,
+                ScreenWidth: overlay.ScreenWidth,
+                ScreenHeight: overlay.ScreenHeight,
+                Progress: 0.45,
+                Velocity: 50.0,
+                Sensitivity: TransitionSensitivity.Normal,
+                Quality: TransitionQuality.High,
+                PaperWaveEnabled: true,
+                TopFoldX: overlay.ScreenWidth - 250,
+                RightFoldY: 250,
+                FoldAngleDegrees: 45.0);
+
+            var initialFrames = overlay.RenderedFrameCount;
+            overlay.ShowDragFrame(context);
+            Assert.True(overlay.RenderedFrameCount > initialFrames);
+            Assert.True(overlay.IsVisible);
+        }
+        finally
+        {
+            overlay.Dispose();
+        }
+
+        // Idempotent dispose
+        overlay.Dispose();
     }
 
     [Fact]

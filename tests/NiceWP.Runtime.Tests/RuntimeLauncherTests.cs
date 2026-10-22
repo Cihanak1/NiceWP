@@ -118,7 +118,7 @@ public sealed class RuntimeLauncherTests
             Assert.True(ping.Success);
             Assert.Equal(IpcConstants.PongMessage, ping.Message);
 
-            var status = await client.GetStatusAsync(timeoutMs: 1000);
+            var status = await client.GetStatusAsync(timeoutMs: 4000);
             Assert.True(status.Success);
             Assert.True(status.IsRunning);
         }

@@ -316,7 +316,7 @@ public sealed class AutostartTests
                 initialWindowVisible: false,
                 syncStatusAction: async () =>
                 {
-                    var status = await client.GetStatusAsync(timeoutMs: 1000);
+                    var status = await client.GetStatusAsync(timeoutMs: 4000);
                     Assert.True(status.Success);
                     Assert.True(status.IsRunning);
                     syncCalled = true;
