@@ -1,6 +1,7 @@
 using System.Reflection;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Localization;
+using NiceWP.Infrastructure.Observatory;
 using Xunit;
 
 namespace NiceWP.Runtime.Tests;
@@ -229,6 +230,102 @@ public sealed class LocalizationServiceTests
             var translation = service.GetString(key);
             Assert.False(string.IsNullOrWhiteSpace(translation), $"Key '{key}' has missing Turkish translation");
             Assert.NotEqual(key, translation);
+        }
+    }
+
+    [Fact]
+    public void TurkishResources_DoNotContainMojibakeSequences()
+    {
+        var service = new LocalizationService();
+        service.SetLanguage(EffectiveLanguage.Turkish);
+
+        var fields = typeof(LocalizationKeys)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(string))
+            .ToList();
+
+        var suspiciousPatterns = new[] { "Ã", "Ä", "Å", "Â", "ï¿½", "\uFFFD" };
+
+        foreach (var field in fields)
+        {
+            var key = (string)field.GetValue(null)!;
+            var translation = service.GetString(key);
+
+            foreach (var pattern in suspiciousPatterns)
+            {
+                Assert.False(translation.Contains(pattern),
+                    $"Turkish resource '{key}' contains mojibake sequence '{pattern}': '{translation}'");
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(LocalizationKeys.LibAddWallpaper, "Duvar Kağıdı Ekle")]
+    [InlineData(LocalizationKeys.LibAddFolder, "Klasör Ekle")]
+    [InlineData(LocalizationKeys.ItemEmptyTitle, "Kütüphaneniz boş")]
+    [InlineData(LocalizationKeys.PerfWorkingSet, "Çalışma Belleği (RAM)")]
+    [InlineData(LocalizationKeys.PerfUptime, "Çalışma Süresi")]
+    [InlineData(LocalizationKeys.PerfHostConnected, "Çalışma Motoru: Bağlı")]
+    [InlineData(LocalizationKeys.NavLibrary, "Kütüphane")]
+    [InlineData(LocalizationKeys.NavActiveWallpaper, "Aktif Duvar Kağıdı")]
+    [InlineData(LocalizationKeys.NavPerformance, "Performans")]
+    public void CriticalTurkishStrings_AreAccuratelyLocalized(string key, string expected)
+    {
+        var service = new LocalizationService();
+        service.SetLanguage(EffectiveLanguage.Turkish);
+
+        var actual = service.GetString(key);
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void PerformanceSnapshotFormatter_TurkishStrings_DoNotContainMojibakeAndMatchExpected()
+    {
+        var service = new LocalizationService();
+        service.SetLanguage(EffectiveLanguage.Turkish);
+
+        Assert.Equal("Boşta: Etkin duvar kağıdı yok", PerformanceSnapshotFormatter.FormatCurrentAction("Idle: No active wallpaper", service));
+        Assert.Equal("Çalışma Motoru: Bağlı", PerformanceSnapshotFormatter.FormatHostStatusTitle(true, false, service));
+        Assert.Equal("Çalışma Motoru: Bağlantı Yok", PerformanceSnapshotFormatter.FormatHostStatusTitle(false, false, service));
+        Assert.Equal("Dengeli", PerformanceSnapshotFormatter.FormatEfficiencyProfile("Balanced", service));
+    }
+
+    [Fact]
+    public void SourceFiles_WhenRepoRootAccessible_DoNotContainMojibake()
+    {
+        var current = AppDomain.CurrentDomain.BaseDirectory;
+        DirectoryInfo? dir = new DirectoryInfo(current);
+        string? repoRoot = null;
+
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "NiceWallpaper.sln")))
+            {
+                repoRoot = dir.FullName;
+                break;
+            }
+            dir = dir.Parent;
+        }
+
+        if (repoRoot == null) return;
+
+        var filesToCheck = new[]
+        {
+            Path.Combine(repoRoot, "src", "NiceWP.App", "DesktopTestWindow.xaml"),
+            Path.Combine(repoRoot, "src", "NiceWP.App", "DesktopTestWindow.xaml.cs"),
+            Path.Combine(repoRoot, "src", "NiceWP.Infrastructure", "Localization", "TurkishResources.cs")
+        };
+
+        var suspicious = new[] { "Ã¼", "Ã¶", "Ã§", "ÄŸ", "Ä±", "ÅŸ", "Ä°", "Ã‡", "Ã–", "Ãœ", "Äž", "Åž", "â€¦", "â€¢", "Â·", "ï¿½", "\uFFFD" };
+
+        foreach (var file in filesToCheck)
+        {
+            if (!File.Exists(file)) continue;
+            var content = File.ReadAllText(file, System.Text.Encoding.UTF8);
+            foreach (var bad in suspicious)
+            {
+                Assert.DoesNotContain(bad, content);
+            }
         }
     }
 }
