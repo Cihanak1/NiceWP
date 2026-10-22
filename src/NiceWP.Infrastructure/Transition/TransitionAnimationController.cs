@@ -46,6 +46,7 @@ public sealed class TransitionAnimationController
         double toProgress,
         TimeSpan duration,
         Action<double> onStep,
+        int stepIntervalMs = 16,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(onStep);
@@ -73,7 +74,7 @@ public sealed class TransitionAnimationController
 
             onStep(currentProgress);
 
-            await Task.Delay(16, cancellationToken).ConfigureAwait(false); // ~60fps step
+            await Task.Delay(Math.Max(10, stepIntervalMs), cancellationToken).ConfigureAwait(false);
         }
 
         onStep(toProgress);

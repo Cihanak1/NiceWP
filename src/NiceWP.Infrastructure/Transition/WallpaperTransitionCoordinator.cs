@@ -269,6 +269,7 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
             if (animate && _currentContext != null && _currentContext.Progress > 0.0)
             {
                 var startProgress = _currentContext.Progress;
+                var stepInterval = TransitionQualityPolicy.GetAnimationStepIntervalMs(_currentContext.Quality);
                 try
                 {
                     await _animationController.AnimateProgressAsync(
@@ -283,6 +284,7 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
                                 GestureUpdated?.Invoke(_currentContext);
                             }
                         },
+                        stepInterval,
                         cancellationToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -329,6 +331,7 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
             if (animate && _currentContext != null && _currentContext.Progress < 1.0)
             {
                 var startProgress = _currentContext.Progress;
+                var stepInterval = TransitionQualityPolicy.GetAnimationStepIntervalMs(_currentContext.Quality);
                 try
                 {
                     await _animationController.AnimateProgressAsync(
@@ -343,6 +346,7 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
                                 GestureUpdated?.Invoke(_currentContext);
                             }
                         },
+                        stepInterval,
                         cancellationToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
