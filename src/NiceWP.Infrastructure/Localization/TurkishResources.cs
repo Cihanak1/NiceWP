@@ -180,5 +180,26 @@ internal static class TurkishResources
         service.RegisterTurkish(LocalizationKeys.SetPresentationWallpaper, "Sunum Profili Duvar Kağıdı (İsteğe Bağlı)");
         service.RegisterTurkish(LocalizationKeys.TrayProfile, "Masaüstü Profili");
         service.RegisterTurkish(LocalizationKeys.TrayBudget, "Kaynak Bütçesi");
+
+        // Interactive Rotation / Page Turn (0.0.18)
+        service.RegisterTurkish(LocalizationKeys.SetInteractiveTransitionHeader, "Etkileşimli Sayfa Çevirme");
+        service.RegisterTurkish(LocalizationKeys.SetInteractiveTransitionSubtitle, "Mevcut duvar kağıdını sağ üst köşeden kağıt gibi çekip sıradakini önizleyin.");
+        service.RegisterTurkish(LocalizationKeys.SetInteractiveTransitionGesture, "Köşe Çevirme Hareketi");
+        service.RegisterTurkish(LocalizationKeys.SetPaperWave, "Kağıt Dalgası");
+        service.RegisterTurkish(LocalizationKeys.SetTransitionEffect, "Geçiş Efekti");
+        service.RegisterTurkish(LocalizationKeys.SetTransitionSensitivity, "Sürükleme Hassasiyeti");
+        service.RegisterTurkish(LocalizationKeys.SetTransitionQuality, "Görsel Kalite");
+        service.RegisterTurkish(LocalizationKeys.TransitionEffectPageTurn, "Kağıt Kıvrımı");
+        service.RegisterTurkish(LocalizationKeys.TransitionSensitivityLow, "Düşük (Daha Uzun Mesafe)");
+        service.RegisterTurkish(LocalizationKeys.TransitionSensitivityNormal, "Normal");
+        service.RegisterTurkish(LocalizationKeys.TransitionSensitivityHigh, "Yüksek (Daha Kısa Mesafe)");
+        service.RegisterTurkish(LocalizationKeys.TransitionQualityAuto, "Otomatik (Kaynak Bütçesine Göre)");
+        service.RegisterTurkish(LocalizationKeys.TransitionQualityLow, "Düşük (Dalga Yok, Hafif Gölge)");
+        service.RegisterTurkish(LocalizationKeys.TransitionQualityBalanced, "Dengeli (Normal Dalga ve Gölge)");
+        service.RegisterTurkish(LocalizationKeys.TransitionQualityHigh, "Yüksek (Tam Dalga ve Dinamik Gölge)");
+        service.RegisterTurkish(LocalizationKeys.TransitionStatusHover, "Köşe önizleme hazır: sıradaki duvar kağıdı için sürükleyin.");
+        service.RegisterTurkish(LocalizationKeys.TransitionStatusDragging, "Sayfa çevriliyor: {0:P0}");
+        service.RegisterTurkish(LocalizationKeys.TransitionStatusCancelled, "Geçiş iptal edildi.");
+        service.RegisterTurkish(LocalizationKeys.TransitionStatusCommitted, "Sonraki duvar kağıdına geçildi: {0}");
     }
 }

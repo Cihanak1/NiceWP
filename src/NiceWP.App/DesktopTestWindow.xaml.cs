@@ -4428,10 +4428,10 @@ public sealed partial class DesktopTestWindow : Window
 
         if (SettingsInteractiveTransitionHeader != null) SettingsInteractiveTransitionHeader.Text = isTr ? "Etkileşimli Sayfa Çevirme" : "Interactive Page Turn";
         if (SettingsInteractiveTransitionSubtitle != null) SettingsInteractiveTransitionSubtitle.Text = isTr
-            ? "Mevcut duvar kağıdını sağ üst köşeden kâğıt gibi çekip sıradakini önizleyin."
+            ? "Mevcut duvar kağıdını sağ üst köşeden kağıt gibi çekip sıradakini önizleyin."
             : "Drag from the top-right corner to peel and preview the next wallpaper.";
         if (SettingsInteractiveEnabledLabel != null) SettingsInteractiveEnabledLabel.Text = isTr ? "Köşe Çevirme Hareketi" : "Corner Turn Gesture";
-        if (SettingsPaperWaveLabel != null) SettingsPaperWaveLabel.Text = isTr ? "Kâğıt Dalgası" : "Paper Wave";
+        if (SettingsPaperWaveLabel != null) SettingsPaperWaveLabel.Text = isTr ? "Kağıt Dalgası" : "Paper Wave";
         if (SettingsTransitionEffectLabel != null) SettingsTransitionEffectLabel.Text = isTr ? "Geçiş Efekti" : "Transition Effect";
         if (SettingsTransitionSensitivityLabel != null) SettingsTransitionSensitivityLabel.Text = isTr ? "Sürükleme Hassasiyeti" : "Drag Sensitivity";
         if (SettingsTransitionQualityLabel != null) SettingsTransitionQualityLabel.Text = isTr ? "Görsel Kalite" : "Visual Quality";
@@ -4454,7 +4454,7 @@ public sealed partial class DesktopTestWindow : Window
                 var tag = item.Tag as string;
                 item.Content = tag switch
                 {
-                    "PageTurn" => isTr ? "Kâğıt Kıvrımı" : "Page Curl",
+                    "PageTurn" => isTr ? "Kağıt Kıvrımı" : "Page Curl",
                     _ => item.Content
                 };
             }

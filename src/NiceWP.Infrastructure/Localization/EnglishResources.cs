@@ -179,5 +179,26 @@ internal static class EnglishResources
         service.RegisterEnglish(LocalizationKeys.SetPresentationWallpaper, "Presentation Profile Wallpaper (Optional)");
         service.RegisterEnglish(LocalizationKeys.TrayProfile, "Desktop Profile");
         service.RegisterEnglish(LocalizationKeys.TrayBudget, "Resource Budget");
+
+        // Interactive Rotation / Page Turn (0.0.18)
+        service.RegisterEnglish(LocalizationKeys.SetInteractiveTransitionHeader, "Interactive Page Turn");
+        service.RegisterEnglish(LocalizationKeys.SetInteractiveTransitionSubtitle, "Drag from the top-right corner to peel and preview the next wallpaper.");
+        service.RegisterEnglish(LocalizationKeys.SetInteractiveTransitionGesture, "Corner Turn Gesture");
+        service.RegisterEnglish(LocalizationKeys.SetPaperWave, "Paper Wave");
+        service.RegisterEnglish(LocalizationKeys.SetTransitionEffect, "Transition Effect");
+        service.RegisterEnglish(LocalizationKeys.SetTransitionSensitivity, "Drag Sensitivity");
+        service.RegisterEnglish(LocalizationKeys.SetTransitionQuality, "Visual Quality");
+        service.RegisterEnglish(LocalizationKeys.TransitionEffectPageTurn, "Page Curl");
+        service.RegisterEnglish(LocalizationKeys.TransitionSensitivityLow, "Low (Longer Drag)");
+        service.RegisterEnglish(LocalizationKeys.TransitionSensitivityNormal, "Normal");
+        service.RegisterEnglish(LocalizationKeys.TransitionSensitivityHigh, "High (Shorter Drag)");
+        service.RegisterEnglish(LocalizationKeys.TransitionQualityAuto, "Auto (Based on Budget)");
+        service.RegisterEnglish(LocalizationKeys.TransitionQualityLow, "Low (No Wave, Light Shadow)");
+        service.RegisterEnglish(LocalizationKeys.TransitionQualityBalanced, "Balanced (Standard)");
+        service.RegisterEnglish(LocalizationKeys.TransitionQualityHigh, "High (Full Wave & Shadow)");
+        service.RegisterEnglish(LocalizationKeys.TransitionStatusHover, "Corner ready: drag down-left to turn page.");
+        service.RegisterEnglish(LocalizationKeys.TransitionStatusDragging, "Turning page: {0:P0}");
+        service.RegisterEnglish(LocalizationKeys.TransitionStatusCancelled, "Transition cancelled.");
+        service.RegisterEnglish(LocalizationKeys.TransitionStatusCommitted, "Advanced to next wallpaper: {0}");
     }
 }

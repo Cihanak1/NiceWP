@@ -177,4 +177,25 @@ public static class LocalizationKeys
     public const string SetPresentationWallpaper = "Set.PresentationWallpaper";
     public const string TrayProfile = "Tray.Profile";
     public const string TrayBudget = "Tray.Budget";
+
+    // Interactive Rotation / Page Turn (0.0.18)
+    public const string SetInteractiveTransitionHeader = "Set.InteractiveTransitionHeader";
+    public const string SetInteractiveTransitionSubtitle = "Set.InteractiveTransitionSubtitle";
+    public const string SetInteractiveTransitionGesture = "Set.InteractiveTransitionGesture";
+    public const string SetPaperWave = "Set.PaperWave";
+    public const string SetTransitionEffect = "Set.TransitionEffect";
+    public const string SetTransitionSensitivity = "Set.TransitionSensitivity";
+    public const string SetTransitionQuality = "Set.TransitionQuality";
+    public const string TransitionEffectPageTurn = "Transition.Effect.PageTurn";
+    public const string TransitionSensitivityLow = "Transition.Sensitivity.Low";
+    public const string TransitionSensitivityNormal = "Transition.Sensitivity.Normal";
+    public const string TransitionSensitivityHigh = "Transition.Sensitivity.High";
+    public const string TransitionQualityAuto = "Transition.Quality.Auto";
+    public const string TransitionQualityLow = "Transition.Quality.Low";
+    public const string TransitionQualityBalanced = "Transition.Quality.Balanced";
+    public const string TransitionQualityHigh = "Transition.Quality.High";
+    public const string TransitionStatusHover = "Transition.Status.Hover";
+    public const string TransitionStatusDragging = "Transition.Status.Dragging";
+    public const string TransitionStatusCancelled = "Transition.Status.Cancelled";
+    public const string TransitionStatusCommitted = "Transition.Status.Committed";
 }
