@@ -18,7 +18,14 @@ public enum WallpaperLibraryFilter
     Images,
     Videos,
     Favorites,
-    Recent
+    Recent,
+    Dark,
+    Light,
+    LowResource,
+    HighResolution,
+    Static,
+    Video,
+    LowMotion
 }
 
 /// <summary>
@@ -186,6 +193,8 @@ public sealed class WallpaperLibraryController : IDisposable
     public WallpaperLibraryFilter Filter { get; private set; } = WallpaperLibraryFilter.All;
 
     public WallpaperLibrarySort Sort { get; private set; } = WallpaperLibrarySort.Newest;
+
+    public Analysis.WallpaperAnalysisStore? AnalysisStore { get; set; }
 
     public WallpaperLibraryEntryView? SelectedItem =>
         string.IsNullOrWhiteSpace(SelectedItemId)
@@ -482,10 +491,15 @@ public sealed class WallpaperLibraryController : IDisposable
 
         query = Filter switch
         {
-            WallpaperLibraryFilter.Images => query.Where(item => item.IsImage),
-            WallpaperLibraryFilter.Videos => query.Where(item => item.IsVideo),
+            WallpaperLibraryFilter.Images or WallpaperLibraryFilter.Static => query.Where(item => item.IsImage),
+            WallpaperLibraryFilter.Videos or WallpaperLibraryFilter.Video => query.Where(item => item.IsVideo),
             WallpaperLibraryFilter.Favorites => query.Where(item => item.IsFavorite),
             WallpaperLibraryFilter.Recent => query.Where(item => item.LastUsedAtUtc.HasValue),
+            WallpaperLibraryFilter.Dark => query.Where(item => AnalysisStore?.TryGet(item.Id, out var m) == true && m != null && m.IsDark),
+            WallpaperLibraryFilter.Light => query.Where(item => AnalysisStore?.TryGet(item.Id, out var m) == true && m != null && m.IsLight),
+            WallpaperLibraryFilter.LowResource => query.Where(item => (AnalysisStore?.TryGet(item.Id, out var m) == true && m != null && m.ResourceClass == WallpaperCost.Light) || item.IsImage),
+            WallpaperLibraryFilter.HighResolution => query.Where(item => AnalysisStore?.TryGet(item.Id, out var m) == true && m != null && m.IsHighResolution),
+            WallpaperLibraryFilter.LowMotion => query.Where(item => (AnalysisStore?.TryGet(item.Id, out var m) == true && m != null && (m.MotionLevel is WallpaperMotionLevel.None or WallpaperMotionLevel.Low)) || item.IsImage),
             _ => query
         };
 
