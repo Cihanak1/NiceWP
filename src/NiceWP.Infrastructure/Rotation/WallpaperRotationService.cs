@@ -40,6 +40,9 @@ public sealed class WallpaperRotationService : IDisposable
     public string? CurrentItemId { get; private set; }
     public string? CurrentWallpaperPath { get; private set; }
     public Func<bool>? RotationPrecondition { get; set; }
+    public Func<SmartSceneContext>? SmartSceneContextProvider { get; set; }
+    public Func<string, WallpaperAnalysisMetadata?>? MetadataLookup { get; set; }
+    public SmartScenes.ScoredWallpaperCandidate? LastSmartSelection { get; private set; }
 
     public IReadOnlyList<WallpaperRotationHistoryEntry> History
     {
@@ -409,12 +412,77 @@ public sealed class WallpaperRotationService : IDisposable
         var available = candidates.Where(c => !excludedIds.Contains(c.Id)).ToList();
         if (available.Count == 0) return null;
 
+        if (Order == RotationOrder.Smart)
+        {
+            return SelectSmartCandidate(available, isNext);
+        }
+
         if (Order == RotationOrder.Shuffle)
         {
             return SelectShuffleCandidate(available, isNext);
         }
 
         return SelectSequentialCandidate(candidates, available, isNext);
+    }
+
+    private WallpaperLibraryItem SelectSmartCandidate(
+        List<WallpaperLibraryItem> availableCandidates,
+        bool isNext)
+    {
+        if (!isNext)
+        {
+            lock (_history)
+            {
+                for (var i = _history.Count - 1; i >= 0; i--)
+                {
+                    var entry = _history[i];
+                    if (entry.Success && !string.Equals(entry.ItemId, CurrentItemId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var found = availableCandidates.FirstOrDefault(c => string.Equals(c.Id, entry.ItemId, StringComparison.OrdinalIgnoreCase));
+                        if (found != null)
+                        {
+                            return found;
+                        }
+                    }
+                }
+            }
+        }
+
+        IReadOnlyList<string> recentIds;
+        lock (_history)
+        {
+            recentIds = _history
+                .Where(h => !string.IsNullOrWhiteSpace(h.ItemId))
+                .Select(h => h.ItemId!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(5)
+                .ToList();
+        }
+
+        var baseContext = SmartSceneContextProvider?.Invoke() ?? new SmartSceneContext(SmartSceneMode.Automatic);
+        var context = baseContext with
+        {
+            RecentWallpaperIds = recentIds
+        };
+
+        var selection = SmartScenes.SmartWallpaperSelector.Select(
+            availableCandidates,
+            MetadataLookup ?? (_ => null),
+            context,
+            _random);
+
+        if (selection != null)
+        {
+            LastSmartSelection = new SmartScenes.ScoredWallpaperCandidate(
+                selection.SelectedItem,
+                selection.ScoredCandidates.FirstOrDefault(c => c.Item.Id == selection.SelectedItem.Id)?.Metadata,
+                selection.Score);
+
+            LogAudit("SmartWallpaperSelected", $"Selected '{selection.SelectedItem.DisplayName}' for {context.EffectiveScene} scene with score {selection.Score.TotalScore} ({selection.Score.ReasonSummary})");
+            return selection.SelectedItem;
+        }
+
+        return availableCandidates[0];
     }
 
     private WallpaperLibraryItem SelectSequentialCandidate(
