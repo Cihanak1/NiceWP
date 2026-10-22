@@ -74,11 +74,17 @@
                         <TextBox x:Name="LibrarySearchBox" PlaceholderText="Search wallpapers" TextChanged="OnSearchTextChanged" VerticalAlignment="Center" AutomationProperties.Name="Search wallpapers" HorizontalAlignment="Stretch" Margin="0,0,8,8" VariableSizedWrapGrid.ColumnSpan="2" />
                         <ComboBox x:Name="LibraryFilterComboBox" SelectionChanged="OnFilterSelectionChanged" VerticalAlignment="Center" AutomationProperties.Name="Filter wallpapers" HorizontalAlignment="Stretch" Margin="0,0,8,8" ToolTipService.ToolTip="Filter collection">
                             <ComboBoxItem Content="All" Tag="All" IsSelected="True" />
-                            <ComboBoxItem Content="Images" Tag="Images" />
-                            <ComboBoxItem Content="Videos" Tag="Videos" />
                             <ComboBoxItem Content="Favorites" Tag="Favorites" />
-                            <ComboBoxItem Content="Recent" Tag="Recent" />
+                            <ComboBoxItem Content="Recently Added" Tag="Recent" />
+                            <ComboBoxItem Content="Dark" Tag="Dark" />
+                            <ComboBoxItem Content="Light" Tag="Light" />
+                            <ComboBoxItem Content="Low Resource" Tag="LowResource" />
+                            <ComboBoxItem Content="High Resolution" Tag="HighResolution" />
+                            <ComboBoxItem Content="Static" Tag="Static" />
+                            <ComboBoxItem Content="Video" Tag="Video" />
+                            <ComboBoxItem Content="Low Motion" Tag="LowMotion" />
                         </ComboBox>
+                        <TextBlock x:Name="LibraryAnalysisStatusText" Text="" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Visibility="Collapsed" VerticalAlignment="Center" Margin="0,0,8,8" />
                         <ComboBox x:Name="LibrarySortComboBox" SelectionChanged="OnSortSelectionChanged" VerticalAlignment="Center" AutomationProperties.Name="Sort wallpapers" HorizontalAlignment="Stretch" Margin="0,0,8,8" ToolTipService.ToolTip="Sort collection">
                             <ComboBoxItem Content="Newest" Tag="Newest" IsSelected="True" />
                             <ComboBoxItem Content="Oldest" Tag="Oldest" />
@@ -231,6 +237,12 @@
                                 <TextBlock x:Name="ActiveWallpaperCostText" Text="Light" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Text="·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock x:Name="ActiveAdaptiveProfileText" Text="Profile: Auto" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <StackPanel x:Name="ActiveSmartScenePanel" Orientation="Horizontal" Spacing="6" Visibility="Collapsed">
+                                <TextBlock x:Name="ActiveSmartSceneLabelText" Text="Smart Scene:" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock x:Name="ActiveSmartSceneValueText" Text="Focus" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <TextBlock Text="·" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="ActiveSmartSceneWhyText" Text="Dark · Low motion · Light resource usage" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>
                             <TextBlock x:Name="ActiveFullPathText" Text="Select a wallpaper from the Library or choose a file below." FontSize="12" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                             <TextBlock x:Name="ActiveMissingWarningText" Text="The wallpaper file is missing." TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -584,6 +596,7 @@
                                     <ComboBox x:Name="RotationOrderComboBox" SelectionChanged="OnRotationOrderSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Rotation order">
                                         <ComboBoxItem Content="Sequential" Tag="Sequential" />
                                         <ComboBoxItem Content="Shuffle" Tag="Shuffle" />
+                                        <ComboBoxItem Content="Smart Scene" Tag="Smart" />
                                     </ComboBox>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="6">
@@ -601,6 +614,50 @@
                                 </StackPanel>
                             </Grid>
                             <TextBlock x:Name="RotationSettingsStatusText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="SettingsSmartScenesHeader" Text="Smart Scenes" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsSmartScenesSubtitle" Text="NiceWP automatically selects a wallpaper that fits your current desktop context." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsSmartScenesEnabledLabel" Text="Smart Scenes" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="SmartScenesToggle" Toggled="OnSmartScenesToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Smart scenes" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
+                                    <TextBlock x:Name="SettingsSmartScenesSceneLabel" Text="Scene" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="SmartSceneComboBox" SelectionChanged="OnSmartSceneSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Smart scene">
+                                        <ComboBoxItem Content="Automatic" Tag="Automatic" IsSelected="True" />
+                                        <ComboBoxItem Content="Focus" Tag="Focus" />
+                                        <ComboBoxItem Content="Gaming" Tag="Gaming" />
+                                        <ComboBoxItem Content="Relax" Tag="Relax" />
+                                        <ComboBoxItem Content="Night" Tag="Night" />
+                                        <ComboBoxItem Content="Battery Saver" Tag="BatterySaver" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsSmartRotationLabel" Text="Smart Rotation" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="SmartRotationToggle" Toggled="OnSmartRotationToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Smart rotation" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                                    <TextBlock x:Name="SettingsSmartScenesAvoidRecentLabel" Text="Avoid Recent Wallpapers" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="SmartScenesAvoidRecentToggle" Toggled="OnSmartScenesAvoidRecentToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Avoid recent wallpapers" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsSmartScenesPreferFavoritesLabel" Text="Prefer Favorites" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="SmartScenesPreferFavoritesToggle" Toggled="OnSmartScenesPreferFavoritesToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Prefer favorites" />
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">

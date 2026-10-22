@@ -28,6 +28,8 @@ using NiceWP.Infrastructure.Localization;
 using NiceWP.Infrastructure.Scheduling;
 using NiceWP.Infrastructure.Adaptive;
 using NiceWP.Infrastructure.Transition;
+using NiceWP.Infrastructure.Analysis;
+using NiceWP.Infrastructure.SmartScenes;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 
@@ -43,6 +45,8 @@ public sealed partial class DesktopTestWindow : Window
     private readonly SettingsService settingsService = new();
     private readonly WallpaperThumbnailService thumbnailService = new();
     private readonly AppRuleMatchingService appRuleMatchingService = new();
+    private readonly WallpaperAnalysisStore analysisStore = new();
+    private readonly WallpaperAnalysisService analysisService;
     private readonly WallpaperLibraryController libraryController;
     private AppSettings currentLoadedSettings = AppSettings.CreateDefault();
     private DesktopGestureInputMonitor? gestureInputMonitor;
@@ -156,6 +160,20 @@ public sealed partial class DesktopTestWindow : Window
             return p != NiceWP.Core.AdaptiveDesktopProfile.Presentation &&
                    p != NiceWP.Core.AdaptiveDesktopProfile.Gaming;
         };
+        analysisService = new WallpaperAnalysisService(analysisStore, thumbnailService);
+        libraryController.AnalysisStore = analysisStore;
+        libraryController.Rotation.SmartSceneContextProvider = GetCurrentSmartSceneContext;
+        libraryController.Rotation.MetadataLookup = id => analysisStore.TryGet(id, out var m) ? m : null;
+        analysisService.ProgressChanged += OnAnalysisProgressChanged;
+        analysisService.AnalysisCompleted += (s, m) =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                RenderLibraryItems();
+                UpdateActiveSmartSceneVisuals();
+            });
+        };
+        _ = analysisStore.LoadAsync();
 
         controller = new TrayLifecycleController(
             runtimeClient.IpcClient,
@@ -231,6 +249,7 @@ public sealed partial class DesktopTestWindow : Window
                 UpdateRotationSettingsStatus(settings.RotationMode, settings.RotationOrder, settings.RotationIntervalMinutes);
                 SelectScheduleSettingsItems(settings);
                 SelectInteractiveTransitionSettingsItems(settings);
+                SelectSmartScenesSettingsItems(settings);
             }
             finally
             {
@@ -267,6 +286,7 @@ public sealed partial class DesktopTestWindow : Window
             await libraryController.LoadAsync();
             if (closed) return;
             RenderLibraryItems();
+            EnqueuePendingAnalysis();
         }
         catch (Exception exception)
         {
@@ -2351,6 +2371,7 @@ public sealed partial class DesktopTestWindow : Window
                 ? $"Etkin masaüstü profili: {pLabel}"
                 : $"Effective desktop profile: {pLabel}");
         }
+        UpdateActiveSmartSceneVisuals();
 
         PauseResumeWallpaperButton.Content = resolvedPaused ? loc.GetString(LocalizationKeys.ActiveResume) : loc.GetString(LocalizationKeys.ActivePause);
         ActivePlaceholderIcon.Symbol = !hasWallpaper
@@ -3005,7 +3026,8 @@ public sealed partial class DesktopTestWindow : Window
             StopRotationCountdownTimer();
             gestureInputMonitor?.Dispose();
             visualOverlay?.Dispose();
-            libraryController.Dispose();
+            analysisService?.Dispose();
+        libraryController.Dispose();
             trayIcon.Dispose();
             App.ReleaseSingleInstance();
             closed = true;
@@ -3569,10 +3591,15 @@ public sealed partial class DesktopTestWindow : Window
                     item.Content = tag switch
                     {
                         "All" => loc.GetString(LocalizationKeys.FilterAll),
-                        "Images" => loc.GetString(LocalizationKeys.FilterImages),
-                        "Videos" => loc.GetString(LocalizationKeys.FilterVideos),
                         "Favorites" => loc.GetString(LocalizationKeys.FilterFavorites),
-                        "Recent" => loc.GetString(LocalizationKeys.FilterRecent),
+                        "Recent" => isTr ? "Son Eklenenler" : "Recently Added",
+                        "Dark" => loc.GetString(LocalizationKeys.FilterDark),
+                        "Light" => loc.GetString(LocalizationKeys.FilterLight),
+                        "LowResource" => loc.GetString(LocalizationKeys.FilterLowResource),
+                        "HighResolution" => loc.GetString(LocalizationKeys.FilterHighResolution),
+                        "Static" => loc.GetString(LocalizationKeys.FilterStatic),
+                        "Video" => loc.GetString(LocalizationKeys.FilterVideo),
+                        "LowMotion" => loc.GetString(LocalizationKeys.FilterLowMotion),
                         _ => item.Content
                     };
                 }
@@ -3604,6 +3631,7 @@ public sealed partial class DesktopTestWindow : Window
         var loc = LocalizationService.Instance;
         var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
         if (ActiveWallpaperTitleText != null) ActiveWallpaperTitleText.Text = loc.GetString(LocalizationKeys.NavActiveWallpaper);
+        if (ActiveSmartSceneLabelText != null) ActiveSmartSceneLabelText.Text = isTr ? "Akıllı Sahne:" : "Smart Scene:";
         if (PreviousWallpaperButton != null)
         {
             PreviousWallpaperButton.Content = loc.GetString(LocalizationKeys.ActivePrevious);
@@ -4570,6 +4598,7 @@ public sealed partial class DesktopTestWindow : Window
                 {
                     "Sequential" => loc.GetString(LocalizationKeys.SetRotationSequential),
                     "Shuffle" => loc.GetString(LocalizationKeys.SetRotationShuffle),
+                    "Smart" => isTr ? "Akıllı Sahne" : "Smart Scene",
                     _ => item.Content
                 };
             }
@@ -4588,6 +4617,53 @@ public sealed partial class DesktopTestWindow : Window
                         _ => isTr ? $"{mins / 60} saat" : $"{mins / 60} hours"
                     };
                 }
+            }
+        }
+
+        if (SettingsSmartScenesHeader != null) SettingsSmartScenesHeader.Text = loc.GetString(LocalizationKeys.SetSmartScenesHeader);
+        if (SettingsSmartScenesSubtitle != null) SettingsSmartScenesSubtitle.Text = loc.GetString(LocalizationKeys.SetSmartScenesSubtitle);
+        if (SettingsSmartScenesEnabledLabel != null) SettingsSmartScenesEnabledLabel.Text = loc.GetString(LocalizationKeys.SetSmartScenesEnabled);
+        if (SettingsSmartScenesSceneLabel != null) SettingsSmartScenesSceneLabel.Text = loc.GetString(LocalizationKeys.SetSmartScenesScene);
+        if (SettingsSmartRotationLabel != null) SettingsSmartRotationLabel.Text = loc.GetString(LocalizationKeys.SetSmartRotation);
+        if (SettingsSmartScenesAvoidRecentLabel != null) SettingsSmartScenesAvoidRecentLabel.Text = loc.GetString(LocalizationKeys.SetSmartScenesAvoidRecent);
+        if (SettingsSmartScenesPreferFavoritesLabel != null) SettingsSmartScenesPreferFavoritesLabel.Text = loc.GetString(LocalizationKeys.SetSmartScenesPreferFavorites);
+
+        if (SmartScenesToggle != null)
+        {
+            SmartScenesToggle.OnContent = isTr ? "Açık" : "On";
+            SmartScenesToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+        if (SmartRotationToggle != null)
+        {
+            SmartRotationToggle.OnContent = isTr ? "Açık" : "On";
+            SmartRotationToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+        if (SmartScenesAvoidRecentToggle != null)
+        {
+            SmartScenesAvoidRecentToggle.OnContent = isTr ? "Açık" : "On";
+            SmartScenesAvoidRecentToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+        if (SmartScenesPreferFavoritesToggle != null)
+        {
+            SmartScenesPreferFavoritesToggle.OnContent = isTr ? "Açık" : "On";
+            SmartScenesPreferFavoritesToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+
+        if (SmartSceneComboBox != null)
+        {
+            foreach (var item in SmartSceneComboBox.Items.OfType<ComboBoxItem>())
+            {
+                var tag = item.Tag as string;
+                item.Content = tag switch
+                {
+                    "Automatic" => loc.GetString(LocalizationKeys.SmartSceneAutomatic),
+                    "Focus" => loc.GetString(LocalizationKeys.SmartSceneFocus),
+                    "Gaming" => loc.GetString(LocalizationKeys.SmartSceneGaming),
+                    "Relax" => loc.GetString(LocalizationKeys.SmartSceneRelax),
+                    "Night" => loc.GetString(LocalizationKeys.SmartSceneNight),
+                    "BatterySaver" => loc.GetString(LocalizationKeys.SmartSceneBatterySaver),
+                    _ => item.Content
+                };
             }
         }
 
@@ -4841,6 +4917,230 @@ public sealed partial class DesktopTestWindow : Window
         catch (Exception ex)
         {
             Trace.WriteLine($"Error changing budget from tray: {ex}");
+        }
+    }
+
+    private void EnqueuePendingAnalysis()
+    {
+        if (libraryController == null || analysisService == null) return;
+        var pending = libraryController.AllItems
+            .Where(item => !item.IsMissing && !analysisStore.TryGet(item.Id, out _))
+            .Select(v => new WallpaperLibraryItem
+            {
+                Id = v.Id,
+                FilePath = v.FilePath,
+                Type = v.Type,
+                DisplayName = v.DisplayName,
+                IsFavorite = v.IsFavorite,
+                AddedAtUtc = v.AddedAtUtc
+            });
+        analysisService.EnqueueBatch(pending);
+    }
+
+    private SmartSceneContext GetCurrentSmartSceneContext()
+    {
+        var settings = currentLoadedSettings;
+        var configuredScene = settings.EffectiveSmartScene;
+        var adaptiveProfile = settings.EffectiveAdaptiveProfile;
+        var isOnBattery = false;
+        var effectiveScene = SmartSceneContextResolver.ResolveEffectiveScene(
+            configuredScene,
+            adaptiveProfile,
+            isOnBattery);
+
+        return new SmartSceneContext(
+            EffectiveScene: effectiveScene,
+            AdaptiveProfile: adaptiveProfile,
+            IsOnBattery: isOnBattery,
+            TimeOfDay: DateTime.Now.TimeOfDay,
+            RecentWallpaperIds: null,
+            PreferFavorites: settings.SmartScenesPreferFavorites,
+            AvoidRecent: settings.SmartScenesAvoidRecent);
+    }
+
+    private void UpdateActiveSmartSceneVisuals()
+    {
+        if (ActiveSmartScenePanel == null) return;
+
+        if (!currentLoadedSettings.SmartScenesEnabled)
+        {
+            ActiveSmartScenePanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ActiveSmartScenePanel.Visibility = Visibility.Visible;
+        var context = GetCurrentSmartSceneContext();
+        var isTurkish = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+
+        if (ActiveSmartSceneValueText != null)
+        {
+            ActiveSmartSceneValueText.Text = context.EffectiveScene.ToDisplayString(isTurkish);
+        }
+
+        if (ActiveSmartSceneWhyText != null)
+        {
+            var lastSelection = libraryController?.Rotation?.LastSmartSelection;
+            if (lastSelection != null && string.Equals(lastSelection.Item.FilePath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase))
+            {
+                ActiveSmartSceneWhyText.Text = lastSelection.Score.GetLocalizedReason(isTurkish);
+            }
+            else
+            {
+                var activeItem = libraryController?.AllItems.FirstOrDefault(i => string.Equals(i.FilePath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase));
+                if (activeItem != null && analysisStore.TryGet(activeItem.Id, out var meta))
+                {
+                    var dummyItem = new WallpaperLibraryItem
+                    {
+                        Id = activeItem.Id,
+                        FilePath = activeItem.FilePath,
+                        Type = activeItem.Type,
+                        IsFavorite = activeItem.IsFavorite
+                    };
+                    var score = WallpaperSceneScorer.Score(dummyItem, meta, context);
+                    ActiveSmartSceneWhyText.Text = score.GetLocalizedReason(isTurkish);
+                }
+                else
+                {
+                    ActiveSmartSceneWhyText.Text = isTurkish
+                        ? "Dengeli masaüstü ortamı"
+                        : "Balanced desktop environment";
+                }
+            }
+        }
+    }
+
+    private void OnAnalysisProgressChanged(object? sender, AnalysisProgressEventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (LibraryAnalysisStatusText == null) return;
+
+            if (e.IsAnalyzing)
+            {
+                LibraryAnalysisStatusText.Visibility = Visibility.Visible;
+                LibraryAnalysisStatusText.Text = string.Format(
+                    LocalizationService.Instance.GetString(LocalizationKeys.StatusAnalyzingWallpapers),
+                    e.ItemsRemaining);
+            }
+            else
+            {
+                LibraryAnalysisStatusText.Visibility = Visibility.Collapsed;
+            }
+        });
+    }
+
+    private void SelectSmartScenesSettingsItems(AppSettings settings)
+    {
+        if (SmartScenesToggle != null)
+        {
+            SmartScenesToggle.IsOn = settings.SmartScenesEnabled;
+        }
+        if (SmartRotationToggle != null)
+        {
+            SmartRotationToggle.IsOn = settings.SmartRotation;
+        }
+        if (SmartScenesAvoidRecentToggle != null)
+        {
+            SmartScenesAvoidRecentToggle.IsOn = settings.SmartScenesAvoidRecent;
+        }
+        if (SmartScenesPreferFavoritesToggle != null)
+        {
+            SmartScenesPreferFavoritesToggle.IsOn = settings.SmartScenesPreferFavorites;
+        }
+        SelectComboBoxByTag(SmartSceneComboBox, settings.EffectiveSmartScene.ToString());
+    }
+
+    private async void OnSmartScenesToggled(object sender, RoutedEventArgs e)
+    {
+        if (isSyncingAppSettings || closed) return;
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.SmartScenesEnabled = SmartScenesToggle.IsOn;
+            await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
+            UpdateActiveSmartSceneVisuals();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving SmartScenesEnabled: {ex}");
+        }
+    }
+
+    private async void OnSmartSceneSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (isSyncingAppSettings || closed) return;
+        if (SmartSceneComboBox?.SelectedItem is ComboBoxItem item && item.Tag is string tagStr)
+        {
+            try
+            {
+                var cur = await settingsService.LoadAsync();
+                cur.SmartScene = tagStr == "Automatic" ? null : tagStr;
+                await settingsService.SaveAsync(cur);
+                currentLoadedSettings = cur;
+                UpdateActiveSmartSceneVisuals();
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Error saving SmartScene: {ex}");
+            }
+        }
+    }
+
+    private async void OnSmartRotationToggled(object sender, RoutedEventArgs e)
+    {
+        if (isSyncingAppSettings || closed) return;
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.SmartRotation = SmartRotationToggle.IsOn;
+            if (cur.SmartRotation)
+            {
+                cur.RotationOrder = RotationOrderExtensions.OrderSmart;
+                SelectComboBoxByTag(RotationOrderComboBox, RotationOrderExtensions.OrderSmart);
+            }
+            await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
+            if (libraryController?.Rotation != null)
+            {
+                await libraryController.Rotation.UpdateSettingsAsync(cur.RotationMode, cur.RotationOrder, cur.RotationIntervalMinutes);
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving SmartRotation: {ex}");
+        }
+    }
+
+    private async void OnSmartScenesAvoidRecentToggled(object sender, RoutedEventArgs e)
+    {
+        if (isSyncingAppSettings || closed) return;
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.SmartScenesAvoidRecent = SmartScenesAvoidRecentToggle.IsOn;
+            await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving SmartScenesAvoidRecent: {ex}");
+        }
+    }
+
+    private async void OnSmartScenesPreferFavoritesToggled(object sender, RoutedEventArgs e)
+    {
+        if (isSyncingAppSettings || closed) return;
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.SmartScenesPreferFavorites = SmartScenesPreferFavoritesToggle.IsOn;
+            await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving SmartScenesPreferFavorites: {ex}");
         }
     }
 }
