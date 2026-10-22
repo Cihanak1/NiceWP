@@ -51,11 +51,25 @@ public sealed class PageTurnVisualOverlay : IDisposable
     private int _bufWidth;
     private int _bufHeight;
 
+    // Dirty bounding region tracking for high-performance sub-region clearing
+    private int _lastDirtyLeft;
+    private int _lastDirtyTop;
+    private int _lastDirtyRight;
+    private int _lastDirtyBottom;
+    private bool _hasDirtyRegion;
+
+    // Cached GDI+ brushes and pens (eliminates 10-15 allocations per frame)
+    private nint _brushShadow;
+    private nint _brushRevealedBg;
+    private nint _brushFlap;
+    private nint _penFlapHighlight;
+    private nint _penCrease;
+    private nint _penEdge;
+    private bool _gdiResourcesCreated;
+
     // Preloaded image handles for GDI+
     private nint _nextGdiImage;
     private string? _loadedNextImagePath;
-    private nint _currentGdiImage;
-    private string? _loadedCurrentImagePath;
 
     public nint Handle => _hWnd;
     public bool IsVisible => _isVisible;
@@ -183,7 +197,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
     {
         if (_hWnd == 0 || _isDisposed) return;
 
-        var steps = 14;
+        var steps = 10;
         var initialProgress = startContext.Progress;
 
         for (var i = 1; i <= steps; i++)
@@ -202,7 +216,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
             };
 
             ShowDragFrame(animatedContext, nextImagePath, currentImagePath);
-            await Task.Delay(14, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(15, cancellationToken).ConfigureAwait(false);
         }
 
         Hide();
@@ -219,7 +233,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
     {
         if (_hWnd == 0 || _isDisposed) return;
 
-        var steps = 12;
+        var steps = 8;
         var initialProgress = startContext.Progress;
 
         for (var i = 1; i <= steps; i++)
@@ -238,7 +252,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
             };
 
             ShowDragFrame(animatedContext, nextImagePath, currentImagePath);
-            await Task.Delay(14, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(15, cancellationToken).ConfigureAwait(false);
         }
 
         Hide();
@@ -253,24 +267,96 @@ public sealed class PageTurnVisualOverlay : IDisposable
 
         NativeMethods.ShowWindow(_hWnd, SwHide);
         _isVisible = false;
+
+        if (_pBits != 0 && _bufWidth > 0 && _bufHeight > 0)
+        {
+            NativeMethods.ZeroMemory(_pBits, (nuint)(_bufWidth * _bufHeight * 4));
+            _hasDirtyRegion = false;
+        }
+    }
+
+    private void EnsureGdiResources()
+    {
+        if (_gdiResourcesCreated) return;
+        GdiPlusNativeMethods.GdipCreateSolidFill(0x88000000, out _brushShadow);
+        GdiPlusNativeMethods.GdipCreateSolidFill(0xEE1E2430, out _brushRevealedBg);
+        GdiPlusNativeMethods.GdipCreateSolidFill(0xFFECEFF4, out _brushFlap);
+        GdiPlusNativeMethods.GdipCreatePen1(0xFFFFFFFF, 1.5f, 0, out _penFlapHighlight);
+        GdiPlusNativeMethods.GdipCreatePen1(0x99506070, 1.5f, 0, out _penCrease);
+        GdiPlusNativeMethods.GdipCreatePen1(0xCC94A3B8, 1.0f, 0, out _penEdge);
+        _gdiResourcesCreated = true;
+    }
+
+    private void DisposeGdiResources()
+    {
+        if (!_gdiResourcesCreated) return;
+        if (_brushShadow != 0) { GdiPlusNativeMethods.GdipDeleteBrush(_brushShadow); _brushShadow = 0; }
+        if (_brushRevealedBg != 0) { GdiPlusNativeMethods.GdipDeleteBrush(_brushRevealedBg); _brushRevealedBg = 0; }
+        if (_brushFlap != 0) { GdiPlusNativeMethods.GdipDeleteBrush(_brushFlap); _brushFlap = 0; }
+        if (_penFlapHighlight != 0) { GdiPlusNativeMethods.GdipDeletePen(_penFlapHighlight); _penFlapHighlight = 0; }
+        if (_penCrease != 0) { GdiPlusNativeMethods.GdipDeletePen(_penCrease); _penCrease = 0; }
+        if (_penEdge != 0) { GdiPlusNativeMethods.GdipDeletePen(_penEdge); _penEdge = 0; }
+        _gdiResourcesCreated = false;
+    }
+
+    private void ClearDirtyRegion(int curLeft, int curTop, int curRight, int curBottom)
+    {
+        if (_pBits == 0 || _bufWidth <= 0 || _bufHeight <= 0) return;
+
+        if (!_hasDirtyRegion)
+        {
+            var totalBytes = _bufWidth * _bufHeight * 4;
+            NativeMethods.ZeroMemory(_pBits, (nuint)totalBytes);
+            _hasDirtyRegion = true;
+            _lastDirtyLeft = curLeft;
+            _lastDirtyTop = curTop;
+            _lastDirtyRight = curRight;
+            _lastDirtyBottom = curBottom;
+            return;
+        }
+
+        var clearLeft = Math.Max(0, Math.Min(_lastDirtyLeft, curLeft));
+        var clearTop = Math.Max(0, Math.Min(_lastDirtyTop, curTop));
+        var clearRight = Math.Min(_bufWidth, Math.Max(_lastDirtyRight, curRight));
+        var clearBottom = Math.Min(_bufHeight, Math.Max(_lastDirtyBottom, curBottom));
+
+        if (clearRight > clearLeft && clearBottom > clearTop)
+        {
+            var pitch = _bufWidth * 4;
+            var rowBytes = (nuint)((clearRight - clearLeft) * 4);
+            for (var y = clearTop; y < clearBottom; y++)
+            {
+                var rowPtr = _pBits + (y * pitch) + (clearLeft * 4);
+                NativeMethods.ZeroMemory(rowPtr, rowBytes);
+            }
+        }
+
+        _lastDirtyLeft = curLeft;
+        _lastDirtyTop = curTop;
+        _lastDirtyRight = curRight;
+        _lastDirtyBottom = curBottom;
     }
 
     private void RenderHoverSurface(int width, int height)
     {
         if (_hdcMem == 0 || _pBits == 0) return;
 
-        var totalBytes = _bufWidth * _bufHeight * 4;
-        NativeMethods.ZeroMemory(_pBits, (nuint)totalBytes);
+        EnsureGdiResources();
+
+        var right = (float)width;
+        var top = 0.0f;
+        var peelSize = 36.0f;
+
+        var curLeft = (int)Math.Max(0, right - peelSize - 10);
+        var curTop = 0;
+        var curRight = width;
+        var curBottom = (int)Math.Min(height, top + peelSize + 10);
+        ClearDirtyRegion(curLeft, curTop, curRight, curBottom);
 
         GdiPlusNativeMethods.GdipCreateFromHDC(_hdcMem, out var g);
         if (g != 0)
         {
             GdiPlusNativeMethods.GdipSetSmoothingMode(g, 2); // AntiAlias
-
-            // Top-right coordinates
-            var right = (float)width;
-            var top = 0.0f;
-            var peelSize = 36.0f;
 
             // 1. Shadow underneath the peeled corner
             var shadowPts = new GdiPlusNativeMethods.GpPointF[]
@@ -279,9 +365,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
                 new() { X = right, Y = top },
                 new() { X = right, Y = top + peelSize + 4 }
             };
-            GdiPlusNativeMethods.GdipCreateSolidFill(0x88000000, out var shadowBrush);
-            GdiPlusNativeMethods.GdipFillPolygon(g, shadowBrush, shadowPts, 3, 0);
-            GdiPlusNativeMethods.GdipDeleteBrush(shadowBrush);
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushShadow, shadowPts, 3, 0);
 
             // 2. Revealed underlying darker surface
             var revealedPts = new GdiPlusNativeMethods.GpPointF[]
@@ -290,9 +374,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
                 new() { X = right, Y = top },
                 new() { X = right, Y = top + peelSize }
             };
-            GdiPlusNativeMethods.GdipCreateSolidFill(0xEE1E2430, out var revBrush);
-            GdiPlusNativeMethods.GdipFillPolygon(g, revBrush, revealedPts, 3, 0);
-            GdiPlusNativeMethods.GdipDeleteBrush(revBrush);
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushRevealedBg, revealedPts, 3, 0);
 
             // 3. Folded corner paper flap
             var flapPts = new GdiPlusNativeMethods.GpPointF[]
@@ -301,15 +383,11 @@ public sealed class PageTurnVisualOverlay : IDisposable
                 new() { X = right - (peelSize * 0.75f), Y = top + (peelSize * 0.75f) },
                 new() { X = right, Y = top + peelSize }
             };
-            GdiPlusNativeMethods.GdipCreateSolidFill(0xFFE2E8F0, out var flapBrush);
-            GdiPlusNativeMethods.GdipFillPolygon(g, flapBrush, flapPts, 3, 0);
-            GdiPlusNativeMethods.GdipDeleteBrush(flapBrush);
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushFlap, flapPts, 3, 0);
 
             // 4. Subtle flap border
-            GdiPlusNativeMethods.GdipCreatePen1(0xCC94A3B8, 1.0f, 0, out var edgePen);
-            GdiPlusNativeMethods.GdipDrawLine(g, edgePen, right - peelSize, top, right - (peelSize * 0.75f), top + (peelSize * 0.75f));
-            GdiPlusNativeMethods.GdipDrawLine(g, edgePen, right - (peelSize * 0.75f), top + (peelSize * 0.75f), right, top + peelSize);
-            GdiPlusNativeMethods.GdipDeletePen(edgePen);
+            GdiPlusNativeMethods.GdipDrawLine(g, _penEdge, right - peelSize, top, right - (peelSize * 0.75f), top + (peelSize * 0.75f));
+            GdiPlusNativeMethods.GdipDrawLine(g, _penEdge, right - (peelSize * 0.75f), top + (peelSize * 0.75f), right, top + peelSize);
 
             GdiPlusNativeMethods.GdipDeleteGraphics(g);
         }
@@ -321,8 +399,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
     {
         if (_hdcMem == 0 || _pBits == 0) return;
 
-        var totalBytes = _bufWidth * _bufHeight * 4;
-        NativeMethods.ZeroMemory(_pBits, (nuint)totalBytes);
+        EnsureGdiResources();
 
         var w = (float)width;
         var h = (float)height;
@@ -331,6 +408,12 @@ public sealed class PageTurnVisualOverlay : IDisposable
         var rightFoldY = (float)Math.Clamp(context.RightFoldY > 0 ? context.RightFoldY : context.Progress * h * 0.8, 0.0, h);
         var apexX = (float)Math.Clamp(context.CurrentX, 0.0, w);
         var apexY = (float)Math.Clamp(context.CurrentY, 0.0, h);
+
+        var curLeft = (int)Math.Max(0, Math.Min(topFoldX - 30, apexX - 30));
+        var curTop = 0;
+        var curRight = width;
+        var curBottom = (int)Math.Min(height, Math.Max(rightFoldY + 30, apexY + 30));
+        ClearDirtyRegion(curLeft, curTop, curRight, curBottom);
 
         GdiPlusNativeMethods.GdipCreateFromHDC(_hdcMem, out var g);
         if (g != 0)
@@ -345,10 +428,11 @@ public sealed class PageTurnVisualOverlay : IDisposable
                 new() { X = w, Y = rightFoldY }
             };
 
-            if (_nextGdiImage != 0)
+            var nextImg = Volatile.Read(ref _nextGdiImage);
+            if (nextImg != 0)
             {
-                GdiPlusNativeMethods.GdipGetImageWidth(_nextGdiImage, out var imgW);
-                GdiPlusNativeMethods.GdipGetImageHeight(_nextGdiImage, out var imgH);
+                GdiPlusNativeMethods.GdipGetImageWidth(nextImg, out var imgW);
+                GdiPlusNativeMethods.GdipGetImageHeight(nextImg, out var imgH);
 
                 GdiPlusNativeMethods.GdipCreatePath(0, out var path);
                 if (path != 0)
@@ -356,7 +440,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
                     GdiPlusNativeMethods.GdipAddPathPolygon(path, revealedPts, 3);
                     GdiPlusNativeMethods.GdipSetClipPath(g, path, 0); // Replace clip
 
-                    GdiPlusNativeMethods.GdipDrawImageRectRectI(g, _nextGdiImage,
+                    GdiPlusNativeMethods.GdipDrawImageRectRectI(g, nextImg,
                         0, 0, (int)w, (int)h,
                         0, 0, imgW, imgH, 2, 0, 0, 0);
 
@@ -367,9 +451,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
             else
             {
                 // Fallback rich dark revealed background
-                GdiPlusNativeMethods.GdipCreateSolidFill(0xEE1E2430, out var bgBrush);
-                GdiPlusNativeMethods.GdipFillPolygon(g, bgBrush, revealedPts, 3, 0);
-                GdiPlusNativeMethods.GdipDeleteBrush(bgBrush);
+                GdiPlusNativeMethods.GdipFillPolygon(g, _brushRevealedBg, revealedPts, 3, 0);
             }
 
             // 2. Drop shadow under the fold line
@@ -380,9 +462,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
                 new() { X = w, Y = rightFoldY },
                 new() { X = w, Y = Math.Min(h, rightFoldY + 20) }
             };
-            GdiPlusNativeMethods.GdipCreateSolidFill(0x88000000, out var shadowBrush);
-            GdiPlusNativeMethods.GdipFillPolygon(g, shadowBrush, shadowPts, 4, 0);
-            GdiPlusNativeMethods.GdipDeleteBrush(shadowBrush);
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushShadow, shadowPts, 4, 0);
 
             // 3. Curled paper flap
             var flapPts = new GdiPlusNativeMethods.GpPointF[]
@@ -401,20 +481,14 @@ public sealed class PageTurnVisualOverlay : IDisposable
             }
 
             // Paper flap body (backside of page)
-            GdiPlusNativeMethods.GdipCreateSolidFill(0xFFECEFF4, out var flapBrush);
-            GdiPlusNativeMethods.GdipFillPolygon(g, flapBrush, flapPts, 3, 0);
-            GdiPlusNativeMethods.GdipDeleteBrush(flapBrush);
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushFlap, flapPts, 3, 0);
 
             // Flap edge highlight line
-            GdiPlusNativeMethods.GdipCreatePen1(0xFFFFFFFF, 1.5f, 0, out var highlightPen);
-            GdiPlusNativeMethods.GdipDrawLine(g, highlightPen, topFoldX, 0, apexX, apexY);
-            GdiPlusNativeMethods.GdipDrawLine(g, highlightPen, apexX, apexY, w, rightFoldY);
-            GdiPlusNativeMethods.GdipDeletePen(highlightPen);
+            GdiPlusNativeMethods.GdipDrawLine(g, _penFlapHighlight, topFoldX, 0, apexX, apexY);
+            GdiPlusNativeMethods.GdipDrawLine(g, _penFlapHighlight, apexX, apexY, w, rightFoldY);
 
             // Fold crease line
-            GdiPlusNativeMethods.GdipCreatePen1(0x99506070, 1.5f, 0, out var creasePen);
-            GdiPlusNativeMethods.GdipDrawLine(g, creasePen, topFoldX, 0, w, rightFoldY);
-            GdiPlusNativeMethods.GdipDeletePen(creasePen);
+            GdiPlusNativeMethods.GdipDrawLine(g, _penCrease, topFoldX, 0, w, rightFoldY);
 
             GdiPlusNativeMethods.GdipDeleteGraphics(g);
         }
@@ -496,35 +570,50 @@ public sealed class PageTurnVisualOverlay : IDisposable
 
     private void EnsureLoadedImages(string? nextImagePath, string? currentImagePath)
     {
-        if (nextImagePath != _loadedNextImagePath)
+        if (nextImagePath == _loadedNextImagePath)
         {
-            if (_nextGdiImage != 0)
-            {
-                GdiPlusNativeMethods.GdipDisposeImage(_nextGdiImage);
-                _nextGdiImage = 0;
-            }
-
-            _loadedNextImagePath = nextImagePath;
-            if (!string.IsNullOrWhiteSpace(nextImagePath) && File.Exists(nextImagePath))
-            {
-                GdiPlusNativeMethods.GdipLoadImageFromFile(nextImagePath, out _nextGdiImage);
-            }
+            return;
         }
 
-        if (currentImagePath != _loadedCurrentImagePath)
-        {
-            if (_currentGdiImage != 0)
-            {
-                GdiPlusNativeMethods.GdipDisposeImage(_currentGdiImage);
-                _currentGdiImage = 0;
-            }
+        _loadedNextImagePath = nextImagePath;
 
-            _loadedCurrentImagePath = currentImagePath;
-            if (!string.IsNullOrWhiteSpace(currentImagePath) && File.Exists(currentImagePath))
-            {
-                GdiPlusNativeMethods.GdipLoadImageFromFile(currentImagePath, out _currentGdiImage);
-            }
+        if (string.IsNullOrWhiteSpace(nextImagePath))
+        {
+            var old = Interlocked.Exchange(ref _nextGdiImage, 0);
+            if (old != 0) GdiPlusNativeMethods.GdipDisposeImage(old);
+            return;
         }
+
+        var ext = Path.GetExtension(nextImagePath).ToLowerInvariant();
+        if (ext is ".mp4" or ".webm" or ".avi" or ".mov" or ".mkv")
+        {
+            // Video without poster - keep fallback GDI image as 0
+            var old = Interlocked.Exchange(ref _nextGdiImage, 0);
+            if (old != 0) GdiPlusNativeMethods.GdipDisposeImage(old);
+            return;
+        }
+
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                if (File.Exists(nextImagePath))
+                {
+                    if (GdiPlusNativeMethods.GdipLoadImageFromFile(nextImagePath, out var newImg) == 0 && newImg != 0)
+                    {
+                        var old = Interlocked.Exchange(ref _nextGdiImage, newImg);
+                        if (old != 0)
+                        {
+                            GdiPlusNativeMethods.GdipDisposeImage(old);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[PageTurnVisualOverlay] Error preloading image asynchronously: {ex}");
+            }
+        });
     }
 
     private void DisposeBuffer()
@@ -555,15 +644,12 @@ public sealed class PageTurnVisualOverlay : IDisposable
 
         Hide();
 
-        if (_nextGdiImage != 0)
+        DisposeGdiResources();
+
+        var nextImg = Interlocked.Exchange(ref _nextGdiImage, 0);
+        if (nextImg != 0)
         {
-            GdiPlusNativeMethods.GdipDisposeImage(_nextGdiImage);
-            _nextGdiImage = 0;
-        }
-        if (_currentGdiImage != 0)
-        {
-            GdiPlusNativeMethods.GdipDisposeImage(_currentGdiImage);
-            _currentGdiImage = 0;
+            GdiPlusNativeMethods.GdipDisposeImage(nextImg);
         }
 
         DisposeBuffer();
