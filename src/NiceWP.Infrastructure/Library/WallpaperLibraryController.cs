@@ -293,6 +293,11 @@ public sealed class WallpaperLibraryController : IDisposable
             getRotationService: () => Rotation,
             getSettings: () => AppSettings.CreateDefault(),
             preloadService: TransitionPreloadService);
+
+        TransitionCoordinator.TransitionCommitted += _ =>
+        {
+            Rotation.ResetTimer();
+        };
     }
 
     private IReadOnlyList<WallpaperLibraryItem> GetLibraryItemsSnapshot()
@@ -317,6 +322,8 @@ public sealed class WallpaperLibraryController : IDisposable
 
     public void Dispose()
     {
+        TransitionCoordinator.Dispose();
+        TransitionPreloadService.Dispose();
         Schedule.Dispose();
         Rotation.Dispose();
     }
