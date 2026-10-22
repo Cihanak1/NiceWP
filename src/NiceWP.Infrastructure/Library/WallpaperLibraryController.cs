@@ -265,7 +265,8 @@ public sealed class WallpaperLibraryController : IDisposable
         WallpaperRotationService? rotationService = null,
         WallpaperScheduleService? scheduleService = null,
         WallpaperTransitionCoordinator? transitionCoordinator = null,
-        PageTurnPreloadService? preloadService = null)
+        PageTurnPreloadService? preloadService = null,
+        Func<AppSettings>? getSettings = null)
     {
         Service = service ?? new WallpaperLibraryService();
         RemoteImportService = remoteImportService ?? new RemoteWallpaperImportService(Service);
@@ -291,12 +292,16 @@ public sealed class WallpaperLibraryController : IDisposable
         TransitionPreloadService = preloadService ?? new PageTurnPreloadService();
         TransitionCoordinator = transitionCoordinator ?? new WallpaperTransitionCoordinator(
             getRotationService: () => Rotation,
-            getSettings: () => AppSettings.CreateDefault(),
+            getSettings: () => getSettings?.Invoke() ?? AppSettings.CreateDefault(),
             preloadService: TransitionPreloadService);
 
-        TransitionCoordinator.TransitionCommitted += _ =>
+        TransitionCoordinator.TransitionCommitted += candidate =>
         {
             Rotation.ResetTimer();
+            if (candidate != null)
+            {
+                _ = ApplyItemAsync(candidate);
+            }
         };
     }
 

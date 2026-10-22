@@ -27,6 +27,7 @@ using NiceWP.Infrastructure.Rotation;
 using NiceWP.Infrastructure.Localization;
 using NiceWP.Infrastructure.Scheduling;
 using NiceWP.Infrastructure.Adaptive;
+using NiceWP.Infrastructure.Transition;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 
@@ -43,6 +44,8 @@ public sealed partial class DesktopTestWindow : Window
     private readonly WallpaperThumbnailService thumbnailService = new();
     private readonly AppRuleMatchingService appRuleMatchingService = new();
     private readonly WallpaperLibraryController libraryController;
+    private AppSettings currentLoadedSettings = AppSettings.CreateDefault();
+    private TopRightGestureWindow? topGestureWindow;
     private readonly HashSet<Border> realizedCardBorders = [];
     private readonly List<(string Id, string FilePath, string Type, string DisplayName, bool IsMissing, bool IsFavorite)> renderedLibrarySnapshot = [];
     private string? activeWallpaperPath;
@@ -89,7 +92,30 @@ public sealed partial class DesktopTestWindow : Window
 
         libraryController = new WallpaperLibraryController(
             ipcClient: runtimeClient.IpcClient,
-            hostLauncher: runtimeClient.Launcher);
+            hostLauncher: runtimeClient.Launcher,
+            getSettings: () => currentLoadedSettings);
+
+        try
+        {
+            var detector = new HotCornerDetector(1920, 1080, 32.0);
+            var captureMgr = new CornerPointerCaptureManager(libraryController.TransitionCoordinator, detector);
+            topGestureWindow = new TopRightGestureWindow(
+                coordinator: libraryController.TransitionCoordinator,
+                captureManager: captureMgr,
+                getRotation: () => libraryController.Rotation,
+                getCurrentWallpaperPath: () => activeWallpaperPath ?? libraryController.Rotation.CurrentWallpaperPath ?? currentLoadedSettings.LastWallpaperPath,
+                onTransitionCommitted: async candidate =>
+                {
+                    if (candidate != null)
+                    {
+                        await libraryController.ApplyItemAsync(candidate);
+                    }
+                });
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to initialize TopRightGestureWindow: {ex}");
+        }
         libraryController.Rotation.WallpaperRotated += OnRotationWallpaperRotated;
         libraryController.Rotation.StatusChanged += OnRotationStatusChanged;
         libraryController.Schedule.StatusChanged += OnScheduleStatusChanged;
@@ -165,6 +191,7 @@ public sealed partial class DesktopTestWindow : Window
         {
             var settings = await settingsService.LoadAsync();
             if (closed) return;
+            currentLoadedSettings = settings;
 
             isSyncingAppSettings = true;
             try
@@ -185,6 +212,8 @@ public sealed partial class DesktopTestWindow : Window
             {
                 isSyncingAppSettings = false;
             }
+
+            topGestureWindow?.UpdateVisibility();
 
             await libraryController.Rotation.InitializeAsync(settings);
             UpdateRotationDetailsUI();
@@ -2636,6 +2665,9 @@ public sealed partial class DesktopTestWindow : Window
             current.RotationMode = mode;
             await settingsService.SaveAsync(current);
             await libraryController.Rotation.UpdateSettingsAsync(mode, order, intervalMinutes);
+            currentLoadedSettings = current;
+            topGestureWindow?.UpdateVisibility();
+            UpdateInteractiveSettingsStatus(current);
         }
         catch (Exception exception)
         {
@@ -2660,6 +2692,9 @@ public sealed partial class DesktopTestWindow : Window
             current.RotationOrder = order;
             await settingsService.SaveAsync(current);
             await libraryController.Rotation.UpdateSettingsAsync(mode, order, intervalMinutes);
+            currentLoadedSettings = current;
+            topGestureWindow?.UpdateVisibility();
+            UpdateInteractiveSettingsStatus(current);
         }
         catch (Exception exception)
         {
@@ -2684,6 +2719,9 @@ public sealed partial class DesktopTestWindow : Window
             current.RotationIntervalMinutes = intervalMinutes;
             await settingsService.SaveAsync(current);
             await libraryController.Rotation.UpdateSettingsAsync(mode, order, intervalMinutes);
+            currentLoadedSettings = current;
+            topGestureWindow?.UpdateVisibility();
+            UpdateInteractiveSettingsStatus(current);
         }
         catch (Exception exception)
         {
@@ -2879,6 +2917,8 @@ public sealed partial class DesktopTestWindow : Window
                 RenderLibraryItems();
             }
             UpdateRotationDetailsUI();
+            topGestureWindow?.UpdateVisibility();
+            UpdateInteractiveSettingsStatus(currentLoadedSettings);
         });
     }
 
@@ -2888,6 +2928,8 @@ public sealed partial class DesktopTestWindow : Window
         {
             if (closed) return;
             UpdateRotationDetailsUI(status);
+            topGestureWindow?.UpdateVisibility();
+            UpdateInteractiveSettingsStatus(currentLoadedSettings);
         });
     }
 
@@ -2937,6 +2979,7 @@ public sealed partial class DesktopTestWindow : Window
         {
             StopPerformancePolling();
             StopRotationCountdownTimer();
+            topGestureWindow?.Dispose();
             libraryController.Dispose();
             trayIcon.Dispose();
             App.ReleaseSingleInstance();
@@ -3739,21 +3782,43 @@ public sealed partial class DesktopTestWindow : Window
     private void UpdateInteractiveSettingsStatus(AppSettings? settings = null)
     {
         if (InteractiveSettingsStatusText == null) return;
-        var s = settings ?? AppSettings.CreateDefault();
+        var s = settings ?? currentLoadedSettings;
         var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
 
-        var enabledText = s.InteractiveTransitionEnabled
-            ? (isTr ? "Etkin" : "Enabled")
-            : (isTr ? "Devre Dışı" : "Disabled");
+        if (!s.InteractiveTransitionEnabled)
+        {
+            InteractiveSettingsStatusText.Text = isTr
+                ? "Etkileşimli sayfa çevirme kapalı."
+                : "Interactive page turn is disabled.";
+            return;
+        }
+
+        var rotation = libraryController?.Rotation;
+        if (rotation == null || rotation.Mode == RotationMode.Off)
+        {
+            InteractiveSettingsStatusText.Text = isTr
+                ? "Döngü etkin değil. Etkileşimli geçiş için en az iki duvar kağıdıyla döngüyü açın."
+                : "Rotation is disabled. Enable rotation with at least two wallpapers to use interactive transitions.";
+            return;
+        }
+
+        var candidateCount = rotation.GetStatus().TotalEligibleCount;
+        if (candidateCount < 2)
+        {
+            InteractiveSettingsStatusText.Text = isTr
+                ? "Döngüde en az iki duvar kağıdı bulunmalıdır."
+                : "At least two wallpapers are required in the rotation playlist.";
+            return;
+        }
+
         var waveText = s.PaperWaveEnabled
             ? (isTr ? "Dalgalanma Açık" : "Wave On")
             : (isTr ? "Dalgalanma Kapalı" : "Wave Off");
         var sensText = s.EffectiveTransitionSensitivity.ToString();
-        var qualityText = s.EffectiveTransitionQuality.ToString();
 
         InteractiveSettingsStatusText.Text = isTr
-            ? $"Köşe Geçişi: {enabledText} • {waveText} • Hassasiyet: {sensText} • Kalite: {qualityText}."
-            : $"Corner Page Turn: {enabledText} • {waveText} • Sensitivity: {sensText} • Quality: {qualityText}.";
+            ? $"Hazır: Ekranın sağ üst köşesinden sürükleyerek sonraki duvar kağıdını çevirin. ({waveText} • Hassasiyet: {sensText})"
+            : $"Ready: Drag from the top-right corner to peel to the next wallpaper. ({waveText} • Sensitivity: {sensText})";
     }
 
     private async void OnInteractiveTransitionToggled(object sender, RoutedEventArgs e)
@@ -3764,6 +3829,8 @@ public sealed partial class DesktopTestWindow : Window
             var cur = await settingsService.LoadAsync();
             cur.InteractiveTransitionEnabled = InteractiveTransitionToggle.IsOn;
             await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
+            topGestureWindow?.UpdateVisibility();
             UpdateInteractiveSettingsStatus(cur);
         }
         catch (Exception ex)
@@ -3780,6 +3847,7 @@ public sealed partial class DesktopTestWindow : Window
             var cur = await settingsService.LoadAsync();
             cur.PaperWaveEnabled = PaperWaveToggle.IsOn;
             await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
             UpdateInteractiveSettingsStatus(cur);
         }
         catch (Exception ex)
@@ -3799,6 +3867,7 @@ public sealed partial class DesktopTestWindow : Window
             var cur = await settingsService.LoadAsync();
             cur.TransitionEffect = parsed.ToString();
             await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
             UpdateInteractiveSettingsStatus(cur);
         }
         catch (Exception ex)
@@ -3818,6 +3887,7 @@ public sealed partial class DesktopTestWindow : Window
             var cur = await settingsService.LoadAsync();
             cur.TransitionSensitivity = parsed.ToString();
             await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
             UpdateInteractiveSettingsStatus(cur);
         }
         catch (Exception ex)
@@ -3837,6 +3907,7 @@ public sealed partial class DesktopTestWindow : Window
             var cur = await settingsService.LoadAsync();
             cur.TransitionQuality = parsed.ToString();
             await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
             UpdateInteractiveSettingsStatus(cur);
         }
         catch (Exception ex)
