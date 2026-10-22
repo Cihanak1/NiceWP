@@ -14,7 +14,10 @@ public sealed record CornerGestureContext(
     double Velocity,
     TransitionSensitivity Sensitivity,
     TransitionQuality Quality,
-    bool PaperWaveEnabled)
+    bool PaperWaveEnabled,
+    double TopFoldX = 0.0,
+    double RightFoldY = 0.0,
+    double FoldAngleDegrees = 45.0)
 {
     public const double DefaultCommitThreshold = 0.30;
 

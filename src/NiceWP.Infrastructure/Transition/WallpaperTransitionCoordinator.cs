@@ -20,6 +20,7 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
     private readonly Action<string, string>? _auditLogger;
 
     private CornerGestureContext? _currentContext;
+    private CornerDragTracker? _dragTracker;
     private WallpaperLibraryItem? _peekedCandidate;
     private bool _isDisposed;
 
@@ -144,6 +145,15 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
             var effectiveQuality = settings.EffectiveTransitionQuality.ResolveEffective(
                 _getResourceBudget?.Invoke() ?? ResourceBudget.Balanced);
 
+            _dragTracker = new CornerDragTracker(
+                startX: startX,
+                startY: startY,
+                screenWidth: screenWidth,
+                screenHeight: screenHeight,
+                thresholdDistance: sensitivity.GetDragDistanceThreshold());
+
+            var initialMetrics = _dragTracker.TrackPosition(startX, startY, 0.0);
+
             _currentContext = new CornerGestureContext(
                 StartX: startX,
                 StartY: startY,
@@ -151,11 +161,14 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
                 CurrentY: startY,
                 ScreenWidth: screenWidth,
                 ScreenHeight: screenHeight,
-                Progress: 0.0,
-                Velocity: 0.0,
+                Progress: initialMetrics.Progress,
+                Velocity: initialMetrics.SmoothedVelocity,
                 Sensitivity: sensitivity,
                 Quality: effectiveQuality,
-                PaperWaveEnabled: settings.PaperWaveEnabled);
+                PaperWaveEnabled: settings.PaperWaveEnabled,
+                TopFoldX: initialMetrics.TopFoldX,
+                RightFoldY: initialMetrics.RightFoldY,
+                FoldAngleDegrees: initialMetrics.FoldAngleDegrees);
 
             SetState(TransitionState.Dragging);
             GestureUpdated?.Invoke(_currentContext);
@@ -178,21 +191,36 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
             return;
         }
 
-        var dx = _currentContext.StartX - currentX;
-        var dy = currentY - _currentContext.StartY;
-
-        // Diagonal drag distance towards bottom-left
-        var distance = Math.Max(0.0, (dx * 0.7071) + (dy * 0.7071));
-        var threshold = _currentContext.Sensitivity.GetDragDistanceThreshold();
-        var progress = Math.Clamp(distance / threshold, 0.0, 1.0);
-
-        _currentContext = _currentContext with
+        if (_dragTracker != null)
         {
-            CurrentX = currentX,
-            CurrentY = currentY,
-            Progress = progress,
-            Velocity = velocity
-        };
+            var metrics = _dragTracker.TrackPosition(currentX, currentY, velocity);
+            _currentContext = _currentContext with
+            {
+                CurrentX = currentX,
+                CurrentY = currentY,
+                Progress = metrics.Progress,
+                Velocity = metrics.SmoothedVelocity,
+                TopFoldX = metrics.TopFoldX,
+                RightFoldY = metrics.RightFoldY,
+                FoldAngleDegrees = metrics.FoldAngleDegrees
+            };
+        }
+        else
+        {
+            var dx = _currentContext.StartX - currentX;
+            var dy = currentY - _currentContext.StartY;
+            var distance = Math.Max(0.0, (dx * 0.7071) + (dy * 0.7071));
+            var threshold = _currentContext.Sensitivity.GetDragDistanceThreshold();
+            var progress = Math.Clamp(distance / threshold, 0.0, 1.0);
+
+            _currentContext = _currentContext with
+            {
+                CurrentX = currentX,
+                CurrentY = currentY,
+                Progress = progress,
+                Velocity = velocity
+            };
+        }
 
         GestureUpdated?.Invoke(_currentContext);
     }
@@ -214,6 +242,7 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
             LogAudit("GestureCancelled", $"Corner gesture cancelled. Reason: {reason}.");
 
             _currentContext = null;
+            _dragTracker = null;
             _peekedCandidate = null;
 
             TransitionCancelled?.Invoke();
@@ -253,6 +282,7 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
             LogAudit("GestureCommitted", $"Corner gesture committed. Advanced to: {targetCandidate?.DisplayName ?? "Next"}. Success: {success}.");
 
             _currentContext = null;
+            _dragTracker = null;
             _peekedCandidate = null;
 
             TransitionCommitted?.Invoke(targetCandidate);
