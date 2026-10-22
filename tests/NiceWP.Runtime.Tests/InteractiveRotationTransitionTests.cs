@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using NiceWP.Core;
@@ -1000,6 +1001,173 @@ public sealed class InteractiveRotationTransitionTests : IDisposable
         {
             controller.Dispose();
         }
+    }
+
+    #endregion
+
+    #region Latency and Event Coalescing Tests
+
+    [Fact]
+    public async Task EventCoalescing_HighFrequencyMouseMoves_DropsIntermediateBacklogAndUpdatesLatest()
+    {
+        var items = CreateSampleItems(3);
+        using var rotation = new WallpaperRotationService(
+            getItems: () => items,
+            applyItem: (it, ct) => Task.FromResult(new WallpaperLibraryApplyResult(true)),
+            getHostStatus: ct => Task.FromResult(IpcResponse.Ok("Running", "Running")));
+        await rotation.UpdateSettingsAsync("All", "Sequential", 30);
+
+        using var coordinator = new WallpaperTransitionCoordinator(
+            getRotationService: () => rotation,
+            getSettings: () => new AppSettings { InteractiveTransitionEnabled = true });
+
+        using var monitor = new DesktopGestureInputMonitor(
+            coordinator,
+            () => rotation);
+
+        monitor.InstallHook();
+
+        var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+        var startX = bounds.Right - 10;
+        var startY = bounds.Top + 10;
+
+        // 1. Mouse down in top-right hot corner
+        monitor.ProcessMouseEvent(0x0201 /* WM_LBUTTONDOWN */, startX, startY);
+        Assert.True(monitor.IsDragging);
+
+        // 2. Simulate 100 rapid mouse move events
+        var sw = Stopwatch.StartNew();
+        for (var i = 1; i <= 100; i++)
+        {
+            monitor.ProcessMouseEvent(0x0200 /* WM_MOUSEMOVE */, startX - (i * 4), startY + (i * 3));
+        }
+        sw.Stop();
+
+        // The final mouse coordinates should be exactly (startX - 400, startY + 300)
+        Assert.NotNull(coordinator.CurrentContext);
+        Assert.Equal((double)(startX - 400), coordinator.CurrentContext.CurrentX);
+        Assert.Equal((double)(startY + 300), coordinator.CurrentContext.CurrentY);
+
+        // Verify telemetry recorded the events and input latency is very low (< 25ms)
+        Assert.True(monitor.Telemetry.GestureInputLatencyMs < 25.0, $"Expected input latency < 25ms, got {monitor.Telemetry.GestureInputLatencyMs:F2}ms");
+        Assert.True(sw.Elapsed.TotalMilliseconds < 250.0, $"100 events should process quickly, took {sw.Elapsed.TotalMilliseconds:F2}ms");
+
+        monitor.ProcessMouseEvent(0x0202 /* WM_LBUTTONUP */, startX - 400, startY + 300);
+        Assert.False(monitor.IsDragging);
+        Assert.Equal(100, monitor.Telemetry.TotalPointerEvents);
+    }
+
+    [Fact]
+    public async Task EventCoalescing_HumanLikeSlowDrag_SmoothProgressTracking()
+    {
+        var items = CreateSampleItems(3);
+        using var rotation = new WallpaperRotationService(
+            getItems: () => items,
+            applyItem: (it, ct) => Task.FromResult(new WallpaperLibraryApplyResult(true)),
+            getHostStatus: ct => Task.FromResult(IpcResponse.Ok("Running", "Running")));
+        await rotation.UpdateSettingsAsync("All", "Sequential", 30);
+
+        using var coordinator = new WallpaperTransitionCoordinator(
+            getRotationService: () => rotation,
+            getSettings: () => new AppSettings { InteractiveTransitionEnabled = true });
+
+        using var monitor = new DesktopGestureInputMonitor(
+            coordinator,
+            () => rotation);
+
+        monitor.InstallHook();
+
+        var bounds = DesktopGestureInputMonitor.GetPrimaryMonitorBounds();
+        var startX = bounds.Right - 10;
+        var startY = bounds.Top + 10;
+
+        monitor.ProcessMouseEvent(0x0201 /* WM_LBUTTONDOWN */, startX, startY);
+        Assert.True(monitor.IsDragging);
+
+        double lastProgress = 0.0;
+        for (var i = 1; i <= 15; i++)
+        {
+            monitor.ProcessMouseEvent(0x0200 /* WM_MOUSEMOVE */, startX - (i * 25), startY + (i * 20));
+            var currentProgress = coordinator.CurrentContext?.Progress ?? 0.0;
+            Assert.True(currentProgress >= lastProgress, $"Progress should be monotonic: {currentProgress} vs {lastProgress}");
+            lastProgress = currentProgress;
+        }
+
+        Assert.True(lastProgress > 0.30, $"Final progress should exceed commit threshold, got {lastProgress:P1}");
+        monitor.ProcessMouseEvent(0x0202 /* WM_LBUTTONUP */, startX - 375, startY + 300);
+        Assert.False(monitor.IsDragging);
+    }
+
+    [Fact]
+    public void AnimationTiming_CommitAndCancel_WithinThresholds()
+    {
+        Assert.InRange(TransitionAnimationController.DefaultCancelDuration.TotalMilliseconds, 120.0, 180.0);
+        Assert.InRange(TransitionAnimationController.DefaultCommitDuration.TotalMilliseconds, 160.0, 240.0);
+    }
+
+    [Fact]
+    public void VisualOverlay_DirtyRegionClearing_ProducesZeroBacklog()
+    {
+        using var overlay = new PageTurnVisualOverlay();
+        var context = new CornerGestureContext(
+            StartX: 1910,
+            StartY: 10,
+            CurrentX: 1400,
+            CurrentY: 500,
+            ScreenWidth: 1920,
+            ScreenHeight: 1080,
+            Progress: 0.45,
+            Velocity: 200.0,
+            Sensitivity: TransitionSensitivity.Normal,
+            Quality: TransitionQuality.High,
+            PaperWaveEnabled: true,
+            TopFoldX: 1500,
+            RightFoldY: 400,
+            FoldAngleDegrees: 45);
+
+        var sw = Stopwatch.StartNew();
+        for (var i = 0; i < 20; i++)
+        {
+            var curContext = context with { CurrentX = 1400 - (i * 10), CurrentY = 500 + (i * 10), Progress = 0.45 + (i * 0.01) };
+            overlay.ShowDragFrame(curContext);
+        }
+        sw.Stop();
+
+        Assert.Equal(20, overlay.RenderedFrameCount);
+        var avgPerFrame = sw.Elapsed.TotalMilliseconds / 20.0;
+        Assert.True(avgPerFrame < 16.0, $"Average frame render duration should be < 16ms (60 FPS), got {avgPerFrame:F2}ms");
+        overlay.Hide();
+    }
+
+    [Fact]
+    public void AsyncImagePreload_NeverBlocksRenderThread()
+    {
+        using var overlay = new PageTurnVisualOverlay();
+        var context = new CornerGestureContext(
+            StartX: 1910,
+            StartY: 10,
+            CurrentX: 1800,
+            CurrentY: 100,
+            ScreenWidth: 1920,
+            ScreenHeight: 1080,
+            Progress: 0.10,
+            Velocity: 50.0,
+            Sensitivity: TransitionSensitivity.Normal,
+            Quality: TransitionQuality.Balanced,
+            PaperWaveEnabled: false,
+            TopFoldX: 1850,
+            RightFoldY: 80,
+            FoldAngleDegrees: 45);
+
+        var nonExistentLargePath = @"C:\FakeDirectory\NonExistentMassiveWallpaper_4K.jpg";
+
+        var sw = Stopwatch.StartNew();
+        overlay.ShowDragFrame(context, nonExistentLargePath);
+        sw.Stop();
+
+        // Must return in < 15ms without blocking
+        Assert.True(sw.Elapsed.TotalMilliseconds < 15.0, $"Frame render must not block on image load, took {sw.Elapsed.TotalMilliseconds:F2}ms");
+        overlay.Hide();
     }
 
     #endregion

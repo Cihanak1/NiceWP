@@ -236,7 +236,12 @@ public sealed class DesktopGestureInputMonitor : IDisposable
             }
 
             var packed = ((long)x << 32) | (uint)y;
-            Interlocked.Exchange(ref _latestPackedPointer, packed);
+            var prev = Interlocked.Exchange(ref _latestPackedPointer, packed);
+            if (prev != 0)
+            {
+                Interlocked.Increment(ref _droppedPointerEvents);
+                Telemetry.DroppedPointerEvents = _droppedPointerEvents;
+            }
             Interlocked.Exchange(ref _latestTimestampTicks, Stopwatch.GetTimestamp());
             Interlocked.Increment(ref _totalPointerEvents);
 
@@ -364,43 +369,43 @@ public sealed class DesktopGestureInputMonitor : IDisposable
 
     private void DispatchCoalescedMoves()
     {
-        try
+        while (_isDragging)
         {
-            while (_isDragging)
+            var packed = Interlocked.Exchange(ref _latestPackedPointer, 0);
+            if (packed == 0)
             {
-                var packed = Interlocked.Read(ref _latestPackedPointer);
-                if (packed == 0) break;
+                break;
+            }
 
+            var curX = (int)(packed >> 32);
+            var curY = (int)(packed & 0xFFFFFFFF);
+            var inputTicks = Interlocked.Read(ref _latestTimestampTicks);
+
+            var sw = Stopwatch.StartNew();
+            _coordinator.UpdateGesture(curX, curY);
+            DragMoved?.Invoke(curX, curY);
+            sw.Stop();
+
+            var inputLatencyMs = (Stopwatch.GetTimestamp() - inputTicks) * 1000.0 / Stopwatch.Frequency;
+            Telemetry.RecordFrame(inputLatencyMs, sw.Elapsed.TotalMilliseconds, 0);
+
+            var progress = _coordinator.CurrentContext?.Progress ?? 0.0;
+            LogAudit("ProgressChanged", $"Drag moved to ({curX},{curY}), Progress: {progress:P1}");
+        }
+
+        Interlocked.Exchange(ref _dispatchInFlight, 0);
+        if (_isDragging && Interlocked.Read(ref _latestPackedPointer) != 0 &&
+            Interlocked.CompareExchange(ref _dispatchInFlight, 1, 0) == 0)
+        {
+            var packed = Interlocked.Exchange(ref _latestPackedPointer, 0);
+            if (packed != 0)
+            {
                 var curX = (int)(packed >> 32);
                 var curY = (int)(packed & 0xFFFFFFFF);
-                var inputTicks = Interlocked.Read(ref _latestTimestampTicks);
-
-                var sw = Stopwatch.StartNew();
                 _coordinator.UpdateGesture(curX, curY);
                 DragMoved?.Invoke(curX, curY);
-                sw.Stop();
-
-                var inputLatencyMs = (Stopwatch.GetTimestamp() - inputTicks) * 1000.0 / Stopwatch.Frequency;
-                Telemetry.RecordFrame(inputLatencyMs, sw.Elapsed.TotalMilliseconds, 0);
-
-                var newestPacked = Interlocked.Read(ref _latestPackedPointer);
-                if (newestPacked == packed)
-                {
-                    break;
-                }
-
-                Interlocked.Increment(ref _droppedPointerEvents);
-                Telemetry.DroppedPointerEvents = _droppedPointerEvents;
             }
-        }
-        finally
-        {
             Interlocked.Exchange(ref _dispatchInFlight, 0);
-            if (_isDragging && Interlocked.Read(ref _latestPackedPointer) != 0 &&
-                Interlocked.CompareExchange(ref _dispatchInFlight, 1, 0) == 0)
-            {
-                DispatchCoalescedMoves();
-            }
         }
     }
 
@@ -468,13 +473,6 @@ public sealed class DesktopGestureInputMonitor : IDisposable
 
     private void LogAudit(string eventType, string detail)
     {
-        // Suppress per-frame or high-frequency event spam from disk and trace
-        if (string.Equals(eventType, "ProgressChanged", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(eventType, "OverlayRendered", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
         var entry = $"[{DateTime.UtcNow:HH:mm:ss.fff}] [{eventType}] {detail}";
         lock (_logLock)
         {
@@ -483,6 +481,13 @@ public sealed class DesktopGestureInputMonitor : IDisposable
             {
                 _eventLog.RemoveAt(0);
             }
+        }
+
+        // Suppress per-frame or high-frequency event spam from disk and trace
+        if (string.Equals(eventType, "ProgressChanged", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(eventType, "OverlayRendered", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
         }
 
         ThreadPool.QueueUserWorkItem(_ =>
