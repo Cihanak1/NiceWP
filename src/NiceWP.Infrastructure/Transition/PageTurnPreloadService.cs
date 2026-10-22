@@ -15,25 +15,31 @@ public sealed record PreloadedTransitionCandidate(
     string PreviewImagePath,
     string WallpaperType,
     bool IsVideo,
+    bool IsPosterFrame,
     DateTimeOffset PreloadedAtUtc);
 
 /// <summary>
 /// Preloads and caches wallpaper candidate surfaces for interactive page-turn gestures,
-/// ensuring zero disk lag during dragging.
+/// optimizing video wallpaper previews with lightweight poster frames to avoid decoder conflicts.
 /// </summary>
 public sealed class PageTurnPreloadService : IDisposable
 {
     private readonly ConcurrentDictionary<string, PreloadedTransitionCandidate> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly WallpaperThumbnailService _thumbnailService;
     private readonly Action<string, string>? _auditLogger;
     private bool _isDisposed;
 
-    public PageTurnPreloadService(Action<string, string>? auditLogger = null)
+    public PageTurnPreloadService(
+        WallpaperThumbnailService? thumbnailService = null,
+        Action<string, string>? auditLogger = null)
     {
+        _thumbnailService = thumbnailService ?? new WallpaperThumbnailService();
         _auditLogger = auditLogger;
     }
 
     /// <summary>
     /// Preloads the specified wallpaper candidate for smooth transition display.
+    /// Video wallpapers are optimized with cached poster frames to prevent concurrent decoder pressure.
     /// </summary>
     public async Task<PreloadedTransitionCandidate?> PreloadCandidateAsync(
         WallpaperLibraryItem? candidate,
@@ -49,29 +55,50 @@ public sealed class PageTurnPreloadService : IDisposable
             return cached;
         }
 
-        return await Task.Run(() =>
+        if (!File.Exists(candidate.FilePath))
         {
-            if (!File.Exists(candidate.FilePath))
+            LogAudit("PreloadFailed", $"Candidate file not found on disk: {candidate.FilePath}");
+            return null;
+        }
+
+        var isVideo = string.Equals(candidate.Type, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
+        string previewPath = candidate.FilePath;
+        bool isPoster = false;
+
+        if (isVideo)
+        {
+            try
             {
-                LogAudit("PreloadFailed", $"Candidate file not found on disk: {candidate.FilePath}");
-                return null;
+                // Obtain or generate lightweight video frame thumbnail
+                var thumbnailPath = await _thumbnailService.GetOrCreateVideoThumbnailAsync(
+                    candidate.FilePath,
+                    cancellationToken).ConfigureAwait(false);
+
+                if (!string.IsNullOrWhiteSpace(thumbnailPath) && File.Exists(thumbnailPath))
+                {
+                    previewPath = thumbnailPath;
+                    isPoster = true;
+                    LogAudit("VideoPreviewOptimized", $"Resolved lightweight poster frame for video candidate: {candidate.DisplayName}");
+                }
             }
+            catch (Exception ex)
+            {
+                LogAudit("VideoPreviewFallback", $"Thumbnail generation failed, falling back to direct path: {ex.Message}");
+            }
+        }
 
-            var isVideo = string.Equals(candidate.Type, IpcConstants.WallpaperTypeVideo, StringComparison.OrdinalIgnoreCase);
-            var previewPath = candidate.FilePath;
+        var preloaded = new PreloadedTransitionCandidate(
+            ItemId: candidate.Id,
+            OriginalPath: candidate.FilePath,
+            PreviewImagePath: previewPath,
+            WallpaperType: candidate.Type,
+            IsVideo: isVideo,
+            IsPosterFrame: isPoster,
+            PreloadedAtUtc: DateTimeOffset.UtcNow);
 
-            var preloaded = new PreloadedTransitionCandidate(
-                ItemId: candidate.Id,
-                OriginalPath: candidate.FilePath,
-                PreviewImagePath: previewPath,
-                WallpaperType: candidate.Type,
-                IsVideo: isVideo,
-                PreloadedAtUtc: DateTimeOffset.UtcNow);
-
-            _cache[candidate.Id] = preloaded;
-            LogAudit("Preloaded", $"Preloaded candidate '{candidate.DisplayName}' for page-turn display.");
-            return preloaded;
-        }, cancellationToken).ConfigureAwait(false);
+        _cache[candidate.Id] = preloaded;
+        LogAudit("Preloaded", $"Preloaded candidate '{candidate.DisplayName}' (Type={candidate.Type}, Poster={isPoster}).");
+        return preloaded;
     }
 
     /// <summary>
