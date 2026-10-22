@@ -5,13 +5,14 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NiceWP.Core;
 using Windows.Foundation;
+using Windows.UI;
 using XamlPath = Microsoft.UI.Xaml.Shapes.Path;
 
 namespace NiceWP.Rendering;
 
 /// <summary>
-/// Renders the visual page-turn transition surface, displaying the curling paper flap
-/// and revealing the next wallpaper underneath.
+/// Renders the visual page-turn transition surface, displaying the curling paper flap,
+/// realistic shadow, and crease depth while revealing the next wallpaper underneath.
 /// </summary>
 public sealed class PageTurnSurfaceRenderer
 {
@@ -20,7 +21,10 @@ public sealed class PageTurnSurfaceRenderer
     private readonly Image _currentWallpaperImage;
     private readonly ImageBrush _nextWallpaperBrush;
     private readonly XamlPath _revealedUnderneathPath;
+    private readonly XamlPath _foldShadowPath;
     private readonly XamlPath _peeledFlapPath;
+    private readonly LinearGradientBrush _foldShadowBrush;
+    private readonly LinearGradientBrush _flapLightingBrush;
 
     private double _screenWidth = 1920;
     private double _screenHeight = 1080;
@@ -64,17 +68,43 @@ public sealed class PageTurnSurfaceRenderer
             Fill = _nextWallpaperBrush
         };
 
+        // Fold shadow cast onto revealed area underneath
+        _foldShadowBrush = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(1, 1)
+        };
+        _foldShadowBrush.GradientStops.Add(new GradientStop { Color = Color.FromArgb(120, 15, 18, 24), Offset = 0.0 });
+        _foldShadowBrush.GradientStops.Add(new GradientStop { Color = Color.FromArgb(0, 15, 18, 24), Offset = 1.0 });
+
+        _foldShadowPath = new XamlPath
+        {
+            Fill = _foldShadowBrush
+        };
+
+        // Flap paper lighting gradient giving cylindrical paper volume
+        _flapLightingBrush = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(1, 1)
+        };
+        _flapLightingBrush.GradientStops.Add(new GradientStop { Color = Color.FromArgb(255, 215, 220, 228), Offset = 0.0 }); // Crease shadow
+        _flapLightingBrush.GradientStops.Add(new GradientStop { Color = Color.FromArgb(255, 255, 255, 255), Offset = 0.20 }); // Specular ridge highlight
+        _flapLightingBrush.GradientStops.Add(new GradientStop { Color = Color.FromArgb(255, 245, 247, 250), Offset = 0.65 }); // Paper body
+        _flapLightingBrush.GradientStops.Add(new GradientStop { Color = Color.FromArgb(255, 230, 234, 240), Offset = 1.0 }); // Curl edge
+
         _peeledFlapPath = new XamlPath
         {
-            Fill = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 245, 245, 250)),
-            Stroke = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 180, 180, 190)),
-            StrokeThickness = 1.0
+            Fill = _flapLightingBrush,
+            Stroke = new SolidColorBrush(Color.FromArgb(90, 160, 170, 185)),
+            StrokeThickness = 0.8
         };
 
         _renderCanvas.Children.Add(_revealedUnderneathPath);
+        _renderCanvas.Children.Add(_foldShadowPath);
         _renderCanvas.Children.Add(_peeledFlapPath);
 
-        // Layer order: Current wallpaper (base) -> Revealed Path with next wallpaper brush -> Curling flap / overlays
+        // Layer order: Current wallpaper (base) -> RenderCanvas (revealed, shadow, flap)
         _rootGrid.Children.Add(_currentWallpaperImage);
         _rootGrid.Children.Add(_renderCanvas);
     }
@@ -124,11 +154,14 @@ public sealed class PageTurnSurfaceRenderer
         var apexX = Math.Clamp(context.CurrentX, 0.0, w);
         var apexY = Math.Clamp(context.CurrentY, 0.0, h);
 
-        // 1. Reveal the next wallpaper underneath the peeled top-right region
+        // 1. Reveal next wallpaper underneath the peeled top-right region
         UpdateRevealedUnderneath(w, topFoldX, rightFoldY);
 
-        // 2. Render the curling flap (paper back)
-        UpdateCurlingFlap(w, h, topFoldX, rightFoldY, apexX, apexY);
+        // 2. Render fold cast shadow
+        UpdateFoldShadow(w, topFoldX, rightFoldY, context);
+
+        // 3. Render curling paper flap with depth lighting
+        UpdateCurlingFlap(w, h, topFoldX, rightFoldY, apexX, apexY, context);
     }
 
     /// <summary>
@@ -137,6 +170,7 @@ public sealed class PageTurnSurfaceRenderer
     public void Reset()
     {
         _revealedUnderneathPath.Data = null;
+        _foldShadowPath.Data = null;
         _peeledFlapPath.Data = null;
         _rootGrid.Visibility = Visibility.Collapsed;
         _isVisible = false;
@@ -152,7 +186,6 @@ public sealed class PageTurnSurfaceRenderer
             IsFilled = true
         };
 
-        // Revealed triangle in top right: (topFoldX, 0) -> (w, 0) -> (w, rightFoldY)
         figure.Segments.Add(new LineSegment { Point = new Point(w, 0) });
         figure.Segments.Add(new LineSegment { Point = new Point(w, rightFoldY) });
 
@@ -160,7 +193,67 @@ public sealed class PageTurnSurfaceRenderer
         _revealedUnderneathPath.Data = geometry;
     }
 
-    private void UpdateCurlingFlap(double w, double h, double topFoldX, double rightFoldY, double apexX, double apexY)
+    private void UpdateFoldShadow(double w, double topFoldX, double rightFoldY, CornerGestureContext context)
+    {
+        var shadowOpacity = context.ComputeShadowOpacity();
+        if (shadowOpacity <= 0.01)
+        {
+            _foldShadowPath.Data = null;
+            return;
+        }
+
+        // Modulate gradient stop opacity
+        var alpha = (byte)Math.Clamp(shadowOpacity * 255.0, 0, 255);
+        _foldShadowBrush.GradientStops[0].Color = Color.FromArgb(alpha, 15, 18, 24);
+
+        var dx = w - topFoldX;
+        var dy = rightFoldY;
+        var len = Math.Sqrt((dx * dx) + (dy * dy));
+
+        if (len < 1.0)
+        {
+            _foldShadowPath.Data = null;
+            return;
+        }
+
+        // Perpendicular unit vector pointing towards top-right corner
+        var nx = dy / len;
+        var ny = -dx / len;
+        var shadowWidth = Math.Clamp(context.Progress * 36.0, 8.0, 36.0);
+
+        var pA = new Point(topFoldX, 0);
+        var pB = new Point(w, rightFoldY);
+        var pBShadow = new Point(Math.Min(w, pB.X + (nx * shadowWidth)), pB.Y + (ny * shadowWidth));
+        var pAShadow = new Point(Math.Min(w, pA.X + (nx * shadowWidth)), Math.Max(0, pA.Y + (ny * shadowWidth)));
+
+        var shadowGeometry = new PathGeometry();
+        var shadowFigure = new PathFigure
+        {
+            StartPoint = pA,
+            IsClosed = true,
+            IsFilled = true
+        };
+
+        shadowFigure.Segments.Add(new LineSegment { Point = pB });
+        shadowFigure.Segments.Add(new LineSegment { Point = pBShadow });
+        shadowFigure.Segments.Add(new LineSegment { Point = pAShadow });
+
+        shadowGeometry.Figures.Add(shadowFigure);
+        _foldShadowPath.Data = shadowGeometry;
+
+        // Align shadow gradient perpendicular to the fold line
+        _foldShadowBrush.StartPoint = new Point((pA.X + pB.X) / (2.0 * _screenWidth), (pA.Y + pB.Y) / (2.0 * _screenHeight));
+        _foldShadowBrush.EndPoint = new Point((pAShadow.X + pBShadow.X) / (2.0 * _screenWidth), (pAShadow.Y + pBShadow.Y) / (2.0 * _screenHeight));
+    }
+
+    private void UpdateCurlingFlap(
+        double w,
+        double h,
+        double topFoldX,
+        double rightFoldY,
+        double apexX,
+        double apexY,
+        CornerGestureContext context)
     {
         var flapGeometry = new PathGeometry();
         var flapFigure = new PathFigure
@@ -176,5 +269,12 @@ public sealed class PageTurnSurfaceRenderer
 
         flapGeometry.Figures.Add(flapFigure);
         _peeledFlapPath.Data = flapGeometry;
+
+        // Dynamic lighting vector along fold angle
+        var rad = context.FoldAngleDegrees * (Math.PI / 180.0);
+        _flapLightingBrush.StartPoint = new Point(topFoldX / _screenWidth, 0);
+        _flapLightingBrush.EndPoint = new Point(
+            Math.Clamp((topFoldX / _screenWidth) + (Math.Cos(rad) * 0.2), 0.0, 1.0),
+            Math.Clamp(Math.Sin(rad) * 0.2, 0.0, 1.0));
     }
 }
