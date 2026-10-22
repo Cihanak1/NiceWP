@@ -263,9 +263,48 @@ public sealed class PageTurnSurfaceRenderer
             IsFilled = true
         };
 
-        // Flap triangle: (topFoldX, 0) -> Apex (apexX, apexY) -> (w, rightFoldY)
-        flapFigure.Segments.Add(new LineSegment { Point = new Point(apexX, apexY) });
-        flapFigure.Segments.Add(new LineSegment { Point = new Point(w, rightFoldY) });
+        var waveOffset = context.ComputeWaveOffset();
+
+        if (Math.Abs(waveOffset) > 0.05)
+        {
+            // Segment 1: from (topFoldX, 0) to Apex (apexX, apexY) with wave curve
+            var dx1 = apexX - topFoldX;
+            var dy1 = apexY - 0;
+            var len1 = Math.Max(1.0, Math.Sqrt((dx1 * dx1) + (dy1 * dy1)));
+            var nx1 = -dy1 / len1;
+            var ny1 = dx1 / len1;
+            var mid1X = (topFoldX + apexX) / 2.0;
+            var mid1Y = apexY / 2.0;
+            var ctrl1 = new Point(mid1X + (nx1 * waveOffset), mid1Y + (ny1 * waveOffset));
+
+            flapFigure.Segments.Add(new QuadraticBezierSegment
+            {
+                Point1 = ctrl1,
+                Point2 = new Point(apexX, apexY)
+            });
+
+            // Segment 2: from Apex (apexX, apexY) to (w, rightFoldY) with subtle complementary wave
+            var dx2 = w - apexX;
+            var dy2 = rightFoldY - apexY;
+            var len2 = Math.Max(1.0, Math.Sqrt((dx2 * dx2) + (dy2 * dy2)));
+            var nx2 = -dy2 / len2;
+            var ny2 = dx2 / len2;
+            var mid2X = (apexX + w) / 2.0;
+            var mid2Y = (apexY + rightFoldY) / 2.0;
+            var ctrl2 = new Point(mid2X + (nx2 * waveOffset * 0.6), mid2Y + (ny2 * waveOffset * 0.6));
+
+            flapFigure.Segments.Add(new QuadraticBezierSegment
+            {
+                Point1 = ctrl2,
+                Point2 = new Point(w, rightFoldY)
+            });
+        }
+        else
+        {
+            // Straight fold edges when at rest or when paper wave is disabled
+            flapFigure.Segments.Add(new LineSegment { Point = new Point(apexX, apexY) });
+            flapFigure.Segments.Add(new LineSegment { Point = new Point(w, rightFoldY) });
+        }
 
         flapGeometry.Figures.Add(flapFigure);
         _peeledFlapPath.Data = flapGeometry;
