@@ -47,6 +47,8 @@ public sealed partial class DesktopTestWindow : Window
     private AppSettings currentLoadedSettings = AppSettings.CreateDefault();
     private DesktopGestureInputMonitor? gestureInputMonitor;
     private PageTurnVisualOverlay? visualOverlay;
+    private int _overlayRenderInFlight;
+    private CornerGestureContext? _pendingOverlayContext;
     private readonly HashSet<Border> realizedCardBorders = [];
     private readonly List<(string Id, string FilePath, string Type, string DisplayName, bool IsMissing, bool IsFavorite)> renderedLibrarySnapshot = [];
     private string? activeWallpaperPath;
@@ -125,17 +127,13 @@ public sealed partial class DesktopTestWindow : Window
 
             libraryController.TransitionCoordinator.GestureUpdated += context =>
             {
-                DispatcherQueue.TryEnqueue(() =>
+                if (context == null) return;
+                _pendingOverlayContext = context;
+
+                if (Interlocked.CompareExchange(ref _overlayRenderInFlight, 1, 0) == 0)
                 {
-                    if (context != null && (libraryController.TransitionCoordinator.State == TransitionState.Dragging ||
-                                            libraryController.TransitionCoordinator.State == TransitionState.Completing ||
-                                            libraryController.TransitionCoordinator.State == TransitionState.Cancelling))
-                    {
-                        var nextPath = libraryController.TransitionCoordinator.PeekedCandidate?.FilePath;
-                        var curPath = activeWallpaperPath ?? libraryController.Rotation.CurrentWallpaperPath ?? currentLoadedSettings.LastWallpaperPath;
-                        visualOverlay?.ShowDragFrame(context, nextPath, curPath);
-                    }
-                });
+                    DispatcherQueue.TryEnqueue(RenderPendingOverlayFrame);
+                }
             };
         }
         catch (Exception ex)
@@ -3804,6 +3802,35 @@ public sealed partial class DesktopTestWindow : Window
         SelectComboBoxByTag(TransitionSensitivityComboBox, settings.EffectiveTransitionSensitivity.ToString());
         SelectComboBoxByTag(TransitionQualityComboBox, settings.EffectiveTransitionQuality.ToString());
         UpdateInteractiveSettingsStatus(settings);
+    }
+
+    private void RenderPendingOverlayFrame()
+    {
+        try
+        {
+            while (true)
+            {
+                var ctx = Interlocked.Exchange(ref _pendingOverlayContext, null);
+                if (ctx == null) break;
+
+                if (libraryController.TransitionCoordinator.State == TransitionState.Dragging ||
+                    libraryController.TransitionCoordinator.State == TransitionState.Completing ||
+                    libraryController.TransitionCoordinator.State == TransitionState.Cancelling)
+                {
+                    var nextPath = libraryController.TransitionCoordinator.PeekedCandidate?.FilePath;
+                    var curPath = activeWallpaperPath ?? libraryController.Rotation.CurrentWallpaperPath ?? currentLoadedSettings.LastWallpaperPath;
+                    visualOverlay?.ShowDragFrame(ctx, nextPath, curPath);
+                }
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _overlayRenderInFlight, 0);
+            if (_pendingOverlayContext != null && Interlocked.CompareExchange(ref _overlayRenderInFlight, 1, 0) == 0)
+            {
+                DispatcherQueue.TryEnqueue(RenderPendingOverlayFrame);
+            }
+        }
     }
 
     private static void LogGestureAudit(string eventType, string detail)

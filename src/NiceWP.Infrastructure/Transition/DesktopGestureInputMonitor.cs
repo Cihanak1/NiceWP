@@ -41,6 +41,14 @@ public sealed class DesktopGestureInputMonitor : IDisposable
     private int _hotCornerSize = 32;
     private bool _isDisposed;
 
+    private int _dispatchInFlight;
+    private long _latestPackedPointer;
+    private long _latestTimestampTicks;
+    private int _totalPointerEvents;
+    private int _droppedPointerEvents;
+
+    public GesturePerformanceTelemetry Telemetry { get; } = new();
+
     public bool IsInstalled => _isInstalled;
     public bool IsEnabled
     {
@@ -227,9 +235,15 @@ public sealed class DesktopGestureInputMonitor : IDisposable
                 return;
             }
 
-            // Global drag tracking across entire screen
-            _coordinator.UpdateGesture(x, y);
-            DragMoved?.Invoke(x, y);
+            var packed = ((long)x << 32) | (uint)y;
+            Interlocked.Exchange(ref _latestPackedPointer, packed);
+            Interlocked.Exchange(ref _latestTimestampTicks, Stopwatch.GetTimestamp());
+            Interlocked.Increment(ref _totalPointerEvents);
+
+            if (Interlocked.CompareExchange(ref _dispatchInFlight, 1, 0) == 0)
+            {
+                DispatchCoalescedMoves();
+            }
             return;
         }
 
@@ -276,6 +290,12 @@ public sealed class DesktopGestureInputMonitor : IDisposable
         _startX = x;
         _startY = y;
 
+        Telemetry.Reset();
+        _totalPointerEvents = 0;
+        _droppedPointerEvents = 0;
+        Interlocked.Exchange(ref _latestPackedPointer, 0);
+        Interlocked.Exchange(ref _dispatchInFlight, 0);
+
         LogAudit("GestureAccepted", $"Gesture accepted starting at ({x},{y})");
         DragStarted?.Invoke(x, y);
 
@@ -300,6 +320,9 @@ public sealed class DesktopGestureInputMonitor : IDisposable
 
         _isDragging = false;
         _isHovering = false;
+
+        Telemetry.TotalPointerEvents = _totalPointerEvents;
+        Telemetry.DroppedPointerEvents = _droppedPointerEvents;
 
         var progress = _coordinator.CurrentContext?.Progress ?? 0.0;
         var shouldCommit = progress >= 0.30;
@@ -336,6 +359,48 @@ public sealed class DesktopGestureInputMonitor : IDisposable
                     Trace.WriteLine($"[DesktopGestureInputMonitor] Error cancelling gesture: {ex}");
                 }
             });
+        }
+    }
+
+    private void DispatchCoalescedMoves()
+    {
+        try
+        {
+            while (_isDragging)
+            {
+                var packed = Interlocked.Read(ref _latestPackedPointer);
+                if (packed == 0) break;
+
+                var curX = (int)(packed >> 32);
+                var curY = (int)(packed & 0xFFFFFFFF);
+                var inputTicks = Interlocked.Read(ref _latestTimestampTicks);
+
+                var sw = Stopwatch.StartNew();
+                _coordinator.UpdateGesture(curX, curY);
+                DragMoved?.Invoke(curX, curY);
+                sw.Stop();
+
+                var inputLatencyMs = (Stopwatch.GetTimestamp() - inputTicks) * 1000.0 / Stopwatch.Frequency;
+                Telemetry.RecordFrame(inputLatencyMs, sw.Elapsed.TotalMilliseconds, 0);
+
+                var newestPacked = Interlocked.Read(ref _latestPackedPointer);
+                if (newestPacked == packed)
+                {
+                    break;
+                }
+
+                Interlocked.Increment(ref _droppedPointerEvents);
+                Telemetry.DroppedPointerEvents = _droppedPointerEvents;
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _dispatchInFlight, 0);
+            if (_isDragging && Interlocked.Read(ref _latestPackedPointer) != 0 &&
+                Interlocked.CompareExchange(ref _dispatchInFlight, 1, 0) == 0)
+            {
+                DispatchCoalescedMoves();
+            }
         }
     }
 
