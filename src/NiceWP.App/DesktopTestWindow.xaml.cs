@@ -45,7 +45,8 @@ public sealed partial class DesktopTestWindow : Window
     private readonly AppRuleMatchingService appRuleMatchingService = new();
     private readonly WallpaperLibraryController libraryController;
     private AppSettings currentLoadedSettings = AppSettings.CreateDefault();
-    private TopRightGestureWindow? topGestureWindow;
+    private DesktopGestureInputMonitor? gestureInputMonitor;
+    private PageTurnVisualOverlay? visualOverlay;
     private readonly HashSet<Border> realizedCardBorders = [];
     private readonly List<(string Id, string FilePath, string Type, string DisplayName, bool IsMissing, bool IsFavorite)> renderedLibrarySnapshot = [];
     private string? activeWallpaperPath;
@@ -97,24 +98,50 @@ public sealed partial class DesktopTestWindow : Window
 
         try
         {
-            var detector = new HotCornerDetector(1920, 1080, 32.0);
-            var captureMgr = new CornerPointerCaptureManager(libraryController.TransitionCoordinator, detector);
-            topGestureWindow = new TopRightGestureWindow(
+            visualOverlay = new PageTurnVisualOverlay();
+            gestureInputMonitor = new DesktopGestureInputMonitor(
                 coordinator: libraryController.TransitionCoordinator,
-                captureManager: captureMgr,
                 getRotation: () => libraryController.Rotation,
-                getCurrentWallpaperPath: () => activeWallpaperPath ?? libraryController.Rotation.CurrentWallpaperPath ?? currentLoadedSettings.LastWallpaperPath,
-                onTransitionCommitted: async candidate =>
+                auditLogger: (type, detail) => Trace.WriteLine($"[InteractiveTransition] [{type}] {detail}"));
+
+            gestureInputMonitor.InstallHook();
+
+            libraryController.TransitionCoordinator.StateChanged += state =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
                 {
-                    if (candidate != null)
+                    if (state == TransitionState.HoverPreview)
                     {
-                        await libraryController.ApplyItemAsync(candidate);
+                        visualOverlay?.ShowHover();
+                        LogGestureAudit("HoverPreviewStarted", "Hover preview initiated on visual overlay.");
+                    }
+                    else if (state == TransitionState.Idle)
+                    {
+                        visualOverlay?.Hide();
+                        LogGestureAudit("TransitionEnded", "Transition lifecycle finished and returned to Idle.");
                     }
                 });
+            };
+
+            libraryController.TransitionCoordinator.GestureUpdated += context =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (context != null && (libraryController.TransitionCoordinator.State == TransitionState.Dragging ||
+                                            libraryController.TransitionCoordinator.State == TransitionState.Completing ||
+                                            libraryController.TransitionCoordinator.State == TransitionState.Cancelling))
+                    {
+                        var nextPath = libraryController.TransitionCoordinator.PeekedCandidate?.FilePath;
+                        var curPath = activeWallpaperPath ?? libraryController.Rotation.CurrentWallpaperPath ?? currentLoadedSettings.LastWallpaperPath;
+                        visualOverlay?.ShowDragFrame(context, nextPath, curPath);
+                        LogGestureAudit("OverlayRendered", $"Overlay rendered frame #{visualOverlay?.RenderedFrameCount} at Progress {context.Progress:P1}.");
+                    }
+                });
+            };
         }
         catch (Exception ex)
         {
-            Trace.WriteLine($"Failed to initialize TopRightGestureWindow: {ex}");
+            Trace.WriteLine($"Failed to initialize DesktopGestureInputMonitor / PageTurnVisualOverlay: {ex}");
         }
         libraryController.Rotation.WallpaperRotated += OnRotationWallpaperRotated;
         libraryController.Rotation.StatusChanged += OnRotationStatusChanged;
@@ -213,7 +240,7 @@ public sealed partial class DesktopTestWindow : Window
                 isSyncingAppSettings = false;
             }
 
-            topGestureWindow?.UpdateVisibility();
+            UpdateGestureMonitorState();
 
             await libraryController.Rotation.InitializeAsync(settings);
             UpdateRotationDetailsUI();
@@ -2666,7 +2693,7 @@ public sealed partial class DesktopTestWindow : Window
             await settingsService.SaveAsync(current);
             await libraryController.Rotation.UpdateSettingsAsync(mode, order, intervalMinutes);
             currentLoadedSettings = current;
-            topGestureWindow?.UpdateVisibility();
+            UpdateGestureMonitorState();
             UpdateInteractiveSettingsStatus(current);
         }
         catch (Exception exception)
@@ -2693,7 +2720,7 @@ public sealed partial class DesktopTestWindow : Window
             await settingsService.SaveAsync(current);
             await libraryController.Rotation.UpdateSettingsAsync(mode, order, intervalMinutes);
             currentLoadedSettings = current;
-            topGestureWindow?.UpdateVisibility();
+            UpdateGestureMonitorState();
             UpdateInteractiveSettingsStatus(current);
         }
         catch (Exception exception)
@@ -2720,7 +2747,7 @@ public sealed partial class DesktopTestWindow : Window
             await settingsService.SaveAsync(current);
             await libraryController.Rotation.UpdateSettingsAsync(mode, order, intervalMinutes);
             currentLoadedSettings = current;
-            topGestureWindow?.UpdateVisibility();
+            UpdateGestureMonitorState();
             UpdateInteractiveSettingsStatus(current);
         }
         catch (Exception exception)
@@ -2917,7 +2944,7 @@ public sealed partial class DesktopTestWindow : Window
                 RenderLibraryItems();
             }
             UpdateRotationDetailsUI();
-            topGestureWindow?.UpdateVisibility();
+            UpdateGestureMonitorState();
             UpdateInteractiveSettingsStatus(currentLoadedSettings);
         });
     }
@@ -2928,7 +2955,7 @@ public sealed partial class DesktopTestWindow : Window
         {
             if (closed) return;
             UpdateRotationDetailsUI(status);
-            topGestureWindow?.UpdateVisibility();
+            UpdateGestureMonitorState();
             UpdateInteractiveSettingsStatus(currentLoadedSettings);
         });
     }
@@ -2979,7 +3006,8 @@ public sealed partial class DesktopTestWindow : Window
         {
             StopPerformancePolling();
             StopRotationCountdownTimer();
-            topGestureWindow?.Dispose();
+            gestureInputMonitor?.Dispose();
+            visualOverlay?.Dispose();
             libraryController.Dispose();
             trayIcon.Dispose();
             App.ReleaseSingleInstance();
@@ -3779,6 +3807,28 @@ public sealed partial class DesktopTestWindow : Window
         UpdateInteractiveSettingsStatus(settings);
     }
 
+    private static void LogGestureAudit(string eventType, string detail)
+    {
+        var entry = $"[{DateTime.UtcNow:HH:mm:ss.fff}] [{eventType}] {detail}";
+        try
+        {
+            File.AppendAllText(Path.Combine(Path.GetTempPath(), "NiceWP-gesture-audit.log"), entry + Environment.NewLine);
+        }
+        catch { }
+        Trace.WriteLine($"[InteractiveTransition] {entry}");
+    }
+
+    private void UpdateGestureMonitorState()
+    {
+        if (gestureInputMonitor == null) return;
+        gestureInputMonitor.IsEnabled = currentLoadedSettings.InteractiveTransitionEnabled &&
+                                        (libraryController?.TransitionCoordinator.CanInitiateTransition() ?? false);
+        if (!gestureInputMonitor.IsEnabled)
+        {
+            visualOverlay?.Hide();
+        }
+    }
+
     private void UpdateInteractiveSettingsStatus(AppSettings? settings = null)
     {
         if (InteractiveSettingsStatusText == null) return;
@@ -3793,12 +3843,21 @@ public sealed partial class DesktopTestWindow : Window
             return;
         }
 
+        var profile = trayIcon?.CurrentProfile ?? AdaptiveDesktopProfile.Normal;
+        if (profile == AdaptiveDesktopProfile.Gaming || profile == AdaptiveDesktopProfile.Presentation)
+        {
+            InteractiveSettingsStatusText.Text = isTr
+                ? "Geçiş şu anda Masaüstü Profili tarafından duraklatıldı."
+                : "Transitions are currently paused by the active Desktop Profile.";
+            return;
+        }
+
         var rotation = libraryController?.Rotation;
         if (rotation == null || rotation.Mode == RotationMode.Off)
         {
             InteractiveSettingsStatusText.Text = isTr
-                ? "Döngü etkin değil. Etkileşimli geçiş için en az iki duvar kağıdıyla döngüyü açın."
-                : "Rotation is disabled. Enable rotation with at least two wallpapers to use interactive transitions.";
+                ? "Etkileşimli geçiş için döngüyü etkinleştirin."
+                : "Enable rotation to use interactive transitions.";
             return;
         }
 
@@ -3806,7 +3865,7 @@ public sealed partial class DesktopTestWindow : Window
         if (candidateCount < 2)
         {
             InteractiveSettingsStatusText.Text = isTr
-                ? "Döngüde en az iki duvar kağıdı bulunmalıdır."
+                ? "Etkileşimli geçiş için döngüde en az iki duvar kağıdı bulunmalıdır."
                 : "At least two wallpapers are required in the rotation playlist.";
             return;
         }
@@ -3817,8 +3876,8 @@ public sealed partial class DesktopTestWindow : Window
         var sensText = s.EffectiveTransitionSensitivity.ToString();
 
         InteractiveSettingsStatusText.Text = isTr
-            ? $"Hazır: Ekranın sağ üst köşesinden sürükleyerek sonraki duvar kağıdını çevirin. ({waveText} • Hassasiyet: {sensText})"
-            : $"Ready: Drag from the top-right corner to peel to the next wallpaper. ({waveText} • Sensitivity: {sensText})";
+            ? $"Sağ üst köşe hazır. Sürükleyerek sıradaki duvar kağıdına geçin. ({waveText} • Hassasiyet: {sensText})"
+            : $"Top-right corner ready. Drag to peel to the next wallpaper. ({waveText} • Sensitivity: {sensText})";
     }
 
     private async void OnInteractiveTransitionToggled(object sender, RoutedEventArgs e)
@@ -3830,7 +3889,7 @@ public sealed partial class DesktopTestWindow : Window
             cur.InteractiveTransitionEnabled = InteractiveTransitionToggle.IsOn;
             await settingsService.SaveAsync(cur);
             currentLoadedSettings = cur;
-            topGestureWindow?.UpdateVisibility();
+            UpdateGestureMonitorState();
             UpdateInteractiveSettingsStatus(cur);
         }
         catch (Exception ex)

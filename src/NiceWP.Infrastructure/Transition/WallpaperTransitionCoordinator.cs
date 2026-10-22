@@ -118,14 +118,13 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Initiates a corner drag gesture from the top-right corner.
+    /// Initiates a corner drag gesture from the top-right corner synchronously.
     /// </summary>
-    public async Task<bool> BeginCornerGestureAsync(
+    public bool BeginCornerGesture(
         double startX,
         double startY,
         double screenWidth,
-        double screenHeight,
-        CancellationToken cancellationToken = default)
+        double screenHeight)
     {
         if (!CanInitiateTransition())
         {
@@ -133,7 +132,7 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
             return false;
         }
 
-        await _syncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _syncLock.Wait();
         try
         {
             if (State == TransitionState.Dragging || State == TransitionState.Completing || State == TransitionState.Cancelling)
@@ -192,6 +191,19 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
         {
             _syncLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Initiates a corner drag gesture from the top-right corner.
+    /// </summary>
+    public Task<bool> BeginCornerGestureAsync(
+        double startX,
+        double startY,
+        double screenWidth,
+        double screenHeight,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(BeginCornerGesture(startX, startY, screenWidth, screenHeight));
     }
 
     /// <summary>
