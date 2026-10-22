@@ -1161,11 +1161,14 @@ public sealed class InteractiveRotationTransitionTests : IDisposable
 
         var nonExistentLargePath = @"C:\FakeDirectory\NonExistentMassiveWallpaper_4K.jpg";
 
+        // Warm-up JIT and buffer allocation
+        overlay.ShowDragFrame(context);
+
         var sw = Stopwatch.StartNew();
         overlay.ShowDragFrame(context, nonExistentLargePath);
         sw.Stop();
 
-        // Must return in < 15ms without blocking
+        // Must return in < 15ms without blocking on image load
         Assert.True(sw.Elapsed.TotalMilliseconds < 15.0, $"Frame render must not block on image load, took {sw.Elapsed.TotalMilliseconds:F2}ms");
         overlay.Hide();
     }
