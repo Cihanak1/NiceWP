@@ -200,7 +200,11 @@ public sealed class SettingsServiceTests : IDisposable
             Assert.True(root.TryGetProperty("ResourceBudget", out _));
             Assert.True(root.TryGetProperty("InteractiveTransitionEnabled", out _));
             Assert.True(root.TryGetProperty("PaperWaveEnabled", out _));
-            Assert.Equal(10, root.EnumerateObject().Count());
+            Assert.True(root.TryGetProperty("SmartScenesEnabled", out _));
+            Assert.True(root.TryGetProperty("SmartRotation", out _));
+            Assert.True(root.TryGetProperty("SmartScenesAvoidRecent", out _));
+            Assert.True(root.TryGetProperty("SmartScenesPreferFavorites", out _));
+            Assert.Equal(14, root.EnumerateObject().Count());
         }
 
         var loaded = await service.LoadAsync();
