@@ -16,6 +16,7 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
     private readonly TransitionAnimationController _animationController = new();
     private readonly Func<WallpaperRotationService?> _getRotationService;
     private readonly Func<AppSettings> _getSettings;
+    private readonly PageTurnPreloadService? _preloadService;
     private readonly Func<ResourceBudget>? _getResourceBudget;
     private readonly Func<bool>? _isAdaptiveBlocked;
     private readonly Action<string, string>? _auditLogger;
@@ -39,12 +40,14 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
     public WallpaperTransitionCoordinator(
         Func<WallpaperRotationService?> getRotationService,
         Func<AppSettings> getSettings,
+        PageTurnPreloadService? preloadService = null,
         Func<ResourceBudget>? getResourceBudget = null,
         Func<bool>? isAdaptiveBlocked = null,
         Action<string, string>? auditLogger = null)
     {
         _getRotationService = getRotationService ?? throw new ArgumentNullException(nameof(getRotationService));
         _getSettings = getSettings ?? throw new ArgumentNullException(nameof(getSettings));
+        _preloadService = preloadService;
         _getResourceBudget = getResourceBudget;
         _isAdaptiveBlocked = isAdaptiveBlocked;
         _auditLogger = auditLogger;
@@ -92,6 +95,15 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
         if (isHovered)
         {
             if (!CanInitiateTransition()) return false;
+            var rotation = _getRotationService();
+            if (rotation != null)
+            {
+                _peekedCandidate = rotation.PeekNextCandidate();
+                if (_peekedCandidate != null && _preloadService != null)
+                {
+                    _ = _preloadService.PreloadCandidateAsync(_peekedCandidate);
+                }
+            }
             SetState(TransitionState.HoverPreview);
             return true;
         }

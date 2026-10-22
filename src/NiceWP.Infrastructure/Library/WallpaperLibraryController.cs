@@ -4,6 +4,8 @@ using NiceWP.Infrastructure.Ipc;
 using NiceWP.Infrastructure.Remote;
 using NiceWP.Infrastructure.Rotation;
 using NiceWP.Infrastructure.Scheduling;
+using NiceWP.Infrastructure.Settings;
+using NiceWP.Infrastructure.Transition;
 
 namespace NiceWP.Infrastructure.Library;
 
@@ -165,6 +167,10 @@ public sealed class WallpaperLibraryController : IDisposable
 
     public WallpaperScheduleService Schedule { get; }
 
+    public WallpaperTransitionCoordinator TransitionCoordinator { get; }
+
+    public PageTurnPreloadService TransitionPreloadService { get; }
+
     public RuntimeIpcClient IpcClient => ipcClient;
 
     public IReadOnlyList<WallpaperLibraryEntryView> Items => visibleItems;
@@ -257,7 +263,9 @@ public sealed class WallpaperLibraryController : IDisposable
         Action<string>? openFileLocationAction = null,
         RemoteWallpaperImportService? remoteImportService = null,
         WallpaperRotationService? rotationService = null,
-        WallpaperScheduleService? scheduleService = null)
+        WallpaperScheduleService? scheduleService = null,
+        WallpaperTransitionCoordinator? transitionCoordinator = null,
+        PageTurnPreloadService? preloadService = null)
     {
         Service = service ?? new WallpaperLibraryService();
         RemoteImportService = remoteImportService ?? new RemoteWallpaperImportService(Service);
@@ -279,6 +287,12 @@ public sealed class WallpaperLibraryController : IDisposable
             applyItem: (item, ct) => ApplyItemAsync(item, ct),
             getHostStatus: ct => this.ipcClient.GetStatusAsync(cancellationToken: ct),
             onScheduleApplied: () => Rotation.ResetTimer());
+
+        TransitionPreloadService = preloadService ?? new PageTurnPreloadService();
+        TransitionCoordinator = transitionCoordinator ?? new WallpaperTransitionCoordinator(
+            getRotationService: () => Rotation,
+            getSettings: () => AppSettings.CreateDefault(),
+            preloadService: TransitionPreloadService);
     }
 
     private IReadOnlyList<WallpaperLibraryItem> GetLibraryItemsSnapshot()
