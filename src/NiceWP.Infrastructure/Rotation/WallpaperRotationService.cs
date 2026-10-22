@@ -227,6 +227,17 @@ public sealed class WallpaperRotationService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Peeks the candidate that would be applied on the next rotation step without modifying history or advancing timer.
+    /// </summary>
+    public WallpaperLibraryItem? PeekNextCandidate()
+    {
+        var effectiveMode = Mode == RotationMode.Off ? RotationMode.All : Mode;
+        var candidates = GetEligibleCandidates(effectiveMode);
+        if (candidates.Count == 0) return null;
+
+        return SelectCandidate(candidates, isNext: true, excludedIds: new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+    }
     public WallpaperRotationStatus GetStatus()
     {
         var candidates = GetEligibleCandidates(Mode);
