@@ -179,6 +179,7 @@ public sealed partial class DesktopTestWindow : Window
                 SelectRotationIntervalComboBoxItem(settings.RotationIntervalMinutes);
                 UpdateRotationSettingsStatus(settings.RotationMode, settings.RotationOrder, settings.RotationIntervalMinutes);
                 SelectScheduleSettingsItems(settings);
+                SelectInteractiveTransitionSettingsItems(settings);
             }
             finally
             {
@@ -3719,6 +3720,131 @@ public sealed partial class DesktopTestWindow : Window
         UpdateAdaptiveSettingsStatus();
     }
 
+    private void SelectInteractiveTransitionSettingsItems(AppSettings settings)
+    {
+        if (InteractiveTransitionToggle != null)
+        {
+            InteractiveTransitionToggle.IsOn = settings.InteractiveTransitionEnabled;
+        }
+        if (PaperWaveToggle != null)
+        {
+            PaperWaveToggle.IsOn = settings.PaperWaveEnabled;
+        }
+        SelectComboBoxByTag(TransitionEffectComboBox, settings.EffectiveTransitionEffect.ToString());
+        SelectComboBoxByTag(TransitionSensitivityComboBox, settings.EffectiveTransitionSensitivity.ToString());
+        SelectComboBoxByTag(TransitionQualityComboBox, settings.EffectiveTransitionQuality.ToString());
+        UpdateInteractiveSettingsStatus(settings);
+    }
+
+    private void UpdateInteractiveSettingsStatus(AppSettings? settings = null)
+    {
+        if (InteractiveSettingsStatusText == null) return;
+        var s = settings ?? AppSettings.CreateDefault();
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+
+        var enabledText = s.InteractiveTransitionEnabled
+            ? (isTr ? "Etkin" : "Enabled")
+            : (isTr ? "Devre Dışı" : "Disabled");
+        var waveText = s.PaperWaveEnabled
+            ? (isTr ? "Dalgalanma Açık" : "Wave On")
+            : (isTr ? "Dalgalanma Kapalı" : "Wave Off");
+        var sensText = s.EffectiveTransitionSensitivity.ToString();
+        var qualityText = s.EffectiveTransitionQuality.ToString();
+
+        InteractiveSettingsStatusText.Text = isTr
+            ? $"Köşe Geçişi: {enabledText} • {waveText} • Hassasiyet: {sensText} • Kalite: {qualityText}."
+            : $"Corner Page Turn: {enabledText} • {waveText} • Sensitivity: {sensText} • Quality: {qualityText}.";
+    }
+
+    private async void OnInteractiveTransitionToggled(object sender, RoutedEventArgs e)
+    {
+        if (isSyncingAppSettings || closed) return;
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.InteractiveTransitionEnabled = InteractiveTransitionToggle.IsOn;
+            await settingsService.SaveAsync(cur);
+            UpdateInteractiveSettingsStatus(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving InteractiveTransitionEnabled: {ex}");
+        }
+    }
+
+    private async void OnPaperWaveToggled(object sender, RoutedEventArgs e)
+    {
+        if (isSyncingAppSettings || closed) return;
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.PaperWaveEnabled = PaperWaveToggle.IsOn;
+            await settingsService.SaveAsync(cur);
+            UpdateInteractiveSettingsStatus(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving PaperWaveEnabled: {ex}");
+        }
+    }
+
+    private async void OnTransitionEffectSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        var tag = (TransitionEffectComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "PageTurn";
+        var parsed = Enum.TryParse<InteractiveTransitionEffect>(tag, true, out var eff) ? eff : InteractiveTransitionEffect.PageTurn;
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.TransitionEffect = parsed.ToString();
+            await settingsService.SaveAsync(cur);
+            UpdateInteractiveSettingsStatus(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving TransitionEffect: {ex}");
+        }
+    }
+
+    private async void OnTransitionSensitivitySelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        var tag = (TransitionSensitivityComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Normal";
+        var parsed = Enum.TryParse<TransitionSensitivity>(tag, true, out var sens) ? sens : TransitionSensitivity.Normal;
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.TransitionSensitivity = parsed.ToString();
+            await settingsService.SaveAsync(cur);
+            UpdateInteractiveSettingsStatus(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving TransitionSensitivity: {ex}");
+        }
+    }
+
+    private async void OnTransitionQualitySelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (isSyncingAppSettings || closed) return;
+        var tag = (TransitionQualityComboBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "Automatic";
+        var parsed = Enum.TryParse<TransitionQuality>(tag, true, out var q) ? q : TransitionQuality.Automatic;
+
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            cur.TransitionQuality = parsed.ToString();
+            await settingsService.SaveAsync(cur);
+            UpdateInteractiveSettingsStatus(cur);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving TransitionQuality: {ex}");
+        }
+    }
+
     private async void OnAdaptiveProfileSelectionChanged(object sender, SelectionChangedEventArgs args)
     {
         if (isSyncingAppSettings || closed) return;
@@ -4299,6 +4425,73 @@ public sealed partial class DesktopTestWindow : Window
                 }
             }
         }
+
+        if (SettingsInteractiveTransitionHeader != null) SettingsInteractiveTransitionHeader.Text = isTr ? "Etkileşimli Sayfa Çevirme" : "Interactive Page Turn";
+        if (SettingsInteractiveTransitionSubtitle != null) SettingsInteractiveTransitionSubtitle.Text = isTr
+            ? "Mevcut duvar kağıdını sağ üst köşeden kâğıt gibi çekip sıradakini önizleyin."
+            : "Drag from the top-right corner to peel and preview the next wallpaper.";
+        if (SettingsInteractiveEnabledLabel != null) SettingsInteractiveEnabledLabel.Text = isTr ? "Köşe Çevirme Hareketi" : "Corner Turn Gesture";
+        if (SettingsPaperWaveLabel != null) SettingsPaperWaveLabel.Text = isTr ? "Kâğıt Dalgası" : "Paper Wave";
+        if (SettingsTransitionEffectLabel != null) SettingsTransitionEffectLabel.Text = isTr ? "Geçiş Efekti" : "Transition Effect";
+        if (SettingsTransitionSensitivityLabel != null) SettingsTransitionSensitivityLabel.Text = isTr ? "Sürükleme Hassasiyeti" : "Drag Sensitivity";
+        if (SettingsTransitionQualityLabel != null) SettingsTransitionQualityLabel.Text = isTr ? "Görsel Kalite" : "Visual Quality";
+
+        if (InteractiveTransitionToggle != null)
+        {
+            InteractiveTransitionToggle.OnContent = isTr ? "Açık" : "On";
+            InteractiveTransitionToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+        if (PaperWaveToggle != null)
+        {
+            PaperWaveToggle.OnContent = isTr ? "Açık" : "On";
+            PaperWaveToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+
+        if (TransitionEffectComboBox != null)
+        {
+            foreach (var item in TransitionEffectComboBox.Items.OfType<ComboBoxItem>())
+            {
+                var tag = item.Tag as string;
+                item.Content = tag switch
+                {
+                    "PageTurn" => isTr ? "Kâğıt Kıvrımı" : "Page Curl",
+                    _ => item.Content
+                };
+            }
+        }
+
+        if (TransitionSensitivityComboBox != null)
+        {
+            foreach (var item in TransitionSensitivityComboBox.Items.OfType<ComboBoxItem>())
+            {
+                var tag = item.Tag as string;
+                item.Content = tag switch
+                {
+                    "Low" => isTr ? "Düşük (Daha Uzun Mesafe)" : "Low (Longer Drag)",
+                    "Normal" => isTr ? "Normal" : "Normal",
+                    "High" => isTr ? "Yüksek (Daha Kısa Mesafe)" : "High (Shorter Drag)",
+                    _ => item.Content
+                };
+            }
+        }
+
+        if (TransitionQualityComboBox != null)
+        {
+            foreach (var item in TransitionQualityComboBox.Items.OfType<ComboBoxItem>())
+            {
+                var tag = item.Tag as string;
+                item.Content = tag switch
+                {
+                    "Automatic" => isTr ? "Otomatik (Kaynak Bütçesine Göre)" : "Auto (Based on Budget)",
+                    "Low" => isTr ? "Düşük (Dalga Yok, Hafif Gölge)" : "Low (No Wave, Light Shadow)",
+                    "Balanced" => isTr ? "Dengeli (Normal Dalga ve Gölge)" : "Balanced (Standard)",
+                    "High" => isTr ? "Yüksek (Tam Dalga ve Dinamik Gölge)" : "High (Full Wave & Shadow)",
+                    _ => item.Content
+                };
+            }
+        }
+
+        UpdateInteractiveSettingsStatus();
 
         if (SettingsScheduleHeader != null) SettingsScheduleHeader.Text = loc.GetString(LocalizationKeys.SetWallpaperSchedule);
         if (SettingsScheduleSubtitle != null) SettingsScheduleSubtitle.Text = isTr ? "Gündüz ve gece duvar kağıtları arasında otomatik geçiş yapın." : "Automatically transition between Day and Night wallpapers.";

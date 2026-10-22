@@ -1,4 +1,4 @@
-﻿<?xml version='1.0' encoding='utf-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="NiceWP.App.DesktopTestWindow" Title="NiceWP">
     <NavigationView x:Name="Navigation" PaneDisplayMode="Auto" OpenPaneLength="208" CompactModeThresholdWidth="640" ExpandedModeThresholdWidth="960" IsBackButtonVisible="Collapsed" IsSettingsVisible="False" SelectionChanged="OnNavigationChanged" Background="{ThemeResource ControlCanvasBrush}">
         <NavigationView.Resources>
@@ -601,6 +601,55 @@
                                 </StackPanel>
                             </Grid>
                             <TextBlock x:Name="RotationSettingsStatusText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="SettingsInteractiveTransitionHeader" Text="Interactive Page Turn" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsInteractiveTransitionSubtitle" Text="Drag from the top-right corner to peel and preview the next wallpaper." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsInteractiveEnabledLabel" Text="Corner Turn Gesture" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="InteractiveTransitionToggle" Toggled="OnInteractiveTransitionToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Corner turn gesture" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
+                                    <TextBlock x:Name="SettingsPaperWaveLabel" Text="Paper Wave" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="PaperWaveToggle" Toggled="OnPaperWaveToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Paper wave effect" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsTransitionEffectLabel" Text="Transition Effect" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="TransitionEffectComboBox" SelectionChanged="OnTransitionEffectSelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Transition effect">
+                                        <ComboBoxItem Content="Page Curl" Tag="PageTurn" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                                    <TextBlock x:Name="SettingsTransitionSensitivityLabel" Text="Drag Sensitivity" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="TransitionSensitivityComboBox" SelectionChanged="OnTransitionSensitivitySelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Drag sensitivity">
+                                        <ComboBoxItem Content="Low" Tag="Low" />
+                                        <ComboBoxItem Content="Normal" Tag="Normal" />
+                                        <ComboBoxItem Content="High" Tag="High" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsTransitionQualityLabel" Text="Visual Quality" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="TransitionQualityComboBox" SelectionChanged="OnTransitionQualitySelectionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="Transition quality">
+                                        <ComboBoxItem Content="Auto" Tag="Automatic" />
+                                        <ComboBoxItem Content="Low" Tag="Low" />
+                                        <ComboBoxItem Content="Balanced" Tag="Balanced" />
+                                        <ComboBoxItem Content="High" Tag="High" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock x:Name="InteractiveSettingsStatusText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
