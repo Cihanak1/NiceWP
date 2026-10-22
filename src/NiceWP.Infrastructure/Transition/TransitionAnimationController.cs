@@ -9,8 +9,8 @@ namespace NiceWP.Infrastructure.Transition;
 public sealed class TransitionAnimationController
 {
     public const double CommitThreshold = 0.30;
-    public static readonly TimeSpan DefaultCancelDuration = TimeSpan.FromMilliseconds(220);
-    public static readonly TimeSpan DefaultCommitDuration = TimeSpan.FromMilliseconds(280);
+    public static readonly TimeSpan DefaultCancelDuration = TimeSpan.FromMilliseconds(140);
+    public static readonly TimeSpan DefaultCommitDuration = TimeSpan.FromMilliseconds(180);
 
     /// <summary>
     /// Evaluates whether the given progress satisfies the threshold to commit navigation.
