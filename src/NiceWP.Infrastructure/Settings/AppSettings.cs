@@ -72,6 +72,17 @@ public sealed class AppSettings
 
     public bool InteractiveTransitionEnabled { get; set; } = false;
 
+    public bool SmartScenesEnabled { get; set; } = false;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SmartScene { get; set; }
+
+    public bool SmartRotation { get; set; } = false;
+
+    public bool SmartScenesAvoidRecent { get; set; } = true;
+
+    public bool SmartScenesPreferFavorites { get; set; } = true;
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TransitionEffect { get; set; }
 
@@ -129,6 +140,13 @@ public sealed class AppSettings
         set => ResourceBudget = value == ResourceBudgetMode.Automatic ? null : value.ToString();
     }
 
+    [JsonIgnore]
+    public SmartSceneMode EffectiveSmartScene
+    {
+        get => SmartSceneModeExtensions.ParseMode(SmartScene);
+        set => SmartScene = value == SmartSceneMode.Automatic ? null : value.ToConfigString();
+    }
+
     public static AppSettings CreateDefault() => new()
     {
         RestoreLastWallpaper = true,
@@ -151,6 +169,11 @@ public sealed class AppSettings
         NightWallpaperId = null,
         PresentationWallpaperId = null,
         InteractiveTransitionEnabled = false,
+        SmartScenesEnabled = false,
+        SmartScene = null,
+        SmartRotation = false,
+        SmartScenesAvoidRecent = true,
+        SmartScenesPreferFavorites = true,
         TransitionEffect = null,
         PaperWaveEnabled = true,
         TransitionSensitivity = null,
@@ -195,6 +218,11 @@ public sealed class AppSettings
             NightWallpaperId = string.IsNullOrWhiteSpace(NightWallpaperId) ? null : NightWallpaperId.Trim(),
             PresentationWallpaperId = string.IsNullOrWhiteSpace(PresentationWallpaperId) ? null : PresentationWallpaperId.Trim(),
             InteractiveTransitionEnabled = InteractiveTransitionEnabled,
+            SmartScenesEnabled = SmartScenesEnabled,
+            SmartScene = NormalizeSmartScene(SmartScene),
+            SmartRotation = SmartRotation,
+            SmartScenesAvoidRecent = SmartScenesAvoidRecent,
+            SmartScenesPreferFavorites = SmartScenesPreferFavorites,
             TransitionEffect = NormalizeTransitionEffect(TransitionEffect),
             PaperWaveEnabled = PaperWaveEnabled,
             TransitionSensitivity = NormalizeTransitionSensitivity(TransitionSensitivity),
@@ -291,6 +319,12 @@ public sealed class AppSettings
         if (!TimeOnly.TryParse(time.Trim(), out var parsed)) return null;
         var formatted = parsed.ToString("HH:mm");
         return formatted == DefaultNightStartTime ? null : formatted;
+    }
+
+    public static string? NormalizeSmartScene(string? scene)
+    {
+        var parsed = SmartSceneModeExtensions.ParseMode(scene);
+        return parsed == SmartSceneMode.Automatic ? null : parsed.ToConfigString();
     }
 
     public static string? NormalizeAdaptiveProfile(string? profile)
