@@ -198,7 +198,9 @@ public sealed class SettingsServiceTests : IDisposable
             Assert.False(root.TryGetProperty("Autostart", out _));
             Assert.True(root.TryGetProperty("AppRules", out _));
             Assert.True(root.TryGetProperty("ResourceBudget", out _));
-            Assert.Equal(8, root.EnumerateObject().Count());
+            Assert.True(root.TryGetProperty("InteractiveTransitionEnabled", out _));
+            Assert.True(root.TryGetProperty("PaperWaveEnabled", out _));
+            Assert.Equal(10, root.EnumerateObject().Count());
         }
 
         var loaded = await service.LoadAsync();

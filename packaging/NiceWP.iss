@@ -1,9 +1,9 @@
 #define MyAppName "NiceWP"
-#define MyAppVersion "0.0.17"
+#define MyAppVersion "0.0.18"
 #define MyAppPublisher "NiceWP Team"
 #define MyAppURL "https://github.com/NiceWP"
 #define MyAppExeName "NiceWP.App.exe"
-#define MyDistSource "..\\.artifacts\\dist\\NiceWP-0.0.17-win-x64"
+#define MyDistSource "..\\.artifacts\\dist\\NiceWP-0.0.18-win-x64"
 
 [Setup]
 AppId={{E680E74C-0F3E-4BC3-8FA9-8E9F6DF6740B}
@@ -17,7 +17,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=..\\.artifacts\\installer
-OutputBaseFilename=NiceWP-0.0.17-win-x64-Setup
+OutputBaseFilename=NiceWP-0.0.18-win-x64-Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
