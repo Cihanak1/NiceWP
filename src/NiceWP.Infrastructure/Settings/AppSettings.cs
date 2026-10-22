@@ -70,7 +70,41 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PresentationWallpaperId { get; set; }
 
+    public bool InteractiveTransitionEnabled { get; set; } = false;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TransitionEffect { get; set; }
+
+    public bool PaperWaveEnabled { get; set; } = true;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TransitionSensitivity { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TransitionQuality { get; set; }
+
     public List<AppRule> AppRules { get; set; } = new();
+
+    [JsonIgnore]
+    public InteractiveTransitionEffect EffectiveTransitionEffect
+    {
+        get => InteractiveTransitionEffectExtensions.ParseEffect(TransitionEffect);
+        set => TransitionEffect = value == InteractiveTransitionEffect.PageTurn ? null : value.ToConfigString();
+    }
+
+    [JsonIgnore]
+    public TransitionSensitivity EffectiveTransitionSensitivity
+    {
+        get => TransitionSensitivityExtensions.ParseSensitivity(TransitionSensitivity);
+        set => TransitionSensitivity = value == Core.TransitionSensitivity.Normal ? null : value.ToConfigString();
+    }
+
+    [JsonIgnore]
+    public TransitionQuality EffectiveTransitionQuality
+    {
+        get => TransitionQualityExtensions.ParseQuality(TransitionQuality);
+        set => TransitionQuality = value == Core.TransitionQuality.Automatic ? null : value.ToConfigString();
+    }
 
     [JsonIgnore]
     public string EffectiveScheduleMode => ScheduleMode ?? ScheduleModeExtensions.ModeOff;
@@ -116,6 +150,11 @@ public sealed class AppSettings
         DayWallpaperId = null,
         NightWallpaperId = null,
         PresentationWallpaperId = null,
+        InteractiveTransitionEnabled = false,
+        TransitionEffect = null,
+        PaperWaveEnabled = true,
+        TransitionSensitivity = null,
+        TransitionQuality = null,
         AppRules = new List<AppRule>()
     };
 
@@ -155,6 +194,11 @@ public sealed class AppSettings
             DayWallpaperId = string.IsNullOrWhiteSpace(DayWallpaperId) ? null : DayWallpaperId.Trim(),
             NightWallpaperId = string.IsNullOrWhiteSpace(NightWallpaperId) ? null : NightWallpaperId.Trim(),
             PresentationWallpaperId = string.IsNullOrWhiteSpace(PresentationWallpaperId) ? null : PresentationWallpaperId.Trim(),
+            InteractiveTransitionEnabled = InteractiveTransitionEnabled,
+            TransitionEffect = NormalizeTransitionEffect(TransitionEffect),
+            PaperWaveEnabled = PaperWaveEnabled,
+            TransitionSensitivity = NormalizeTransitionSensitivity(TransitionSensitivity),
+            TransitionQuality = NormalizeTransitionQuality(TransitionQuality),
             AppRules = AppRuleNormalizer.NormalizeRules(AppRules).ToList()
         };
     }
@@ -257,5 +301,23 @@ public sealed class AppSettings
             return p == AdaptiveDesktopProfile.Automatic ? null : p.ToString();
         }
         return null;
+    }
+
+    public static string? NormalizeTransitionEffect(string? effect)
+    {
+        var parsed = InteractiveTransitionEffectExtensions.ParseEffect(effect);
+        return parsed == InteractiveTransitionEffect.PageTurn ? null : parsed.ToConfigString();
+    }
+
+    public static string? NormalizeTransitionSensitivity(string? sensitivity)
+    {
+        var parsed = TransitionSensitivityExtensions.ParseSensitivity(sensitivity);
+        return parsed == Core.TransitionSensitivity.Normal ? null : parsed.ToConfigString();
+    }
+
+    public static string? NormalizeTransitionQuality(string? quality)
+    {
+        var parsed = TransitionQualityExtensions.ParseQuality(quality);
+        return parsed == Core.TransitionQuality.Automatic ? null : parsed.ToConfigString();
     }
 }
