@@ -1,3 +1,4 @@
+using NiceWP.Core.Personalization;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Library;
 using NiceWP.Infrastructure.Rotation;
@@ -30,7 +31,9 @@ public static class SmartWallpaperSelector
         IReadOnlyList<WallpaperLibraryItem> candidates,
         Func<string, WallpaperAnalysisMetadata?> metadataLookup,
         SmartSceneContext context,
-        IRotationRandomProvider? randomProvider = null)
+        IRotationRandomProvider? randomProvider = null,
+        PersonalizationProfile? profile = null,
+        Func<string, bool>? isExcluded = null)
     {
         ArgumentNullException.ThrowIfNull(candidates);
         ArgumentNullException.ThrowIfNull(metadataLookup);
@@ -45,11 +48,26 @@ public static class SmartWallpaperSelector
             return null;
         }
 
+        // Filter out excluded wallpapers (Never Show Again)
+        if (isExcluded != null)
+        {
+            var nonExcluded = eligible.Where(item => !isExcluded(item.Id)).ToList();
+            if (nonExcluded.Count > 0)
+            {
+                eligible = nonExcluded;
+            }
+            else
+            {
+                // All available candidates are excluded; respect hard exclusion by returning null safely
+                return null;
+            }
+        }
+
         var scored = new List<ScoredWallpaperCandidate>(eligible.Count);
         foreach (var item in eligible)
         {
             var meta = metadataLookup(item.Id);
-            var score = WallpaperSceneScorer.Score(item, meta, context);
+            var score = WallpaperSceneScorer.Score(item, meta, context, profile);
             scored.Add(new ScoredWallpaperCandidate(item, meta, score));
         }
 

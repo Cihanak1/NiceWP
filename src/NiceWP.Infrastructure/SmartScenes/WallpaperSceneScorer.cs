@@ -34,6 +34,7 @@ public static class WallpaperSceneScorer
         }
 
         bool isImage = string.Equals(wallpaper.Type, "Image", StringComparison.OrdinalIgnoreCase);
+        bool isVideo = string.Equals(wallpaper.Type, "Video", StringComparison.OrdinalIgnoreCase);
         var cost = metadata?.ResourceClass ?? (isImage ? WallpaperCost.Light : WallpaperCost.Moderate);
         var motion = metadata?.MotionLevel ?? (isImage ? WallpaperMotionLevel.None : WallpaperMotionLevel.Medium);
         double brightness = metadata?.Brightness ?? 0.5;

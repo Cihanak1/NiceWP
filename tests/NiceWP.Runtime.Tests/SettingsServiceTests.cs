@@ -207,7 +207,11 @@ public sealed class SettingsServiceTests : IDisposable
             Assert.True(root.TryGetProperty("OnlineOpenverseEnabled", out _));
             Assert.True(root.TryGetProperty("OnlineWikimediaEnabled", out _));
             Assert.True(root.TryGetProperty("OnlineNasaEnabled", out _));
-            Assert.Equal(17, root.EnumerateObject().Count());
+            Assert.True(root.TryGetProperty("PersonalizationEnabled", out _));
+            Assert.True(root.TryGetProperty("PersonalizationUseFavorites", out _));
+            Assert.True(root.TryGetProperty("PersonalizationLearnManualSelections", out _));
+            Assert.True(root.TryGetProperty("PersonalizationAvoidExcluded", out _));
+            Assert.Equal(21, root.EnumerateObject().Count());
         }
 
         var loaded = await service.LoadAsync();

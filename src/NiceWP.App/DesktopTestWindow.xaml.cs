@@ -166,6 +166,8 @@ public sealed partial class DesktopTestWindow : Window
         libraryController.AnalysisStore = analysisStore;
         libraryController.Rotation.SmartSceneContextProvider = GetCurrentSmartSceneContext;
         libraryController.Rotation.MetadataLookup = id => analysisStore.TryGet(id, out var m) ? m : null;
+        libraryController.Rotation.PersonalizationProfileProvider = () => libraryController.Personalization?.IsEnabled == true ? libraryController.Personalization.Profile : null;
+        libraryController.Rotation.ExclusionFilter = id => libraryController.Personalization?.AvoidExcluded == true && libraryController.Personalization.IsExcluded(id);
         analysisService.ProgressChanged += OnAnalysisProgressChanged;
         analysisService.AnalysisCompleted += (s, m) =>
         {

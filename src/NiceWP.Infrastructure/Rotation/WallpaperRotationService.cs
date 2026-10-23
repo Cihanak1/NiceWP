@@ -1,3 +1,4 @@
+using NiceWP.Core.Personalization;
 using System.Diagnostics;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
@@ -42,6 +43,8 @@ public sealed class WallpaperRotationService : IDisposable
     public Func<bool>? RotationPrecondition { get; set; }
     public Func<SmartSceneContext>? SmartSceneContextProvider { get; set; }
     public Func<string, WallpaperAnalysisMetadata?>? MetadataLookup { get; set; }
+    public Func<PersonalizationProfile?>? PersonalizationProfileProvider { get; set; }
+    public Func<string, bool>? ExclusionFilter { get; set; }
     public SmartScenes.ScoredWallpaperCandidate? LastSmartSelection { get; private set; }
 
     public IReadOnlyList<WallpaperRotationHistoryEntry> History
@@ -410,6 +413,14 @@ public sealed class WallpaperRotationService : IDisposable
         HashSet<string> excludedIds)
     {
         var available = candidates.Where(c => !excludedIds.Contains(c.Id)).ToList();
+        if (ExclusionFilter != null)
+        {
+            var nonExcluded = available.Where(c => !ExclusionFilter(c.Id)).ToList();
+            if (nonExcluded.Count > 0)
+            {
+                available = nonExcluded;
+            }
+        }
         if (available.Count == 0) return null;
 
         if (Order == RotationOrder.Smart)
@@ -469,7 +480,9 @@ public sealed class WallpaperRotationService : IDisposable
             availableCandidates,
             MetadataLookup ?? (_ => null),
             context,
-            _random);
+            _random,
+            PersonalizationProfileProvider?.Invoke(),
+            ExclusionFilter);
 
         if (selection != null)
         {
