@@ -26,6 +26,7 @@ public sealed class WallpaperAnalysisService : IDisposable
     private readonly SemaphoreSlim _workerThrottle = new(MaxConcurrentWorkers, MaxConcurrentWorkers);
     private readonly ConcurrentQueue<WallpaperLibraryItem> _queue = new();
     private readonly HashSet<string> _enqueuedIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Task<WallpaperAnalysisMetadata?>> _inFlight = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _syncRoot = new();
 
     private CancellationTokenSource? _workerCts;
@@ -74,27 +75,56 @@ public sealed class WallpaperAnalysisService : IDisposable
             return cached;
         }
 
-        await _workerThrottle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        // Deduplicate in-flight analysis across callers
+        if (_inFlight.TryGetValue(item.Id, out var inFlightTask))
+        {
+            return await inFlightTask.ConfigureAwait(false);
+        }
+
+        var tcs = new TaskCompletionSource<WallpaperAnalysisMetadata?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_inFlight.TryAdd(item.Id, tcs.Task))
+        {
+            if (_inFlight.TryGetValue(item.Id, out inFlightTask))
+            {
+                return await inFlightTask.ConfigureAwait(false);
+            }
+        }
+
         try
         {
-            // Re-check after acquiring worker slot
-            if (_store.TryGet(item.Id, out cached) && WallpaperAnalysisStore.IsMetadataFresh(cached, item.FilePath))
+            await _workerThrottle.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
-                return cached;
-            }
+                // Re-check after acquiring worker slot
+                if (_store.TryGet(item.Id, out cached) && WallpaperAnalysisStore.IsMetadataFresh(cached, item.FilePath))
+                {
+                    tcs.TrySetResult(cached);
+                    return cached;
+                }
 
-            var result = await AnalyzeSingleItemAsync(item, cancellationToken).ConfigureAwait(false);
-            if (result != null)
-            {
-                _store.Set(result);
-                _store.RequestSave();
-                AnalysisCompleted?.Invoke(this, result);
+                var result = await AnalyzeSingleItemAsync(item, cancellationToken).ConfigureAwait(false);
+                if (result != null)
+                {
+                    _store.Set(result);
+                    _store.RequestSave();
+                    AnalysisCompleted?.Invoke(this, result);
+                }
+                tcs.TrySetResult(result);
+                return result;
             }
-            return result;
+            finally
+            {
+                _workerThrottle.Release();
+            }
+        }
+        catch (Exception ex)
+        {
+            tcs.TrySetException(ex);
+            throw;
         }
         finally
         {
-            _workerThrottle.Release();
+            _inFlight.TryRemove(item.Id, out _);
         }
     }
 
@@ -115,8 +145,13 @@ public sealed class WallpaperAnalysisService : IDisposable
                     continue;
                 }
 
-                // If already fresh in store, skip enqueuing
+                // If already fresh in store or already in flight, skip enqueuing
                 if (_store.TryGet(item.Id, out var existing) && WallpaperAnalysisStore.IsMetadataFresh(existing, item.FilePath))
+                {
+                    continue;
+                }
+
+                if (_inFlight.ContainsKey(item.Id))
                 {
                     continue;
                 }
@@ -179,6 +214,11 @@ public sealed class WallpaperAnalysisService : IDisposable
                     {
                         if (nextItem.FileExists())
                         {
+                            if (_store.TryGet(nextItem.Id, out var cached) && WallpaperAnalysisStore.IsMetadataFresh(cached, nextItem.FilePath))
+                            {
+                                continue;
+                            }
+
                             var meta = await AnalyzeSingleItemAsync(nextItem, cancellationToken).ConfigureAwait(false);
                             if (meta != null)
                             {
