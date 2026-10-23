@@ -341,6 +341,47 @@ public sealed class OnlineWallpaperDownloader : IOnlineWallpaperDownloader
         return fileName;
     }
 
+    /// <summary>
+    /// Scans the online wallpapers temp folder and deletes abandoned temporary files
+    /// created by interrupted downloads or prior sessions.
+    /// </summary>
+    public static int CleanOrphanTempFiles(string? baseOnlineDirectory = null)
+    {
+        int cleaned = 0;
+        try
+        {
+            var baseDir = baseOnlineDirectory ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "NiceWP",
+                "online-wallpapers");
+
+            var tempDir = Path.Combine(baseDir, "temp");
+            if (!Directory.Exists(tempDir)) return 0;
+
+            var dir = new DirectoryInfo(tempDir);
+            var threshold = DateTime.UtcNow - TimeSpan.FromMinutes(15);
+
+            foreach (var file in dir.EnumerateFiles("*.tmp"))
+            {
+                if (file.LastWriteTimeUtc < threshold)
+                {
+                    try
+                    {
+                        file.Delete();
+                        cleaned++;
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to clean orphan temp files: {ex}");
+        }
+
+        return cleaned;
+    }
+
     private static void TryDeleteFile(string path)
     {
         try

@@ -85,6 +85,69 @@ public sealed class WallpaperDiscoverCache
         }
     }
 
+    /// <summary>
+    /// Prunes expired query cache files and leftover temporary files to keep disk usage bounded.
+    /// </summary>
+    public int PruneExpired(long maxTotalBytes = 50 * 1024 * 1024)
+    {
+        int deleted = 0;
+        try
+        {
+            if (!Directory.Exists(_cacheDirectory)) return 0;
+
+            var dir = new DirectoryInfo(_cacheDirectory);
+            var now = DateTime.UtcNow;
+
+            // 1. Delete orphan .tmp files older than 5 minutes
+            foreach (var tmp in dir.EnumerateFiles("*.tmp"))
+            {
+                if (now - tmp.LastWriteTimeUtc > TimeSpan.FromMinutes(5))
+                {
+                    try { tmp.Delete(); deleted++; } catch { }
+                }
+            }
+
+            // 2. Delete expired .json cache files
+            var validFiles = new List<FileInfo>();
+            foreach (var json in dir.EnumerateFiles("*.json"))
+            {
+                if (now - json.LastWriteTimeUtc > _cacheDuration)
+                {
+                    try { json.Delete(); deleted++; } catch { }
+                }
+                else
+                {
+                    validFiles.Add(json);
+                }
+            }
+
+            // 3. Enforce maximum total size cap by removing oldest entries
+            long totalBytes = validFiles.Sum(f => f.Length);
+            if (totalBytes > maxTotalBytes)
+            {
+                validFiles.Sort((a, b) => a.LastWriteTimeUtc.CompareTo(b.LastWriteTimeUtc));
+                foreach (var file in validFiles)
+                {
+                    if (totalBytes <= maxTotalBytes) break;
+                    var len = file.Length;
+                    try
+                    {
+                        file.Delete();
+                        totalBytes -= len;
+                        deleted++;
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Discover cache prune error: {ex}");
+        }
+
+        return deleted;
+    }
+
     public void Clear()
     {
         try
