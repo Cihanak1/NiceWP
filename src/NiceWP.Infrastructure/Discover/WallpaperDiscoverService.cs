@@ -112,7 +112,18 @@ public sealed class WallpaperDiscoverService
             aggregatedItems = InterleaveProviderItems(results);
         }
 
-        string? compositeError = errors.Count > 0 ? string.Join(" | ", errors) : null;
+        // Determine if all active providers failed due to offline / DNS network errors
+        var allFailed = results.All(r => !string.IsNullOrWhiteSpace(r.ErrorMessage) && r.Items.Count == 0);
+        var isNetworkOffline = allFailed && errors.All(e =>
+            e.Contains("HttpRequestException", StringComparison.OrdinalIgnoreCase) ||
+            e.Contains("No such host", StringComparison.OrdinalIgnoreCase) ||
+            e.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
+            e.Contains("Could not connect", StringComparison.OrdinalIgnoreCase) ||
+            e.Contains("NameResolutionFailure", StringComparison.OrdinalIgnoreCase));
+
+        string? compositeError = isNetworkOffline
+            ? "No internet connection."
+            : errors.Count > 0 ? string.Join(" | ", errors) : null;
 
         var finalResult = new WallpaperSearchResult(
             ProviderId: query.ProviderId ?? "all",
