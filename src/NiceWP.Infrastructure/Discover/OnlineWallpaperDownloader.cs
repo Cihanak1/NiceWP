@@ -100,6 +100,13 @@ public sealed class OnlineWallpaperDownloader : IOnlineWallpaperDownloader
 
         var isVideo = string.Equals(onlineItem.MediaType, "video", StringComparison.OrdinalIgnoreCase);
         var maxSize = isVideo ? MaxVideoSizeBytes : MaxImageSizeBytes;
+
+        // Verify available disk space before starting transfer
+        if (!HasSufficientDiskSpace(_baseOnlineDirectory, maxSize + (50 * 1024 * 1024)))
+        {
+            return new OnlineDownloadResult(false, ErrorMessage: "Insufficient disk space available on drive to safely download wallpaper.");
+        }
+
         var tempFilePath = Path.Combine(tempDir, $"{Guid.NewGuid():N}.tmp");
 
         try
@@ -380,6 +387,26 @@ public sealed class OnlineWallpaperDownloader : IOnlineWallpaperDownloader
         }
 
         return cleaned;
+    }
+
+    /// <summary>
+    /// Checks whether the target drive hosting the path has enough available free space.
+    /// </summary>
+    public static bool HasSufficientDiskSpace(string targetPath, long requiredBytes)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(targetPath));
+            if (string.IsNullOrWhiteSpace(root)) return true;
+
+            var drive = new DriveInfo(root);
+            return drive.AvailableFreeSpace >= requiredBytes;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Disk space check fallback: {ex.Message}");
+            return true;
+        }
     }
 
     private static void TryDeleteFile(string path)
