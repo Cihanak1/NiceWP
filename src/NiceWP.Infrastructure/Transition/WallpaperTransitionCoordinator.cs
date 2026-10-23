@@ -31,6 +31,8 @@ public sealed class WallpaperTransitionCoordinator : IDisposable
     public CornerGestureContext? CurrentContext => _currentContext;
 
     public WallpaperLibraryItem? PeekedCandidate => _peekedCandidate;
+    public string? CandidatePreviewPath =>
+        _preloadService?.GetCachedPreviewPath(_peekedCandidate?.Id) ?? _peekedCandidate?.FilePath;
     public GesturePerformanceTelemetry Telemetry { get; } = new();
 
     public event Action<TransitionState>? StateChanged;

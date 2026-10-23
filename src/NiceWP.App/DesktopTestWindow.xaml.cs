@@ -3855,7 +3855,7 @@ public sealed partial class DesktopTestWindow : Window
                     libraryController.TransitionCoordinator.State == TransitionState.Completing ||
                     libraryController.TransitionCoordinator.State == TransitionState.Cancelling)
                 {
-                    var nextPath = libraryController.TransitionCoordinator.PeekedCandidate?.FilePath;
+                    var nextPath = libraryController.TransitionCoordinator.CandidatePreviewPath ?? libraryController.TransitionCoordinator.PeekedCandidate?.FilePath;
                     var curPath = activeWallpaperPath ?? libraryController.Rotation.CurrentWallpaperPath ?? currentLoadedSettings.LastWallpaperPath;
                     visualOverlay?.ShowDragFrame(ctx, nextPath, curPath);
                 }

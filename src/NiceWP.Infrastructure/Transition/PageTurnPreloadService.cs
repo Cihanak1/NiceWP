@@ -96,9 +96,32 @@ public sealed class PageTurnPreloadService : IDisposable
             IsPosterFrame: isPoster,
             PreloadedAtUtc: DateTimeOffset.UtcNow);
 
+        if (_cache.Count >= 10)
+        {
+            var oldest = _cache.OrderBy(kv => kv.Value.PreloadedAtUtc).FirstOrDefault();
+            if (!string.IsNullOrEmpty(oldest.Key))
+            {
+                _cache.TryRemove(oldest.Key, out _);
+            }
+        }
+
         _cache[candidate.Id] = preloaded;
         LogAudit("Preloaded", $"Preloaded candidate '{candidate.DisplayName}' (Type={candidate.Type}, Poster={isPoster}).");
         return preloaded;
+    }
+
+    /// <summary>
+    /// Gets the cached preview path (lightweight poster frame for video, or original path for image) if available.
+    /// </summary>
+    public string? GetCachedPreviewPath(string? itemId)
+    {
+        if (!string.IsNullOrWhiteSpace(itemId) &&
+            _cache.TryGetValue(itemId, out var cached) &&
+            File.Exists(cached.PreviewImagePath))
+        {
+            return cached.PreviewImagePath;
+        }
+        return null;
     }
 
     /// <summary>
