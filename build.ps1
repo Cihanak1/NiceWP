@@ -14,7 +14,9 @@ param(
 
     [switch]$CreateZip,
 
-    [switch]$CreateInstaller
+    [switch]$CreateInstaller,
+
+    [switch]$PrepareRelease
 )
 
 $ErrorActionPreference = "Stop"
@@ -177,6 +179,42 @@ if ($CreateInstaller) {
 
     $InstallerExe = Join-Path $InstallerOutputDir "NiceWP-0.0.23-win-x64-Setup.exe"
     Write-Host "Installer Exe : $InstallerExe" -ForegroundColor Green
+}
+
+if ($PrepareRelease -or ($CreateZip -and $CreateInstaller)) {
+    Write-Host "[Release] Staging release artifacts and checksums..." -ForegroundColor Yellow
+    $ReleaseDir = Join-Path $RepoRoot ".artifacts\release"
+    if (-not (Test-Path $ReleaseDir)) {
+        New-Item -ItemType Directory -Path $ReleaseDir -Force | Out-Null
+    }
+
+    $PortableZipDest = Join-Path $ReleaseDir "NiceWP-0.0.23-win-x64.zip"
+    if ($CreateZip -and (Test-Path $ZipPath)) {
+        Copy-Item -Path $ZipPath -Destination $PortableZipDest -Force
+        Write-Host "Release ZIP   : $PortableZipDest" -ForegroundColor Green
+    }
+
+    $InstallerDest = Join-Path $ReleaseDir "NiceWP-0.0.23-win-x64-Setup.exe"
+    if ($CreateInstaller -and (Test-Path $InstallerExe)) {
+        Copy-Item -Path $InstallerExe -Destination $InstallerDest -Force
+        Write-Host "Release Setup : $InstallerDest" -ForegroundColor Green
+    }
+
+    # Generate SHA-256 Checksums
+    $ChecksumFile = Join-Path $ReleaseDir "SHA256SUMS.txt"
+    $ChecksumLines = @()
+    if (Test-Path $PortableZipDest) {
+        $hashZip = (Get-FileHash -Path $PortableZipDest -Algorithm SHA256).Hash.ToLowerInvariant()
+        $ChecksumLines += "$hashZip  NiceWP-0.0.23-win-x64.zip"
+    }
+    if (Test-Path $InstallerDest) {
+        $hashSetup = (Get-FileHash -Path $InstallerDest -Algorithm SHA256).Hash.ToLowerInvariant()
+        $ChecksumLines += "$hashSetup  NiceWP-0.0.23-win-x64-Setup.exe"
+    }
+    if ($ChecksumLines.Count -gt 0) {
+        $ChecksumLines | Out-File -FilePath $ChecksumFile -Encoding utf8
+        Write-Host "Checksums     : $ChecksumFile" -ForegroundColor Green
+    }
 }
 
 Write-Host "-------------------------------------"
