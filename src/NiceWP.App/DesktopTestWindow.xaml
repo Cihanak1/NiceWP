@@ -47,6 +47,7 @@
         </NavigationView.PaneHeader>
         <NavigationView.MenuItems>
             <NavigationViewItem x:Name="LibraryNavigationItem" Content="Library" Tag="Library" Icon="Pictures" />
+            <NavigationViewItem x:Name="DiscoverNavigationItem" Content="Discover" Tag="Discover" Icon="Find" />
             <NavigationViewItem x:Name="ActiveNavigationItem" Content="Active Wallpaper" Tag="Active" Icon="SlideShow" />
             <NavigationViewItem x:Name="PerformanceNavigationItem" Content="Performance" Tag="Performance" Icon="ShowResults" />
             <NavigationViewItem x:Name="SettingsNavigationItem" Content="Settings" Tag="Settings" Icon="Setting" />
@@ -63,13 +64,29 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <StackPanel Spacing="8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <StackPanel Spacing="4" VerticalAlignment="Center">
                         <TextBlock x:Name="LibraryTitleText" Text="Library" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" FontSize="32" />
                         <TextBlock x:Name="LibraryCountText" Text="Your wallpaper collection" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
-                </StackPanel>
-                <Border Grid.Row="1" Padding="12,12,4,4" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8">
+                    <Border Grid.Column="1" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="3" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Button x:Name="LibraryTabLocalButton" Content="My Library" Click="OnLibraryTabLocalClicked" Style="{StaticResource AccentButtonStyle}" />
+                            <Button x:Name="LibraryTabDiscoverButton" Content="Discover" Click="OnLibraryTabDiscoverClicked" Style="{StaticResource SubtleButtonStyle}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                                <Grid x:Name="LocalLibraryContainer" Grid.Row="1" Grid.RowSpan="3" RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+<Border Grid.Row="0" Padding="12,12,4,4" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8">
                     <VariableSizedWrapGrid Orientation="Horizontal" ItemHeight="44" ItemWidth="160" SizeChanged="OnResponsivePanelSizeChanged" x:Name="LibraryControlStrip">
                         <TextBox x:Name="LibrarySearchBox" PlaceholderText="Search wallpapers" TextChanged="OnSearchTextChanged" VerticalAlignment="Center" AutomationProperties.Name="Search wallpapers" HorizontalAlignment="Stretch" Margin="0,0,8,8" VariableSizedWrapGrid.ColumnSpan="2" />
                         <ComboBox x:Name="LibraryFilterComboBox" SelectionChanged="OnFilterSelectionChanged" VerticalAlignment="Center" AutomationProperties.Name="Filter wallpapers" HorizontalAlignment="Stretch" Margin="0,0,8,8" ToolTipService.ToolTip="Filter collection">
@@ -97,7 +114,7 @@
                         <Button x:Name="SelectModeButton" Content="Select" Click="OnToggleSelectModeClicked" Margin="0,0,8,8" HorizontalAlignment="Stretch" VerticalAlignment="Center" ToolTipService.ToolTip="Select multiple wallpapers" />
                     </VariableSizedWrapGrid>
                 </Border>
-                <Border x:Name="BulkActionStrip" Visibility="Collapsed" Grid.Row="2" Padding="12,8" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8">
+                <Border x:Name="BulkActionStrip" Visibility="Collapsed" Grid.Row="1" Padding="12,8" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <Button x:Name="BulkSelectAllButton" Content="Select All" Click="OnBulkSelectAllClicked" />
                         <Button x:Name="BulkClearSelectionButton" Content="Clear" Click="OnBulkClearSelectionClicked" />
@@ -109,14 +126,14 @@
                         <Button x:Name="BulkDoneButton" Content="Done" Click="OnBulkDoneClicked" Style="{StaticResource AccentButtonStyle}" />
                     </StackPanel>
                 </Border>
-                <Border x:Name="LibraryEmptyText" Visibility="Collapsed" Grid.Row="3" Padding="32" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="0,8,0,0">
+                <Border x:Name="LibraryEmptyText" Visibility="Collapsed" Grid.Row="2" Padding="32" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="0,8,0,0">
                     <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="420">
                         <SymbolIcon Symbol="Pictures" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock x:Name="EmptyTitleText" Text="No wallpapers in library" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                         <TextBlock x:Name="EmptySubtitleText" Text="Use Add Wallpaper or Add from URL to add an image or MP4." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </Border>
-                <GridView x:Name="LibraryListView" Grid.Row="3" SelectionMode="None" Visibility="Collapsed" SizeChanged="OnGallerySizeChanged" Loaded="OnGalleryLoaded" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <GridView x:Name="LibraryListView" Grid.Row="2" SelectionMode="None" Visibility="Collapsed" SizeChanged="OnGallerySizeChanged" Loaded="OnGalleryLoaded" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <GridView.ItemsPanel>
                         <ItemsPanelTemplate>
                             <ItemsWrapGrid Orientation="Horizontal" ItemWidth="256" />
@@ -207,6 +224,219 @@
                         </DataTemplate>
                     </GridView.ItemTemplate>
                 </GridView>
+                </Grid>
+                <!-- Discover Online Library Container (0.0.20) -->
+                <Grid x:Name="DiscoverContainer" Grid.Row="1" Grid.RowSpan="3" RowSpacing="12" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Search and Presets -->
+                    <StackPanel Spacing="8">
+                        <Border Padding="12" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8">
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="DiscoverSearchBox" PlaceholderText="Search wallpapers..." TextChanged="OnDiscoverSearchTextChanged" KeyDown="OnDiscoverSearchKeyDown" AutomationProperties.Name="Search online wallpapers" VerticalAlignment="Center" />
+                                <Button x:Name="DiscoverSearchButton" Grid.Column="1" Content="Search" Style="{StaticResource AccentButtonStyle}" Click="OnDiscoverSearchClicked" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Presets Bar -->
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock x:Name="DiscoverExploreLabel" Text="Explore:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,4,0" />
+                                <Button x:Name="PresetNatureButton" Content="Nature" Click="OnDiscoverPresetClicked" Style="{StaticResource SubtleButtonStyle}" CornerRadius="14" Padding="12,4" />
+                                <Button x:Name="PresetSpaceButton" Content="Space" Click="OnDiscoverPresetClicked" Style="{StaticResource SubtleButtonStyle}" CornerRadius="14" Padding="12,4" />
+                                <Button x:Name="PresetCityButton" Content="City" Click="OnDiscoverPresetClicked" Style="{StaticResource SubtleButtonStyle}" CornerRadius="14" Padding="12,4" />
+                                <Button x:Name="PresetMinimalButton" Content="Minimal" Click="OnDiscoverPresetClicked" Style="{StaticResource SubtleButtonStyle}" CornerRadius="14" Padding="12,4" />
+                                <Button x:Name="PresetAbstractButton" Content="Abstract" Click="OnDiscoverPresetClicked" Style="{StaticResource SubtleButtonStyle}" CornerRadius="14" Padding="12,4" />
+                                <Button x:Name="PresetDarkButton" Content="Dark" Click="OnDiscoverPresetClicked" Style="{StaticResource SubtleButtonStyle}" CornerRadius="14" Padding="12,4" />
+                                <Button x:Name="PresetLandscapeButton" Content="Landscape" Click="OnDiscoverPresetClicked" Style="{StaticResource SubtleButtonStyle}" CornerRadius="14" Padding="12,4" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </StackPanel>
+
+                    <!-- Filters Bar -->
+                    <Border Grid.Row="1" Padding="12,8" Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8">
+                        <VariableSizedWrapGrid Orientation="Horizontal" ItemHeight="40" ItemWidth="150" x:Name="DiscoverFilterStrip">
+                            <ComboBox x:Name="DiscoverProviderComboBox" SelectionChanged="OnDiscoverFilterChanged" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="0,0,8,4" ToolTipService.ToolTip="Provider">
+                                <ComboBoxItem Content="All Providers" Tag="all" IsSelected="True" />
+                                <ComboBoxItem Content="Openverse" Tag="openverse" />
+                                <ComboBoxItem Content="Wikimedia Commons" Tag="wikimedia" />
+                                <ComboBoxItem Content="NASA" Tag="nasa" />
+                            </ComboBox>
+                            <ComboBox x:Name="DiscoverOrientationComboBox" SelectionChanged="OnDiscoverFilterChanged" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="0,0,8,4" ToolTipService.ToolTip="Orientation">
+                                <ComboBoxItem Content="Any Orientation" Tag="all" IsSelected="True" />
+                                <ComboBoxItem Content="Landscape" Tag="landscape" />
+                                <ComboBoxItem Content="16:9" Tag="16:9" />
+                                <ComboBoxItem Content="16:10" Tag="16:10" />
+                            </ComboBox>
+                            <ComboBox x:Name="DiscoverResolutionComboBox" SelectionChanged="OnDiscoverFilterChanged" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="0,0,8,4" ToolTipService.ToolTip="Resolution">
+                                <ComboBoxItem Content="Any Resolution" Tag="any" IsSelected="True" />
+                                <ComboBoxItem Content="1080p (FHD)" Tag="1080p" />
+                                <ComboBoxItem Content="1440p (2K)" Tag="1440p" />
+                                <ComboBoxItem Content="4K (UHD)" Tag="4k" />
+                            </ComboBox>
+                            <ComboBox x:Name="DiscoverMediaComboBox" SelectionChanged="OnDiscoverFilterChanged" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="0,0,8,4" ToolTipService.ToolTip="Media Type">
+                                <ComboBoxItem Content="All Media" Tag="all" IsSelected="True" />
+                                <ComboBoxItem Content="Images" Tag="image" />
+                                <ComboBoxItem Content="Videos" Tag="video" />
+                            </ComboBox>
+                            <ComboBox x:Name="DiscoverLicenseComboBox" SelectionChanged="OnDiscoverFilterChanged" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="0,0,8,4" ToolTipService.ToolTip="License">
+                                <ComboBoxItem Content="Recommended" Tag="recommended" IsSelected="True" />
+                                <ComboBoxItem Content="Public Domain" Tag="publicdomain" />
+                                <ComboBoxItem Content="CC0" Tag="cc0" />
+                                <ComboBoxItem Content="CC BY" Tag="ccby" />
+                                <ComboBoxItem Content="CC BY-SA" Tag="ccbysa" />
+                            </ComboBox>
+                            <ComboBox x:Name="DiscoverSortComboBox" SelectionChanged="OnDiscoverFilterChanged" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="0,0,8,4" ToolTipService.ToolTip="Sort">
+                                <ComboBoxItem Content="Relevant" Tag="relevant" IsSelected="True" />
+                                <ComboBoxItem Content="Newest" Tag="newest" />
+                                <ComboBoxItem Content="Popular" Tag="popular" />
+                            </ComboBox>
+                        </VariableSizedWrapGrid>
+                    </Border>
+
+                    <!-- Discover Grid and Banners -->
+                    <Grid Grid.Row="2">
+                        <ProgressBar x:Name="DiscoverProgressBar" IsIndeterminate="True" VerticalAlignment="Top" Visibility="Collapsed" Canvas.ZIndex="10" />
+
+                        <!-- Offline Banner -->
+                        <Border x:Name="DiscoverOfflineBanner" Visibility="Collapsed" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}" BorderBrush="{ThemeResource SystemFillColorCautionBrush}" BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,12" VerticalAlignment="Top">
+                            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <SymbolIcon Symbol="Globe" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                                <TextBlock x:Name="DiscoverOfflineText" Text="No internet connection. Discover is unavailable, but your local library works offline." VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Rate Limit Banner -->
+                        <Border x:Name="DiscoverRateLimitBanner" Visibility="Collapsed" Background="{ThemeResource SystemFillColorAttentionBackgroundBrush}" BorderBrush="{ThemeResource SystemFillColorAttentionBrush}" BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,12" VerticalAlignment="Top">
+                            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <SymbolIcon Symbol="Clock" Foreground="{ThemeResource SystemFillColorAttentionBrush}" />
+                                <TextBlock x:Name="DiscoverRateLimitText" Text="Request rate limit reached. Please wait a moment before searching again." VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Empty State -->
+                        <Border x:Name="DiscoverEmptyState" Visibility="Collapsed" Padding="32" HorizontalAlignment="Stretch" VerticalAlignment="Top">
+                            <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="440">
+                                <SymbolIcon Symbol="Find" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="DiscoverEmptyTitleText" Text="Discover open-license wallpapers" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                                <TextBlock x:Name="DiscoverEmptySubtitleText" Text="Search Openverse, Wikimedia Commons, and NASA for high-resolution wallpapers." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Discover Grid View -->
+                        <GridView x:Name="DiscoverGridView" SelectionMode="None" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <GridView.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <ItemsWrapGrid Orientation="Horizontal" ItemWidth="272" />
+                                </ItemsPanelTemplate>
+                            </GridView.ItemsPanel>
+                            <GridView.ItemContainerStyle>
+                                <Style TargetType="GridViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Margin" Value="0,0,12,12" />
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="MinWidth" Value="0" />
+                                </Style>
+                            </GridView.ItemContainerStyle>
+                            <GridView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{ThemeResource LibraryCardSurfaceBrush}" BorderBrush="{ThemeResource LibraryCardStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="0">
+                                        <StackPanel Spacing="10" Padding="0">
+                                            <Grid Height="170" CornerRadius="8,8,0,0" Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
+                                                <SymbolIcon Symbol="Pictures" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <Image Stretch="UniformToFill" Loaded="OnDiscoverCardImageLoaded" DataContextChanged="OnDiscoverCardImageDataContextChanged" />
+                                                
+                                                <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Background="#CC1E1E1E" CornerRadius="4" Padding="6,2">
+                                                    <TextBlock Text="{Binding ProviderBadge}" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                                                </Border>
+
+                                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Background="#CC1E1E1E" CornerRadius="4" Padding="6,2">
+                                                    <TextBlock Text="{Binding ResolutionBadge}" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                                                </Border>
+                                            </Grid>
+
+                                            <StackPanel Spacing="4" Padding="12,0,12,12">
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="{Binding CreatorDisplay}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="140" />
+                                                    <TextBlock Text="•" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                                    <TextBlock Text="{Binding LicenseBadge}" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+
+                                                <ProgressBar Visibility="{Binding ProgressBarVisibility}" Value="{Binding DownloadPercent}" Maximum="100" Margin="0,4,0,0" />
+
+                                                <Grid ColumnSpacing="8" Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Content="Preview" Click="OnDiscoverCardPreviewClicked" Style="{StaticResource SubtleButtonStyle}" HorizontalAlignment="Stretch" FontSize="12" />
+                                                    <Button Grid.Column="1" Content="{Binding ActionButtonText}" Click="OnDiscoverCardAddClicked" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" FontSize="12" IsEnabled="{Binding CanAdd}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </GridView.ItemTemplate>
+                        </GridView>
+                    </Grid>
+                </Grid>
+
+                <!-- Discover Preview Modal Overlay (0.0.20) -->
+                <Border x:Name="DiscoverPreviewOverlay" Grid.RowSpan="4" Visibility="Collapsed" Background="#E6000000" Canvas.ZIndex="1000" Padding="24">
+                    <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="12" MaxWidth="720" MaxHeight="620" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
+                        <Grid RowSpacing="16">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid>
+                                <TextBlock x:Name="PreviewTitleText" Text="Wallpaper Preview" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,40,0" />
+                                <Button HorizontalAlignment="Right" Click="OnCloseDiscoverPreviewClicked" Style="{StaticResource SubtleButtonStyle}" Padding="6">
+                                    <SymbolIcon Symbol="Cancel" />
+                                </Button>
+                            </Grid>
+
+                            <Grid Grid.Row="1" MinHeight="260" MaxHeight="360" CornerRadius="8" Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
+                                <Image x:Name="PreviewLargeImage" Stretch="Uniform" />
+                            </Grid>
+
+                            <StackPanel Grid.Row="2" Spacing="6">
+                                <TextBlock x:Name="PreviewAttributionText" Text="Attribution details" FontSize="13" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <HyperlinkButton x:Name="PreviewCreatorLink" Content="Creator Profile" Click="OnPreviewCreatorLinkClicked" FontSize="12" Padding="0" />
+                                    <HyperlinkButton x:Name="PreviewSourceLink" Content="Original Source" Click="OnPreviewSourceLinkClicked" FontSize="12" Padding="0" />
+                                    <HyperlinkButton x:Name="PreviewLicenseLink" Content="License Terms" Click="OnPreviewLicenseLinkClicked" FontSize="12" Padding="0" />
+                                </StackPanel>
+                                <TextBlock x:Name="PreviewDisclaimerText" Text="License information is provided by the source." FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontStyle="Italic" />
+                            </StackPanel>
+
+                            <Grid Grid.Row="3" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="PreviewStatusText" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Button x:Name="PreviewAddButton" Grid.Column="1" Content="Add to Library" Style="{StaticResource AccentButtonStyle}" Click="OnPreviewAddButtonClicked" />
+                                <Button Grid.Column="2" Content="Close" Click="OnCloseDiscoverPreviewClicked" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Border>
+
                 <Border x:Name="DropOverlayBorder" Grid.RowSpan="4" Visibility="Collapsed" Background="#E618181B" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="2" CornerRadius="12" Margin="-8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Canvas.ZIndex="999" IsHitTestVisible="False">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
                         <FontIcon Glyph="&#xE898;" FontSize="48" Foreground="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center" />
@@ -813,7 +1043,38 @@
                             <TextBlock x:Name="AdaptiveSettingsStatusText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
-                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                                        <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="SettingsOnlineLibraryHeader" Text="Online Library" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsOnlineLibrarySubtitle" Text="Configure open-license wallpaper discovery providers." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsOnlineOpenverseLabel" Text="Openverse" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="OnlineOpenverseToggle" Toggled="OnOnlineProviderToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Openverse provider" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
+                                    <TextBlock x:Name="SettingsOnlineWikimediaLabel" Text="Wikimedia Commons" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="OnlineWikimediaToggle" Toggled="OnOnlineProviderToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Wikimedia provider" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsOnlineNasaLabel" Text="NASA" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="OnlineNasaToggle" Toggled="OnOnlineProviderToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="NASA provider" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                                    <Button x:Name="ClearDiscoverCacheButton" Content="Clear Discover Cache" Click="OnClearDiscoverCacheClicked" Style="{StaticResource SubtleButtonStyle}" HorizontalAlignment="Left" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+<Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="8">
                             <TextBlock x:Name="SettingsStorageHeader" Text="System Tray &amp; Local Storage" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <TextBlock x:Name="SettingsStorageSubtitle" Text="NiceWP stays in the system tray when you close this window. Your wallpaper keeps running." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

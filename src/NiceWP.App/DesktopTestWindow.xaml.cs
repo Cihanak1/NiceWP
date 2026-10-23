@@ -1497,7 +1497,17 @@ public sealed partial class DesktopTestWindow : Window
     {
         if (LibraryPage == null || ActivePage == null || PerformancePage == null || SettingsPage == null) return;
         var page = (args.SelectedItem as NavigationViewItem)?.Tag as string;
-        LibraryPage.Visibility = page == "Library" ? Visibility.Visible : Visibility.Collapsed;
+        var isLibraryOrDiscover = page == "Library" || page == "Discover";
+        LibraryPage.Visibility = isLibraryOrDiscover ? Visibility.Visible : Visibility.Collapsed;
+
+        if (page == "Discover")
+        {
+            SwitchToDiscoverTab();
+        }
+        else if (page == "Library")
+        {
+            SwitchToLocalLibraryTab();
+        }
         ActivePage.Visibility = page == "Active" ? Visibility.Visible : Visibility.Collapsed;
         PerformancePage.Visibility = page == "Performance" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
@@ -4628,6 +4638,48 @@ public sealed partial class DesktopTestWindow : Window
         if (SettingsSmartScenesAvoidRecentLabel != null) SettingsSmartScenesAvoidRecentLabel.Text = loc.GetString(LocalizationKeys.SetSmartScenesAvoidRecent);
         if (SettingsSmartScenesPreferFavoritesLabel != null) SettingsSmartScenesPreferFavoritesLabel.Text = loc.GetString(LocalizationKeys.SetSmartScenesPreferFavorites);
 
+        if (DiscoverNavigationItem != null) DiscoverNavigationItem.Content = loc.GetString(LocalizationKeys.NavDiscover);
+        if (LibraryTabLocalButton != null) LibraryTabLocalButton.Content = loc.GetString(LocalizationKeys.LibraryTabMyLibrary);
+        if (LibraryTabDiscoverButton != null) LibraryTabDiscoverButton.Content = loc.GetString(LocalizationKeys.LibraryTabDiscover);
+        if (DiscoverSearchBox != null) DiscoverSearchBox.PlaceholderText = loc.GetString(LocalizationKeys.DiscoverSearchPlaceholder);
+        if (DiscoverSearchButton != null) DiscoverSearchButton.Content = isTr ? "Ara" : "Search";
+        if (DiscoverExploreLabel != null) DiscoverExploreLabel.Text = isTr ? "Keşfet:" : "Explore:";
+        if (PresetNatureButton != null) PresetNatureButton.Content = loc.GetString(LocalizationKeys.DiscoverPresetNature);
+        if (PresetSpaceButton != null) PresetSpaceButton.Content = loc.GetString(LocalizationKeys.DiscoverPresetSpace);
+        if (PresetCityButton != null) PresetCityButton.Content = loc.GetString(LocalizationKeys.DiscoverPresetCity);
+        if (PresetMinimalButton != null) PresetMinimalButton.Content = loc.GetString(LocalizationKeys.DiscoverPresetMinimal);
+        if (PresetAbstractButton != null) PresetAbstractButton.Content = loc.GetString(LocalizationKeys.DiscoverPresetAbstract);
+        if (PresetDarkButton != null) PresetDarkButton.Content = loc.GetString(LocalizationKeys.DiscoverPresetDark);
+        if (PresetLandscapeButton != null) PresetLandscapeButton.Content = loc.GetString(LocalizationKeys.DiscoverPresetLandscape);
+        if (DiscoverOfflineText != null) DiscoverOfflineText.Text = loc.GetString(LocalizationKeys.DiscoverNoInternet);
+        if (DiscoverRateLimitText != null) DiscoverRateLimitText.Text = loc.GetString(LocalizationKeys.DiscoverRateLimited);
+        if (DiscoverEmptyTitleText != null) DiscoverEmptyTitleText.Text = isTr ? "Açık lisanslı duvar kağıtlarını keşfedin" : "Discover open-license wallpapers";
+        if (DiscoverEmptySubtitleText != null) DiscoverEmptySubtitleText.Text = isTr ? "Openverse, Wikimedia Commons ve NASA üzerinden arama yapın." : "Search Openverse, Wikimedia Commons, and NASA for high-resolution wallpapers.";
+        if (PreviewDisclaimerText != null) PreviewDisclaimerText.Text = loc.GetString(LocalizationKeys.DiscoverLicenseDisclaimer);
+        if (PreviewAddButton != null) PreviewAddButton.Content = loc.GetString(LocalizationKeys.DiscoverAddToLibrary);
+
+        if (SettingsOnlineLibraryHeader != null) SettingsOnlineLibraryHeader.Text = loc.GetString(LocalizationKeys.SetOnlineLibraryHeader);
+        if (SettingsOnlineLibrarySubtitle != null) SettingsOnlineLibrarySubtitle.Text = loc.GetString(LocalizationKeys.SetOnlineLibrarySubtitle);
+        if (SettingsOnlineOpenverseLabel != null) SettingsOnlineOpenverseLabel.Text = loc.GetString(LocalizationKeys.SetOnlineOpenverse);
+        if (SettingsOnlineWikimediaLabel != null) SettingsOnlineWikimediaLabel.Text = loc.GetString(LocalizationKeys.SetOnlineWikimedia);
+        if (SettingsOnlineNasaLabel != null) SettingsOnlineNasaLabel.Text = loc.GetString(LocalizationKeys.SetOnlineNasa);
+        if (ClearDiscoverCacheButton != null) ClearDiscoverCacheButton.Content = isTr ? "Keşfet Önbelleğini Temizle" : "Clear Discover Cache";
+        if (OnlineOpenverseToggle != null)
+        {
+            OnlineOpenverseToggle.OnContent = isTr ? "Açık" : "On";
+            OnlineOpenverseToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+        if (OnlineWikimediaToggle != null)
+        {
+            OnlineWikimediaToggle.OnContent = isTr ? "Açık" : "On";
+            OnlineWikimediaToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+        if (OnlineNasaToggle != null)
+        {
+            OnlineNasaToggle.OnContent = isTr ? "Açık" : "On";
+            OnlineNasaToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+
         if (SmartScenesToggle != null)
         {
             SmartScenesToggle.OnContent = isTr ? "Açık" : "On";
@@ -5047,6 +5099,18 @@ public sealed partial class DesktopTestWindow : Window
         {
             SmartScenesPreferFavoritesToggle.IsOn = settings.SmartScenesPreferFavorites;
         }
+        if (OnlineOpenverseToggle != null)
+        {
+            OnlineOpenverseToggle.IsOn = settings.OnlineOpenverseEnabled;
+        }
+        if (OnlineWikimediaToggle != null)
+        {
+            OnlineWikimediaToggle.IsOn = settings.OnlineWikimediaEnabled;
+        }
+        if (OnlineNasaToggle != null)
+        {
+            OnlineNasaToggle.IsOn = settings.OnlineNasaEnabled;
+        }
         SelectComboBoxByTag(SmartSceneComboBox, settings.EffectiveSmartScene.ToString());
     }
 
@@ -5143,4 +5207,517 @@ public sealed partial class DesktopTestWindow : Window
             Trace.WriteLine($"Error saving SmartScenesPreferFavorites: {ex}");
         }
     }
+
+    // =========================================================================
+    // NiceWP 0.0.20 — Discover / Online Library Implementation
+    // =========================================================================
+
+    private readonly System.Collections.ObjectModel.ObservableCollection<DiscoverCardViewModel> discoverCards = new();
+    private CancellationTokenSource? discoverSearchCts;
+    private NiceWP.Core.Discover.OnlineWallpaperItem? activePreviewOnlineItem;
+    private bool isDiscoverActive = false;
+
+    private void SwitchToLocalLibraryTab()
+    {
+        isDiscoverActive = false;
+        if (LocalLibraryContainer != null) LocalLibraryContainer.Visibility = Visibility.Visible;
+        if (DiscoverContainer != null) DiscoverContainer.Visibility = Visibility.Collapsed;
+        if (DiscoverPreviewOverlay != null) DiscoverPreviewOverlay.Visibility = Visibility.Collapsed;
+
+        if (LibraryTabLocalButton != null) LibraryTabLocalButton.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
+        if (LibraryTabDiscoverButton != null) LibraryTabDiscoverButton.Style = (Style)Application.Current.Resources["SubtleButtonStyle"];
+
+        var loc = LocalizationService.Instance;
+        if (LibraryTitleText != null) LibraryTitleText.Text = loc.GetString(LocalizationKeys.LibraryTabMyLibrary);
+        RenderLibraryItems();
+    }
+
+    private void SwitchToDiscoverTab()
+    {
+        isDiscoverActive = true;
+        if (LocalLibraryContainer != null) LocalLibraryContainer.Visibility = Visibility.Collapsed;
+        if (DiscoverContainer != null) DiscoverContainer.Visibility = Visibility.Visible;
+
+        if (LibraryTabLocalButton != null) LibraryTabLocalButton.Style = (Style)Application.Current.Resources["SubtleButtonStyle"];
+        if (LibraryTabDiscoverButton != null) LibraryTabDiscoverButton.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
+
+        var loc = LocalizationService.Instance;
+        if (LibraryTitleText != null) LibraryTitleText.Text = loc.GetString(LocalizationKeys.NavDiscover);
+        if (LibraryCountText != null) LibraryCountText.Text = loc.GetString(LocalizationKeys.DiscoverSearchPlaceholder);
+
+        if (DiscoverGridView != null && DiscoverGridView.ItemsSource == null)
+        {
+            DiscoverGridView.ItemsSource = discoverCards;
+        }
+
+        if (discoverCards.Count == 0 && string.IsNullOrWhiteSpace(DiscoverSearchBox?.Text))
+        {
+            _ = ExecuteDiscoverSearchAsync("nature");
+        }
+    }
+
+    private void OnLibraryTabLocalClicked(object sender, RoutedEventArgs e) => SwitchToLocalLibraryTab();
+
+    private void OnLibraryTabDiscoverClicked(object sender, RoutedEventArgs e) => SwitchToDiscoverTab();
+
+    private void OnDiscoverSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        discoverSearchCts?.Cancel();
+        discoverSearchCts = new CancellationTokenSource();
+        var token = discoverSearchCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(350, token);
+                if (token.IsCancellationRequested) return;
+
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (!token.IsCancellationRequested && isDiscoverActive)
+                    {
+                        _ = ExecuteDiscoverSearchAsync();
+                    }
+                });
+            }
+            catch (OperationCanceledException) { }
+        }, token);
+    }
+
+    private void OnDiscoverSearchKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            e.Handled = true;
+            _ = ExecuteDiscoverSearchAsync();
+        }
+    }
+
+    private void OnDiscoverSearchClicked(object sender, RoutedEventArgs e)
+    {
+        _ = ExecuteDiscoverSearchAsync();
+    }
+
+    private void OnDiscoverPresetClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Content is string presetName)
+        {
+            if (DiscoverSearchBox != null)
+            {
+                DiscoverSearchBox.Text = presetName;
+            }
+            _ = ExecuteDiscoverSearchAsync(presetName);
+        }
+    }
+
+    private void OnDiscoverFilterChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (isDiscoverActive && !string.IsNullOrWhiteSpace(DiscoverSearchBox?.Text))
+        {
+            _ = ExecuteDiscoverSearchAsync();
+        }
+    }
+
+    private async Task ExecuteDiscoverSearchAsync(string? queryText = null)
+    {
+        var text = (queryText ?? DiscoverSearchBox?.Text ?? "nature").Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            text = "nature";
+        }
+
+        if (DiscoverProgressBar != null) DiscoverProgressBar.Visibility = Visibility.Visible;
+        if (DiscoverOfflineBanner != null) DiscoverOfflineBanner.Visibility = Visibility.Collapsed;
+        if (DiscoverRateLimitBanner != null) DiscoverRateLimitBanner.Visibility = Visibility.Collapsed;
+        if (DiscoverEmptyState != null) DiscoverEmptyState.Visibility = Visibility.Collapsed;
+
+        var providerTag = (DiscoverProviderComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var orientationTag = (DiscoverOrientationComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var resolutionTag = (DiscoverResolutionComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var mediaTag = (DiscoverMediaComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var licenseTag = (DiscoverLicenseComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var sortTag = (DiscoverSortComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+
+        var query = new NiceWP.Core.Discover.WallpaperSearchQuery(
+            Query: text,
+            ProviderId: providerTag,
+            Orientation: orientationTag,
+            MinResolution: resolutionTag,
+            MediaType: mediaTag,
+            LicenseFilter: licenseTag,
+            Sort: sortTag,
+            SafeContent: true,
+            Page: 1,
+            PageSize: 30);
+
+        try
+        {
+            var result = await libraryController.DiscoverService.SearchAsync(query, CancellationToken.None);
+
+            discoverCards.Clear();
+            var existingLibrary = await libraryController.Service.LoadAsync();
+
+            foreach (var item in result.Items)
+            {
+                var card = new DiscoverCardViewModel(item);
+                var existing = existingLibrary.FindByOrigin(item.ProviderId, item.RemoteId);
+                if (existing != null && existing.FileExists())
+                {
+                    card.IsAdded = true;
+                    card.StatusText = "Added";
+                }
+                discoverCards.Add(card);
+            }
+
+            if (result.RateLimit?.IsLimited == true && DiscoverRateLimitBanner != null)
+            {
+                DiscoverRateLimitBanner.Visibility = Visibility.Visible;
+            }
+
+            if (discoverCards.Count == 0 && DiscoverEmptyState != null)
+            {
+                DiscoverEmptyState.Visibility = Visibility.Visible;
+            }
+        }
+        catch (System.Net.Http.HttpRequestException ex)
+        {
+            Trace.WriteLine($"Network search error: {ex}");
+            if (DiscoverOfflineBanner != null) DiscoverOfflineBanner.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Discover search error: {ex}");
+        }
+        finally
+        {
+            if (DiscoverProgressBar != null) DiscoverProgressBar.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnDiscoverCardImageLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is Image img && img.DataContext is DiscoverCardViewModel vm)
+        {
+            LoadDiscoverCardImage(img, vm.ThumbnailUrl);
+        }
+    }
+
+    private void OnDiscoverCardImageDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
+    {
+        if (sender is Image img && args.NewValue is DiscoverCardViewModel vm)
+        {
+            LoadDiscoverCardImage(img, vm.ThumbnailUrl);
+        }
+    }
+
+    private void LoadDiscoverCardImage(Image img, string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+        try
+        {
+            img.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(url));
+        }
+        catch { /* best effort fallback */ }
+    }
+
+    private void OnDiscoverCardPreviewClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement el && el.DataContext is DiscoverCardViewModel vm)
+        {
+            OpenDiscoverPreview(vm.Item);
+        }
+    }
+
+    private async void OnDiscoverCardAddClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement el && el.DataContext is DiscoverCardViewModel vm)
+        {
+            await DownloadAndImportOnlineItemAsync(vm);
+        }
+    }
+
+    private async Task DownloadAndImportOnlineItemAsync(DiscoverCardViewModel card)
+    {
+        if (card.IsDownloading || card.IsAdded) return;
+
+        card.IsDownloading = true;
+        card.DownloadPercent = 0;
+        card.StatusText = "Downloading...";
+
+        var progress = new Progress<NiceWP.Core.Discover.OnlineDownloadProgress>(p =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (p.Percentage.HasValue)
+                {
+                    card.DownloadPercent = p.Percentage.Value;
+                }
+                card.StatusText = p.Phase;
+            });
+        });
+
+        try
+        {
+            var result = await libraryController.OnlineDownloader.DownloadAndImportAsync(
+                card.Item,
+                progress,
+                CancellationToken.None);
+
+            card.IsDownloading = false;
+            if (result.Success)
+            {
+                card.IsAdded = true;
+                card.DownloadPercent = 100;
+                card.StatusText = result.AlreadyExisted ? "Already in Library" : "Added";
+
+                await libraryController.LoadAsync();
+                RenderLibraryItems();
+                EnqueuePendingAnalysis();
+            }
+            else
+            {
+                card.StatusText = "Failed";
+                if (StatusText != null) StatusText.Text = $"Download failed: {result.ErrorMessage}";
+            }
+        }
+        catch (Exception ex)
+        {
+            card.IsDownloading = false;
+            card.StatusText = "Failed";
+            Trace.WriteLine($"Download failed: {ex}");
+            if (StatusText != null) StatusText.Text = $"Download failed: {ex.Message}";
+        }
+    }
+
+    private void OpenDiscoverPreview(NiceWP.Core.Discover.OnlineWallpaperItem item)
+    {
+        activePreviewOnlineItem = item;
+        if (DiscoverPreviewOverlay == null) return;
+
+        if (PreviewTitleText != null) PreviewTitleText.Text = item.Title;
+        if (PreviewAttributionText != null) PreviewAttributionText.Text = item.AttributionText;
+
+        if (PreviewLargeImage != null)
+        {
+            try
+            {
+                PreviewLargeImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(item.PreviewUrl));
+            }
+            catch { PreviewLargeImage.Source = null; }
+        }
+
+        if (PreviewCreatorLink != null)
+        {
+            PreviewCreatorLink.Content = string.IsNullOrWhiteSpace(item.CreatorName) ? "Artist Profile" : item.CreatorName;
+            PreviewCreatorLink.Visibility = !string.IsNullOrWhiteSpace(item.CreatorUrl) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (PreviewSourceLink != null)
+        {
+            PreviewSourceLink.Content = item.SourceName;
+            PreviewSourceLink.Visibility = !string.IsNullOrWhiteSpace(item.SourceUrl) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (PreviewLicenseLink != null)
+        {
+            PreviewLicenseLink.Content = item.LicenseName;
+            PreviewLicenseLink.Visibility = !string.IsNullOrWhiteSpace(item.LicenseUrl) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (PreviewStatusText != null) PreviewStatusText.Text = string.Empty;
+        DiscoverPreviewOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseDiscoverPreviewClicked(object sender, RoutedEventArgs e)
+    {
+        if (DiscoverPreviewOverlay != null)
+        {
+            DiscoverPreviewOverlay.Visibility = Visibility.Collapsed;
+        }
+        activePreviewOnlineItem = null;
+    }
+
+    private void OnPreviewCreatorLinkClicked(object sender, RoutedEventArgs e)
+    {
+        if (activePreviewOnlineItem != null && !string.IsNullOrWhiteSpace(activePreviewOnlineItem.CreatorUrl))
+        {
+            LaunchUrlSafely(activePreviewOnlineItem.CreatorUrl);
+        }
+    }
+
+    private void OnPreviewSourceLinkClicked(object sender, RoutedEventArgs e)
+    {
+        if (activePreviewOnlineItem != null && !string.IsNullOrWhiteSpace(activePreviewOnlineItem.SourceUrl))
+        {
+            LaunchUrlSafely(activePreviewOnlineItem.SourceUrl);
+        }
+    }
+
+    private void OnPreviewLicenseLinkClicked(object sender, RoutedEventArgs e)
+    {
+        if (activePreviewOnlineItem != null && !string.IsNullOrWhiteSpace(activePreviewOnlineItem.LicenseUrl))
+        {
+            LaunchUrlSafely(activePreviewOnlineItem.LicenseUrl);
+        }
+    }
+
+    private async void OnPreviewAddButtonClicked(object sender, RoutedEventArgs e)
+    {
+        if (activePreviewOnlineItem == null) return;
+        var matchingCard = discoverCards.FirstOrDefault(c => c.Item.RemoteId == activePreviewOnlineItem.RemoteId);
+        if (matchingCard != null)
+        {
+            await DownloadAndImportOnlineItemAsync(matchingCard);
+            if (PreviewStatusText != null)
+            {
+                PreviewStatusText.Text = matchingCard.StatusText;
+            }
+        }
+    }
+
+    private static void LaunchUrlSafely(string url)
+    {
+        try
+        {
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            {
+                Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
+            }
+        }
+        catch { /* best effort */ }
+    }
+
+    private async void OnOnlineProviderToggled(object sender, RoutedEventArgs e)
+    {
+        if (isSyncingAppSettings || closed) return;
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            if (OnlineOpenverseToggle != null) cur.OnlineOpenverseEnabled = OnlineOpenverseToggle.IsOn;
+            if (OnlineWikimediaToggle != null) cur.OnlineWikimediaEnabled = OnlineWikimediaToggle.IsOn;
+            if (OnlineNasaToggle != null) cur.OnlineNasaEnabled = OnlineNasaToggle.IsOn;
+            await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving online provider settings: {ex}");
+        }
+    }
+
+    private void OnClearDiscoverCacheClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            libraryController.DiscoverService.Cache.Clear();
+            if (StatusText != null) StatusText.Text = "Discover cache cleared successfully.";
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error clearing discover cache: {ex}");
+        }
+    }
+}
+
+/// <summary>
+/// Projection model for an online wallpaper result card displayed in the Discover grid.
+/// </summary>
+public sealed class DiscoverCardViewModel : System.ComponentModel.INotifyPropertyChanged
+{
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+    public NiceWP.Core.Discover.OnlineWallpaperItem Item { get; }
+
+    public string Title => Item.Title;
+    public string CreatorDisplay => string.IsNullOrWhiteSpace(Item.CreatorName) ? "Unknown" : Item.CreatorName;
+    public string LicenseBadge => Item.LicenseCode;
+    public string ProviderBadge => Item.SourceName;
+    public string ResolutionBadge => (Item.Width > 0 && Item.Height > 0) ? $"{Item.Width}x{Item.Height}" : (Item.MediaType == "video" ? "VIDEO" : "HD");
+    public string ThumbnailUrl => Item.ThumbnailUrl;
+    public bool IsVideo => Item.MediaType == "video";
+
+    private bool _isDownloading;
+    public bool IsDownloading
+    {
+        get => _isDownloading;
+        set
+        {
+            if (_isDownloading != value)
+            {
+                _isDownloading = value;
+                OnPropertyChanged(nameof(IsDownloading));
+                OnPropertyChanged(nameof(ProgressBarVisibility));
+                OnPropertyChanged(nameof(CanAdd));
+            }
+        }
+    }
+
+    private int _downloadPercent;
+    public int DownloadPercent
+    {
+        get => _downloadPercent;
+        set
+        {
+            if (_downloadPercent != value)
+            {
+                _downloadPercent = value;
+                OnPropertyChanged(nameof(DownloadPercent));
+            }
+        }
+    }
+
+    private string _statusText = string.Empty;
+    public string StatusText
+    {
+        get => _statusText;
+        set
+        {
+            if (_statusText != value)
+            {
+                _statusText = value;
+                OnPropertyChanged(nameof(StatusText));
+                OnPropertyChanged(nameof(ActionButtonText));
+            }
+        }
+    }
+
+    private bool _isAdded;
+    public bool IsAdded
+    {
+        get => _isAdded;
+        set
+        {
+            if (_isAdded != value)
+            {
+                _isAdded = value;
+                OnPropertyChanged(nameof(IsAdded));
+                OnPropertyChanged(nameof(ActionButtonText));
+                OnPropertyChanged(nameof(CanAdd));
+            }
+        }
+    }
+
+    public bool CanAdd => !_isDownloading && !_isAdded;
+
+    public Visibility ProgressBarVisibility => _isDownloading ? Visibility.Visible : Visibility.Collapsed;
+
+    public string ActionButtonText
+    {
+        get
+        {
+            if (_isAdded) return "Added";
+            if (_isDownloading) return $"{_downloadPercent}%";
+            return "Add to Library";
+        }
+    }
+
+    public DiscoverCardViewModel(NiceWP.Core.Discover.OnlineWallpaperItem item)
+    {
+        Item = item;
+    }
+
+    private void OnPropertyChanged(string prop) =>
+        PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(prop));
 }
