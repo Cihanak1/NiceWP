@@ -17,7 +17,7 @@ public sealed class OpenverseWallpaperProvider : IWallpaperProvider
     public const string BaseApiUrl = "https://api.openverse.org/v1/images/";
 
     private readonly HttpClient _httpClient;
-    private ProviderRateLimitState? _currentRateLimit;
+    private readonly OpenverseRateLimitHandler _rateLimitHandler;
 
     public string Id => ProviderId;
 
@@ -30,11 +30,12 @@ public sealed class OpenverseWallpaperProvider : IWallpaperProvider
         SupportsLicenseFilter: true,
         SupportsSorting: false);
 
-    public ProviderRateLimitState? CurrentRateLimit => _currentRateLimit;
+    public ProviderRateLimitState? CurrentRateLimit => _rateLimitHandler.CurrentState;
 
-    public OpenverseWallpaperProvider(HttpClient? httpClient = null)
+    public OpenverseWallpaperProvider(HttpClient? httpClient = null, OpenverseRateLimitHandler? rateLimitHandler = null)
     {
         _httpClient = httpClient ?? new HttpClient();
+        _rateLimitHandler = rateLimitHandler ?? new OpenverseRateLimitHandler();
         if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
         {
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "NiceWP/0.0.20 (+https://github.com/NiceWP)");
@@ -48,17 +49,12 @@ public sealed class OpenverseWallpaperProvider : IWallpaperProvider
             return WallpaperSearchResult.Empty(ProviderId);
         }
 
-        if (_currentRateLimit?.IsLimited == true && _currentRateLimit.ResetAt.HasValue)
+        if (_rateLimitHandler.IsRateLimited(out var resetAt, out var retryAfter))
         {
-            if (DateTimeOffset.UtcNow < _currentRateLimit.ResetAt.Value)
-            {
-                return WallpaperSearchResult.Empty(
-                    ProviderId,
-                    "Openverse is temporarily rate limited. Please try again later.",
-                    _currentRateLimit);
-            }
-
-            _currentRateLimit = _currentRateLimit with { IsLimited = false };
+            return WallpaperSearchResult.Empty(
+                ProviderId,
+                "Openverse is temporarily rate limited. Please try again later.",
+                _rateLimitHandler.CurrentState);
         }
 
         try
@@ -68,20 +64,14 @@ public sealed class OpenverseWallpaperProvider : IWallpaperProvider
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            UpdateRateLimitHeaders(response.Headers);
+            _rateLimitHandler.RecordResponse(response);
 
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                var retryAfterSeconds = ExtractRetryAfter(response.Headers);
-                _currentRateLimit = new ProviderRateLimitState(
-                    IsLimited: true,
-                    ResetAt: DateTimeOffset.UtcNow.AddSeconds(retryAfterSeconds ?? 60),
-                    RetryAfterSeconds: retryAfterSeconds);
-
                 return WallpaperSearchResult.Empty(
                     ProviderId,
                     "Openverse is temporarily rate limited. Please try again later.",
-                    _currentRateLimit);
+                    _rateLimitHandler.CurrentState);
             }
 
             if (!response.IsSuccessStatusCode)
@@ -349,55 +339,5 @@ public sealed class OpenverseWallpaperProvider : IWallpaperProvider
             DerivativeUseAllowed: licenseInfo.DerivativeUseAllowed,
             Mature: false,
             Tags: tags);
-    }
-
-    private void UpdateRateLimitHeaders(HttpResponseHeaders headers)
-    {
-        int? limit = null;
-        int? remaining = null;
-        DateTimeOffset? resetAt = null;
-
-        if (headers.TryGetValues("X-RateLimit-Limit", out var limitVals) &&
-            int.TryParse(limitVals.FirstOrDefault(), out var parsedLimit))
-        {
-            limit = parsedLimit;
-        }
-
-        if (headers.TryGetValues("X-RateLimit-Remaining", out var remVals) &&
-            int.TryParse(remVals.FirstOrDefault(), out var parsedRem))
-        {
-            remaining = parsedRem;
-        }
-
-        if (headers.TryGetValues("X-RateLimit-Reset", out var resetVals) &&
-            long.TryParse(resetVals.FirstOrDefault(), out var resetUnix))
-        {
-            resetAt = DateTimeOffset.FromUnixTimeSeconds(resetUnix);
-        }
-
-        if (limit.HasValue || remaining.HasValue || resetAt.HasValue)
-        {
-            _currentRateLimit = new ProviderRateLimitState(
-                Limit: limit,
-                Remaining: remaining,
-                ResetAt: resetAt,
-                IsLimited: remaining == 0);
-        }
-    }
-
-    private static int? ExtractRetryAfter(HttpResponseHeaders headers)
-    {
-        if (headers.RetryAfter?.Delta.HasValue == true)
-        {
-            return (int)headers.RetryAfter.Delta.Value.TotalSeconds;
-        }
-
-        if (headers.RetryAfter?.Date.HasValue == true)
-        {
-            var diff = headers.RetryAfter.Date.Value - DateTimeOffset.UtcNow;
-            return Math.Max(1, (int)diff.TotalSeconds);
-        }
-
-        return null;
     }
 }
