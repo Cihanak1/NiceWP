@@ -1,3 +1,5 @@
+using NiceWP.Core.Personalization;
+using NiceWP.Infrastructure.Personalization;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Library;
 
@@ -19,7 +21,8 @@ public static class WallpaperSceneScorer
     public static WallpaperSceneScore Score(
         WallpaperLibraryItem wallpaper,
         WallpaperAnalysisMetadata? metadata,
-        SmartSceneContext context)
+        SmartSceneContext context,
+        PersonalizationProfile? profile = null)
     {
         ArgumentNullException.ThrowIfNull(wallpaper);
         ArgumentNullException.ThrowIfNull(context);
@@ -27,7 +30,7 @@ public static class WallpaperSceneScorer
         var scene = context.EffectiveScene;
         if (scene == SmartSceneMode.Off)
         {
-            return CreateNeutralScore(wallpaper, context);
+            return CreateNeutralScore(wallpaper, context, profile);
         }
 
         bool isImage = string.Equals(wallpaper.Type, "Image", StringComparison.OrdinalIgnoreCase);
@@ -226,6 +229,34 @@ public static class WallpaperSceneScorer
                 break;
         }
 
+        // Personalization contribution
+        double personalizationScore = 0.0;
+        if (profile != null && profile.IsEnabled)
+        {
+            var pResult = WallpaperPersonalizationScorer.Score(wallpaper, metadata, profile);
+            personalizationScore = pResult.Total;
+
+            // Enforce Scene Priority Over Personalization (Hard constraints override preferences)
+            if (scene == SmartSceneMode.BatterySaver && (cost == WallpaperCost.Heavy || isVideo))
+            {
+                personalizationScore = Math.Min(0.0, personalizationScore);
+            }
+            else if (scene == SmartSceneMode.Gaming && cost == WallpaperCost.Heavy)
+            {
+                personalizationScore = Math.Min(0.0, personalizationScore);
+            }
+            else if (scene == SmartSceneMode.Focus && motion == WallpaperMotionLevel.High)
+            {
+                personalizationScore = Math.Min(0.0, personalizationScore);
+            }
+
+            if (personalizationScore >= 3.0 && pResult.ReasonsEn.Count > 0)
+            {
+                reasonsEn.AddRange(pResult.ReasonsEn);
+                reasonsTr.AddRange(pResult.ReasonsTr);
+            }
+        }
+
         // Favorite bonus
         double favoriteBonus = 0.0;
         if (wallpaper.IsFavorite && context.PreferFavorites)
@@ -267,7 +298,7 @@ public static class WallpaperSceneScorer
             }
         }
 
-        double total = BaseScore + sceneMatchScore + resourceScore + brightnessScore + motionScore + diversityScore + favoriteBonus - recentPenalty;
+        double total = BaseScore + sceneMatchScore + resourceScore + brightnessScore + motionScore + diversityScore + favoriteBonus + personalizationScore - recentPenalty;
         double clampedTotal = Math.Round(Math.Clamp(total, MinTotalScore, MaxTotalScore), 1);
 
         if (reasonsEn.Count == 0)
@@ -285,15 +316,34 @@ public static class WallpaperSceneScorer
             MotionScore = Math.Round(motionScore, 1),
             DiversityScore = Math.Round(diversityScore, 1),
             FavoriteBonus = Math.Round(favoriteBonus, 1),
+            PersonalizationScore = Math.Round(personalizationScore, 1),
             RecentPenalty = Math.Round(recentPenalty, 1),
             ReasonSummary = string.Join(" · ", reasonsEn),
             ReasonSummaryTr = string.Join(" · ", reasonsTr)
         };
     }
 
-    private static WallpaperSceneScore CreateNeutralScore(WallpaperLibraryItem wallpaper, SmartSceneContext context)
+    private static WallpaperSceneScore CreateNeutralScore(
+        WallpaperLibraryItem wallpaper,
+        SmartSceneContext context,
+        PersonalizationProfile? profile = null)
     {
         double favoriteBonus = (wallpaper.IsFavorite && context.PreferFavorites) ? 10.0 : 0.0;
+        double personalizationScore = 0.0;
+        var reasonsEn = new List<string> { "Standard selection" };
+        var reasonsTr = new List<string> { "Standart seçim" };
+
+        if (profile != null && profile.IsEnabled)
+        {
+            var pResult = WallpaperPersonalizationScorer.Score(wallpaper, null, profile);
+            personalizationScore = pResult.Total;
+            if (personalizationScore >= 4.0 && pResult.ReasonsEn.Count > 0)
+            {
+                reasonsEn.AddRange(pResult.ReasonsEn);
+                reasonsTr.AddRange(pResult.ReasonsTr);
+            }
+        }
+
         double recentPenalty = 0.0;
 
         if (context.AvoidRecent && context.RecentWallpaperIds != null && context.RecentWallpaperIds.Count > 0)
@@ -313,14 +363,15 @@ public static class WallpaperSceneScorer
             else if (idx >= 2) recentPenalty = 5.0;
         }
 
-        double total = Math.Clamp(BaseScore + favoriteBonus - recentPenalty, MinTotalScore, MaxTotalScore);
+        double total = Math.Clamp(BaseScore + favoriteBonus + personalizationScore - recentPenalty, MinTotalScore, MaxTotalScore);
         return new WallpaperSceneScore
         {
             TotalScore = Math.Round(total, 1),
             FavoriteBonus = favoriteBonus,
+            PersonalizationScore = Math.Round(personalizationScore, 1),
             RecentPenalty = recentPenalty,
-            ReasonSummary = "Standard selection",
-            ReasonSummaryTr = "Standart seçim"
+            ReasonSummary = string.Join(" · ", reasonsEn),
+            ReasonSummaryTr = string.Join(" · ", reasonsTr)
         };
     }
 }

@@ -20,6 +20,8 @@ public sealed record WallpaperSceneScore
 
     public double FavoriteBonus { get; init; }
 
+    public double PersonalizationScore { get; init; }
+
     public double RecentPenalty { get; init; }
 
     public string ReasonSummary { get; init; } = string.Empty;
