@@ -170,6 +170,17 @@ public sealed partial class DesktopTestWindow : Window
         libraryController.Rotation.MetadataLookup = id => analysisStore.TryGet(id, out var m) ? m : null;
         libraryController.Rotation.PersonalizationProfileProvider = () => libraryController.Personalization?.IsEnabled == true ? libraryController.Personalization.Profile : null;
         libraryController.Rotation.ExclusionFilter = id => libraryController.Personalization?.AvoidExcluded == true && libraryController.Personalization.IsExcluded(id);
+        if (libraryController.Personalization != null)
+        {
+            libraryController.Personalization.PreferenceUpdated += (s, id) =>
+            {
+                DispatcherQueue.TryEnqueue(UpdatePersonalizationSummaryUI);
+            };
+            libraryController.Personalization.ExclusionChanged += (s, id) =>
+            {
+                DispatcherQueue.TryEnqueue(UpdatePersonalizationSummaryUI);
+            };
+        }
         analysisService.ProgressChanged += OnAnalysisProgressChanged;
         analysisService.AnalysisCompleted += (s, m) =>
         {
@@ -4872,6 +4883,7 @@ public sealed partial class DesktopTestWindow : Window
             PersonalizationExcludedToggle.OnContent = isTr ? "Açık" : "On";
             PersonalizationExcludedToggle.OffContent = isTr ? "Kapalı" : "Off";
         }
+        UpdatePersonalizationSummaryUI();
 
         if (SmartScenesToggle != null)
         {
@@ -5320,6 +5332,7 @@ public sealed partial class DesktopTestWindow : Window
         {
             PersonalizationExcludedToggle.IsOn = settings.PersonalizationAvoidExcluded;
         }
+        UpdatePersonalizationSummaryUI();
         SelectComboBoxByTag(SmartSceneComboBox, settings.EffectiveSmartScene.ToString());
     }
 
@@ -5852,6 +5865,41 @@ public sealed partial class DesktopTestWindow : Window
         catch (Exception ex)
         {
             Trace.WriteLine($"Error saving online provider settings: {ex}");
+        }
+    }
+
+    private void UpdatePersonalizationSummaryUI()
+    {
+        if (PersonalizationLearnedSummaryText == null || libraryController?.Personalization == null) return;
+        var loc = LocalizationService.Instance;
+        var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
+
+        if (PersonalizationLearnedTitleText != null)
+        {
+            PersonalizationLearnedTitleText.Text = isTr ? "Öğrenilen Eğilimler" : "Learned Tendencies";
+        }
+
+        var profile = libraryController.Personalization.Profile;
+        var tendencies = PersonalizationSummaryFormatter.GetTopTendencies(profile.FeatureWeights, isTr);
+        if (tendencies.Count > 0)
+        {
+            PersonalizationLearnedSummaryText.Text = string.Join("  ·  ", tendencies);
+        }
+        else
+        {
+            PersonalizationLearnedSummaryText.Text = isTr
+                ? "Henüz belirgin bir tercih öğrenilmedi. Tercihlerinizi şekillendirmek için 'Bunun Gibilerini Göster', 'Bunun Gibilerini Azalt' veya favorileri kullanın."
+                : "No strong preferences learned yet. Use 'More Like This', 'Less Like This', or mark favorites to shape your preferences.";
+        }
+
+        if (PersonalizationInteractionStatsText != null)
+        {
+            var summary = profile.InteractionSummary;
+            var total = summary.TotalExplicitInteractions + summary.ManualSelectionCount;
+            var excluded = profile.ExcludedWallpaperIds.Count;
+            PersonalizationInteractionStatsText.Text = isTr
+                ? $"Toplam etkileşim: {total} · Hariç tutulan: {excluded}"
+                : $"Total interactions: {total} · Excluded: {excluded}";
         }
     }
 

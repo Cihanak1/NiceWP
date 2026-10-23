@@ -1141,6 +1141,13 @@
                                     <ToggleSwitch x:Name="PersonalizationExcludedToggle" Toggled="OnPersonalizationToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Avoid Excluded Wallpapers" />
                                 </StackPanel>
                             </Grid>
+                            <Border Background="{ThemeResource ControlAltFillColorSecondaryBrush}" CornerRadius="6" Padding="12" Margin="0,8,0,0">
+                                <StackPanel Spacing="6">
+                                    <TextBlock x:Name="PersonalizationLearnedTitleText" Text="Learned Tendencies" FontSize="13" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="PersonalizationLearnedSummaryText" Text="No strong preferences learned yet." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="PersonalizationInteractionStatsText" Text="Interactions: 0 · Excluded: 0" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
