@@ -48,6 +48,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
     private nint _hBitmap;
     private nint _oldBitmap;
     private nint _pBits;
+    private nint _cachedGraphics;
     private int _bufWidth;
     private int _bufHeight;
 
@@ -364,7 +365,14 @@ public sealed class PageTurnVisualOverlay : IDisposable
         var curBottom = (int)Math.Min(height, top + peelSize + 10);
         ClearDirtyRegion(curLeft, curTop, curRight, curBottom);
 
-        GdiPlusNativeMethods.GdipCreateFromHDC(_hdcMem, out var g);
+        var g = _cachedGraphics;
+        bool customG = false;
+        if (g == 0)
+        {
+            GdiPlusNativeMethods.GdipCreateFromHDC(_hdcMem, out g);
+            customG = true;
+        }
+
         if (g != 0)
         {
             GdiPlusNativeMethods.GdipSetSmoothingMode(g, 2); // AntiAlias
@@ -391,7 +399,10 @@ public sealed class PageTurnVisualOverlay : IDisposable
             GdiPlusNativeMethods.GdipDrawLine(g, _penEdge, right - peelSize, top, right - (peelSize * 0.75f), top + (peelSize * 0.75f));
             GdiPlusNativeMethods.GdipDrawLine(g, _penEdge, right - (peelSize * 0.75f), top + (peelSize * 0.75f), right, top + peelSize);
 
-            GdiPlusNativeMethods.GdipDeleteGraphics(g);
+            if (customG)
+            {
+                GdiPlusNativeMethods.GdipDeleteGraphics(g);
+            }
         }
 
         UpdateLayeredWindow(width, height);
@@ -417,7 +428,14 @@ public sealed class PageTurnVisualOverlay : IDisposable
         var curBottom = (int)Math.Min(height, Math.Max(rightFoldY + 30, apexY + 30));
         ClearDirtyRegion(curLeft, curTop, curRight, curBottom);
 
-        GdiPlusNativeMethods.GdipCreateFromHDC(_hdcMem, out var g);
+        var g = _cachedGraphics;
+        bool customG = false;
+        if (g == 0)
+        {
+            GdiPlusNativeMethods.GdipCreateFromHDC(_hdcMem, out g);
+            customG = true;
+        }
+
         if (g != 0)
         {
             GdiPlusNativeMethods.GdipSetSmoothingMode(g, 2); // AntiAlias
@@ -479,7 +497,10 @@ public sealed class PageTurnVisualOverlay : IDisposable
             // Fold crease line
             GdiPlusNativeMethods.GdipDrawLine(g, _penCrease, topFoldX, 0, w, rightFoldY);
 
-            GdiPlusNativeMethods.GdipDeleteGraphics(g);
+            if (customG)
+            {
+                GdiPlusNativeMethods.GdipDeleteGraphics(g);
+            }
         }
 
         UpdateLayeredWindow(width, height);
@@ -554,6 +575,12 @@ public sealed class PageTurnVisualOverlay : IDisposable
         _bufWidth = width;
         _bufHeight = height;
 
+        GdiPlusNativeMethods.GdipCreateFromHDC(_hdcMem, out _cachedGraphics);
+        if (_cachedGraphics != 0)
+        {
+            GdiPlusNativeMethods.GdipSetSmoothingMode(_cachedGraphics, 2); // AntiAlias
+        }
+
         NativeMethods.ReleaseDC(0, hdcScreen);
     }
 
@@ -590,6 +617,27 @@ public sealed class PageTurnVisualOverlay : IDisposable
                 {
                     if (GdiPlusNativeMethods.GdipLoadImageFromFile(nextImagePath, out var newImg) == 0 && newImg != 0)
                     {
+                        GdiPlusNativeMethods.GdipGetImageWidth(newImg, out var imgW);
+                        GdiPlusNativeMethods.GdipGetImageHeight(newImg, out var imgH);
+
+                        var targetW = _screenWidth > 0 ? _screenWidth : 1920;
+                        var targetH = _screenHeight > 0 ? _screenHeight : 1080;
+
+                        // If source image is larger than target screen, pre-scale once in background to eliminate runtime drag latency
+                        if ((imgW > targetW || imgH > targetH) &&
+                            GdiPlusNativeMethods.GdipCreateBitmapFromScan0(targetW, targetH, 0, 0x26200A /* PixelFormat32bppARGB */, 0, out var scaledBmp) == 0 && scaledBmp != 0)
+                        {
+                            if (GdiPlusNativeMethods.GdipGetImageGraphicsContext(scaledBmp, out var scaledG) == 0 && scaledG != 0)
+                            {
+                                GdiPlusNativeMethods.GdipSetSmoothingMode(scaledG, 2);
+                                GdiPlusNativeMethods.GdipDrawImageRectRectI(scaledG, newImg, 0, 0, targetW, targetH, 0, 0, imgW, imgH, 2, 0, 0, 0);
+                                GdiPlusNativeMethods.GdipDeleteGraphics(scaledG);
+
+                                GdiPlusNativeMethods.GdipDisposeImage(newImg);
+                                newImg = scaledBmp;
+                            }
+                        }
+
                         var old = Interlocked.Exchange(ref _nextGdiImage, newImg);
                         if (old != 0)
                         {
@@ -607,6 +655,11 @@ public sealed class PageTurnVisualOverlay : IDisposable
 
     private void DisposeBuffer()
     {
+        if (_cachedGraphics != 0)
+        {
+            GdiPlusNativeMethods.GdipDeleteGraphics(_cachedGraphics);
+            _cachedGraphics = 0;
+        }
         if (_oldBitmap != 0 && _hdcMem != 0)
         {
             NativeMethods.SelectObject(_hdcMem, _oldBitmap);
@@ -857,6 +910,12 @@ public sealed class PageTurnVisualOverlay : IDisposable
 
         [DllImport("gdiplus.dll", ExactSpelling = true)]
         public static extern int GdipGetImageHeight(nint image, out int height);
+
+        [DllImport("gdiplus.dll", ExactSpelling = true)]
+        public static extern int GdipCreateBitmapFromScan0(int width, int height, int stride, int format, nint scan0, out nint bitmap);
+
+        [DllImport("gdiplus.dll", ExactSpelling = true)]
+        public static extern int GdipGetImageGraphicsContext(nint image, out nint graphics);
 
         [DllImport("gdiplus.dll", ExactSpelling = true)]
         public static extern int GdipCreatePath(int brushMode, out nint path);
