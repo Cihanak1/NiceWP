@@ -1113,6 +1113,38 @@
                     </Border>
 <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="8">
+                            <TextBlock x:Name="SettingsPersonalizationHeader" Text="Personalization Engine" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SettingsPersonalizationSubtitle" Text="Learns your wallpaper preferences locally without cloud accounts or telemetry." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Grid ColumnSpacing="16" RowSpacing="12" Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsPersonalizationEnabledLabel" Text="Enable Personalization" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="PersonalizationEnabledToggle" Toggled="OnPersonalizationToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Enable Personalization" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
+                                    <TextBlock x:Name="SettingsPersonalizationFavoritesLabel" Text="Use Favorites in Scoring" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="PersonalizationFavoritesToggle" Toggled="OnPersonalizationToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Use Favorites in Scoring" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
+                                    <TextBlock x:Name="SettingsPersonalizationManualLabel" Text="Learn from Manual Selections" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="PersonalizationManualToggle" Toggled="OnPersonalizationToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Learn from Manual Selections" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                                    <TextBlock x:Name="SettingsPersonalizationExcludedLabel" Text="Avoid Excluded Wallpapers" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ToggleSwitch x:Name="PersonalizationExcludedToggle" Toggled="OnPersonalizationToggled" OnContent="On" OffContent="Off" AutomationProperties.Name="Avoid Excluded Wallpapers" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="8">
                             <TextBlock x:Name="SettingsStorageHeader" Text="System Tray &amp; Local Storage" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <TextBlock x:Name="SettingsStorageSubtitle" Text="NiceWP stays in the system tray when you close this window. Your wallpaper keeps running." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <TextBlock x:Name="LibraryStoragePathText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

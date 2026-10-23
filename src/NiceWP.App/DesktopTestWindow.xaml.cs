@@ -4846,6 +4846,33 @@ public sealed partial class DesktopTestWindow : Window
             OnlineNasaToggle.OffContent = isTr ? "Kapalı" : "Off";
         }
 
+        if (SettingsPersonalizationHeader != null) SettingsPersonalizationHeader.Text = isTr ? "Kişiselleştirme Motoru" : "Personalization Engine";
+        if (SettingsPersonalizationSubtitle != null) SettingsPersonalizationSubtitle.Text = isTr ? "Bulut hesabı veya telemetri olmadan tercihleriniz yerel olarak öğrenilir." : "Learns your wallpaper preferences locally without cloud accounts or telemetry.";
+        if (SettingsPersonalizationEnabledLabel != null) SettingsPersonalizationEnabledLabel.Text = isTr ? "Kişiselleştirmeyi Etkinleştir" : "Enable Personalization";
+        if (SettingsPersonalizationFavoritesLabel != null) SettingsPersonalizationFavoritesLabel.Text = isTr ? "Akıllı Sahnelerde Favorileri Kullan" : "Use Favorites in Scoring";
+        if (SettingsPersonalizationManualLabel != null) SettingsPersonalizationManualLabel.Text = isTr ? "Manuel Seçimlerden Öğren" : "Learn from Manual Selections";
+        if (SettingsPersonalizationExcludedLabel != null) SettingsPersonalizationExcludedLabel.Text = isTr ? "Hariç Tutulan Duvar Kağıtlarından Kaçın" : "Avoid Excluded Wallpapers";
+        if (PersonalizationEnabledToggle != null)
+        {
+            PersonalizationEnabledToggle.OnContent = isTr ? "Açık" : "On";
+            PersonalizationEnabledToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+        if (PersonalizationFavoritesToggle != null)
+        {
+            PersonalizationFavoritesToggle.OnContent = isTr ? "Açık" : "On";
+            PersonalizationFavoritesToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+        if (PersonalizationManualToggle != null)
+        {
+            PersonalizationManualToggle.OnContent = isTr ? "Açık" : "On";
+            PersonalizationManualToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+        if (PersonalizationExcludedToggle != null)
+        {
+            PersonalizationExcludedToggle.OnContent = isTr ? "Açık" : "On";
+            PersonalizationExcludedToggle.OffContent = isTr ? "Kapalı" : "Off";
+        }
+
         if (SmartScenesToggle != null)
         {
             SmartScenesToggle.OnContent = isTr ? "Açık" : "On";
@@ -5276,6 +5303,22 @@ public sealed partial class DesktopTestWindow : Window
         if (OnlineNasaToggle != null)
         {
             OnlineNasaToggle.IsOn = settings.OnlineNasaEnabled;
+        }
+        if (PersonalizationEnabledToggle != null)
+        {
+            PersonalizationEnabledToggle.IsOn = settings.PersonalizationEnabled;
+        }
+        if (PersonalizationFavoritesToggle != null)
+        {
+            PersonalizationFavoritesToggle.IsOn = settings.PersonalizationUseFavorites;
+        }
+        if (PersonalizationManualToggle != null)
+        {
+            PersonalizationManualToggle.IsOn = settings.PersonalizationLearnManualSelections;
+        }
+        if (PersonalizationExcludedToggle != null)
+        {
+            PersonalizationExcludedToggle.IsOn = settings.PersonalizationAvoidExcluded;
         }
         SelectComboBoxByTag(SmartSceneComboBox, settings.EffectiveSmartScene.ToString());
     }
@@ -5809,6 +5852,25 @@ public sealed partial class DesktopTestWindow : Window
         catch (Exception ex)
         {
             Trace.WriteLine($"Error saving online provider settings: {ex}");
+        }
+    }
+
+    private async void OnPersonalizationToggled(object sender, RoutedEventArgs e)
+    {
+        if (isSyncingAppSettings || closed) return;
+        try
+        {
+            var cur = await settingsService.LoadAsync();
+            if (PersonalizationEnabledToggle != null) cur.PersonalizationEnabled = PersonalizationEnabledToggle.IsOn;
+            if (PersonalizationFavoritesToggle != null) cur.PersonalizationUseFavorites = PersonalizationFavoritesToggle.IsOn;
+            if (PersonalizationManualToggle != null) cur.PersonalizationLearnManualSelections = PersonalizationManualToggle.IsOn;
+            if (PersonalizationExcludedToggle != null) cur.PersonalizationAvoidExcluded = PersonalizationExcludedToggle.IsOn;
+            await settingsService.SaveAsync(cur);
+            currentLoadedSettings = cur;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error saving personalization settings: {ex}");
         }
     }
 
