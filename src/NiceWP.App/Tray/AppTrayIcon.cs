@@ -24,6 +24,8 @@ public sealed class AppTrayIcon : IDisposable
     public event Action? OpenRequested;
     public event Action? StopWallpaperRequested;
     public event Action? ExitRequested;
+    public event Action? ShellRecovered;
+    public event Action? DisplayTopologyChanged;
 
     public NiceWP.Core.AdaptiveDesktopProfile CurrentProfile { get; set; } = NiceWP.Core.AdaptiveDesktopProfile.Automatic;
     public NiceWP.Core.ResourceBudget CurrentBudget { get; set; } = NiceWP.Core.ResourceBudget.Automatic;
@@ -141,12 +143,14 @@ public sealed class AppTrayIcon : IDisposable
         else if (uMsg == (uint)_taskbarCreatedMsg && _isInitialized && !_isDisposed)
         {
             RefreshBrandIcon(TrayInterop.NIM_ADD);
+            ShellRecovered?.Invoke();
             return IntPtr.Zero;
         }
         else if (_isInitialized && !_isDisposed &&
             (uMsg == TrayInterop.WM_DPICHANGED || uMsg == TrayInterop.WM_SETTINGCHANGE || uMsg == TrayInterop.WM_DISPLAYCHANGE))
         {
             RefreshBrandIcon(TrayInterop.NIM_MODIFY);
+            DisplayTopologyChanged?.Invoke();
         }
 
         return TrayInterop.DefSubclassProc(hWnd, uMsg, wParam, lParam);

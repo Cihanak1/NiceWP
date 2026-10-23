@@ -196,6 +196,8 @@ public sealed partial class DesktopTestWindow : Window
         trayIcon.ExitRequested += OnTrayExitRequested;
         trayIcon.ProfileSelected += OnTrayProfileSelected;
         trayIcon.BudgetSelected += OnTrayBudgetSelected;
+        trayIcon.ShellRecovered += OnShellOrDisplayChanged;
+        trayIcon.DisplayTopologyChanged += OnShellOrDisplayChanged;
         trayIcon.Initialize();
 
         try
@@ -3144,6 +3146,15 @@ public sealed partial class DesktopTestWindow : Window
         DispatcherQueue.TryEnqueue(async () =>
         {
             await controller.RequestExitAsync();
+        });
+    }
+
+    private void OnShellOrDisplayChanged()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            gestureInputMonitor?.InvalidateBounds();
+            visualOverlay?.Hide();
         });
     }
 

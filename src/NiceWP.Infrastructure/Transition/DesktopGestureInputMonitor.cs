@@ -161,6 +161,20 @@ public sealed class DesktopGestureInputMonitor : IDisposable
     }
 
     /// <summary>
+    /// Forces an immediate refresh of monitor bounds (e.g. after display change or Explorer restart)
+    /// and resets active gestures.
+    /// </summary>
+    public void InvalidateBounds()
+    {
+        if (_isDragging || _isHovering)
+        {
+            CancelActiveGesture("DisplayOrShellChanged");
+        }
+        _cachedBounds = GetPrimaryMonitorBounds();
+        _lastBoundsRefreshTicks = Stopwatch.GetTimestamp();
+    }
+
+    /// <summary>
     /// Low-level hook callback executed on mouse events before Windows dispatches them.
     /// Never swallows events: always delegates to CallNextHookEx.
     /// </summary>
