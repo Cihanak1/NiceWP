@@ -5787,6 +5787,7 @@ public sealed class DiscoverCardViewModel : System.ComponentModel.INotifyPropert
         {
             if (_isAdded) return "Added";
             if (_isDownloading) return $"{_downloadPercent}%";
+            if (_statusText == "Failed") return "Retry";
             return "Add to Library";
         }
     }
