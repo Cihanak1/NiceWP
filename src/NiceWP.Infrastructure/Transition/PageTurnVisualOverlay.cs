@@ -81,11 +81,27 @@ public sealed class PageTurnVisualOverlay : IDisposable
     private nint _nextGdiImage;
     private string? _loadedNextImagePath;
 
+    // Dynamic adaptive quality degradation
+    private int _adaptiveDegradeLevel; // 0 = Full, 1 = Reduced wave, 2 = Disabled wave & simplified shadow
+    private int _consecutiveSlowFrames;
+    private int _consecutiveFastFrames;
+    private double _lastFrameRenderMs;
+
     public nint Handle => _hWnd;
     public bool IsVisible => _isVisible;
     public int RenderedFrameCount => _renderedFrameCount;
     public int ScreenWidth => _screenWidth;
     public int ScreenHeight => _screenHeight;
+    public int AdaptiveDegradeLevel => _adaptiveDegradeLevel;
+    public double LastFrameRenderMs => _lastFrameRenderMs;
+
+    public void ResetAdaptiveDegrade()
+    {
+        _adaptiveDegradeLevel = 0;
+        _consecutiveSlowFrames = 0;
+        _consecutiveFastFrames = 0;
+        _lastFrameRenderMs = 0;
+    }
 
     public PageTurnVisualOverlay()
     {
@@ -412,6 +428,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
     {
         if (_hdcMem == 0 || _pBits == 0) return;
 
+        var sw = Stopwatch.StartNew();
         EnsureGdiResources();
 
         var w = (float)width;
@@ -467,25 +484,29 @@ public sealed class PageTurnVisualOverlay : IDisposable
                 GdiPlusNativeMethods.GdipFillPolygon(g, _brushRevealedBg, _revealedPts, 3, 0);
             }
 
-            // 2. Drop shadow under the fold line
+        // 2. Drop shadow under the fold line (skip if degraded level 2)
+        if (_adaptiveDegradeLevel < 2)
+        {
             _shadowPts[0] = new GdiPlusNativeMethods.GpPointF { X = Math.Max(0, topFoldX - 20), Y = 0 };
             _shadowPts[1] = new GdiPlusNativeMethods.GpPointF { X = topFoldX, Y = 0 };
             _shadowPts[2] = new GdiPlusNativeMethods.GpPointF { X = w, Y = rightFoldY };
             _shadowPts[3] = new GdiPlusNativeMethods.GpPointF { X = w, Y = Math.Min(h, rightFoldY + 20) };
             GdiPlusNativeMethods.GdipFillPolygon(g, _brushShadow, _shadowPts, 4, 0);
+        }
 
-            // 3. Curled paper flap
-            _flapPts[0] = new GdiPlusNativeMethods.GpPointF { X = topFoldX, Y = 0 };
-            _flapPts[1] = new GdiPlusNativeMethods.GpPointF { X = apexX, Y = apexY };
-            _flapPts[2] = new GdiPlusNativeMethods.GpPointF { X = w, Y = rightFoldY };
+        // 3. Curled paper flap
+        _flapPts[0] = new GdiPlusNativeMethods.GpPointF { X = topFoldX, Y = 0 };
+        _flapPts[1] = new GdiPlusNativeMethods.GpPointF { X = apexX, Y = apexY };
+        _flapPts[2] = new GdiPlusNativeMethods.GpPointF { X = w, Y = rightFoldY };
 
-            // Subtle paper wave displacement if enabled
-            if (context.PaperWaveEnabled)
-            {
-                var waveAmp = (float)(Math.Sin(context.Progress * Math.PI * 4) * 6.0);
-                _flapPts[1].X += waveAmp;
-                _flapPts[1].Y -= waveAmp * 0.5f;
-            }
+        // Subtle paper wave displacement if enabled and permitted by adaptive budget
+        if (context.PaperWaveEnabled && _adaptiveDegradeLevel < 2)
+        {
+            var waveScale = _adaptiveDegradeLevel == 1 ? 0.4f : 1.0f;
+            var waveAmp = (float)(Math.Sin(context.Progress * Math.PI * 4) * (6.0 * waveScale));
+            _flapPts[1].X += waveAmp;
+            _flapPts[1].Y -= waveAmp * 0.5f;
+        }
 
             // Paper flap body (backside of page)
             GdiPlusNativeMethods.GdipFillPolygon(g, _brushFlap, _flapPts, 3, 0);
@@ -504,6 +525,37 @@ public sealed class PageTurnVisualOverlay : IDisposable
         }
 
         UpdateLayeredWindow(width, height);
+
+        sw.Stop();
+        _lastFrameRenderMs = sw.Elapsed.TotalMilliseconds;
+        if (_lastFrameRenderMs > 25.0)
+        {
+            _consecutiveSlowFrames++;
+            _consecutiveFastFrames = 0;
+            if (_consecutiveSlowFrames >= 2)
+            {
+                _adaptiveDegradeLevel = 2; // Disable wave & simplify shadow
+            }
+        }
+        else if (_lastFrameRenderMs > 16.0)
+        {
+            _consecutiveSlowFrames++;
+            _consecutiveFastFrames = 0;
+            if (_consecutiveSlowFrames >= 3 && _adaptiveDegradeLevel < 1)
+            {
+                _adaptiveDegradeLevel = 1; // Reduce wave amplitude
+            }
+        }
+        else if (_lastFrameRenderMs < 12.0)
+        {
+            _consecutiveFastFrames++;
+            if (_consecutiveFastFrames >= 10 && _adaptiveDegradeLevel > 0)
+            {
+                _adaptiveDegradeLevel--;
+                _consecutiveFastFrames = 0;
+                _consecutiveSlowFrames = 0;
+            }
+        }
     }
 
     private void UpdateLayeredWindow(int width, int height)
