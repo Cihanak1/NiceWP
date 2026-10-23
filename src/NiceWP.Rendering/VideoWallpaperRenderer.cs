@@ -399,10 +399,9 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
         {
             Release(() => currentPlayer.MediaOpened -= OnMediaOpened);
             Release(() => currentPlayer.MediaFailed -= OnMediaFailed);
-            Release(() => currentPlayer.Pause());
-            Release(() => currentPlayer.Source = null);
         }
 
+        // Decouple presentation target first to prevent black frame flash or DirectX swapchain lock
         if (hwndAlive && currentElement != null)
         {
             Release(() => currentElement.SetMediaPlayer(null));
@@ -410,6 +409,8 @@ public sealed class VideoWallpaperRenderer : IWallpaperRenderer
 
         if (currentPlayer != null)
         {
+            Release(() => currentPlayer.Pause());
+            Release(() => currentPlayer.Source = null);
             Release(() => currentPlayer.Dispose());
         }
 
