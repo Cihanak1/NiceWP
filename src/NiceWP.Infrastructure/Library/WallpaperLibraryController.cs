@@ -1,3 +1,4 @@
+using NiceWP.Infrastructure.Personalization;
 using System.Diagnostics;
 using NiceWP.Core;
 using NiceWP.Infrastructure.Ipc;
@@ -191,6 +192,8 @@ public sealed class WallpaperLibraryController : IDisposable
 
     public Discover.OnlineWallpaperDownloader OnlineDownloader => _onlineDownloader.Value;
 
+    public PersonalizationService Personalization { get; }
+
     public RuntimeIpcClient IpcClient => ipcClient;
 
     public IReadOnlyList<WallpaperLibraryEntryView> Items => visibleItems;
@@ -292,7 +295,8 @@ public sealed class WallpaperLibraryController : IDisposable
         Discover.WallpaperDiscoverService? discoverService = null,
         Discover.OnlineWallpaperDownloader? onlineDownloader = null,
         Analysis.WallpaperAnalysisService? analysisService = null,
-        WallpaperThumbnailService? thumbnailService = null)
+        WallpaperThumbnailService? thumbnailService = null,
+        PersonalizationService? personalizationService = null)
     {
         Service = service ?? new WallpaperLibraryService();
         RemoteImportService = remoteImportService ?? new RemoteWallpaperImportService(Service);
@@ -317,6 +321,12 @@ public sealed class WallpaperLibraryController : IDisposable
 
         _discoverService = new Lazy<Discover.WallpaperDiscoverService>(() => discoverService ?? new Discover.WallpaperDiscoverService());
         _onlineDownloader = new Lazy<Discover.OnlineWallpaperDownloader>(() => onlineDownloader ?? new Discover.OnlineWallpaperDownloader(Service, analysisService, thumbnailService));
+        Personalization = personalizationService ?? new PersonalizationService(
+            store: null,
+            getIsEnabled: () => getSettings?.Invoke()?.PersonalizationEnabled ?? true,
+            getUseFavorites: () => getSettings?.Invoke()?.PersonalizationUseFavorites ?? true,
+            getLearnManual: () => getSettings?.Invoke()?.PersonalizationLearnManualSelections ?? true,
+            getAvoidExcluded: () => getSettings?.Invoke()?.PersonalizationAvoidExcluded ?? true);
         TransitionPreloadService = preloadService ?? new PageTurnPreloadService();
         TransitionCoordinator = transitionCoordinator ?? new WallpaperTransitionCoordinator(
             getRotationService: () => Rotation,
@@ -436,6 +446,7 @@ public sealed class WallpaperLibraryController : IDisposable
         var updated = await Service.SetFavoriteAsync(trimmedId, isFavorite, cancellationToken).ConfigureAwait(false);
         if (updated)
         {
+            Personalization?.RecordFavoriteSignal(trimmedId, isFavorite, AnalysisStore?.TryGet(trimmedId, out var m) == true ? m : null);
             for (var i = 0; i < allItems.Count; i++)
             {
                 if (string.Equals(allItems[i].Id, trimmedId, StringComparison.OrdinalIgnoreCase))

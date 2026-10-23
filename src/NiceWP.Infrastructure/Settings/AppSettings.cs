@@ -89,6 +89,14 @@ public sealed class AppSettings
 
     public bool OnlineNasaEnabled { get; set; } = true;
 
+    public bool PersonalizationEnabled { get; set; } = true;
+
+    public bool PersonalizationUseFavorites { get; set; } = true;
+
+    public bool PersonalizationLearnManualSelections { get; set; } = true;
+
+    public bool PersonalizationAvoidExcluded { get; set; } = true;
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TransitionEffect { get; set; }
 
