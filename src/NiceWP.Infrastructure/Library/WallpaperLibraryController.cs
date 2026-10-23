@@ -184,9 +184,12 @@ public sealed class WallpaperLibraryController : IDisposable
 
     public PageTurnPreloadService TransitionPreloadService { get; }
 
-    public Discover.WallpaperDiscoverService DiscoverService { get; }
+    private readonly Lazy<Discover.WallpaperDiscoverService> _discoverService;
+    private readonly Lazy<Discover.OnlineWallpaperDownloader> _onlineDownloader;
 
-    public Discover.OnlineWallpaperDownloader OnlineDownloader { get; }
+    public Discover.WallpaperDiscoverService DiscoverService => _discoverService.Value;
+
+    public Discover.OnlineWallpaperDownloader OnlineDownloader => _onlineDownloader.Value;
 
     public RuntimeIpcClient IpcClient => ipcClient;
 
@@ -312,8 +315,8 @@ public sealed class WallpaperLibraryController : IDisposable
             getHostStatus: ct => this.ipcClient.GetStatusAsync(cancellationToken: ct),
             onScheduleApplied: () => Rotation.ResetTimer());
 
-        DiscoverService = discoverService ?? new Discover.WallpaperDiscoverService();
-        OnlineDownloader = onlineDownloader ?? new Discover.OnlineWallpaperDownloader(Service, analysisService, thumbnailService);
+        _discoverService = new Lazy<Discover.WallpaperDiscoverService>(() => discoverService ?? new Discover.WallpaperDiscoverService());
+        _onlineDownloader = new Lazy<Discover.OnlineWallpaperDownloader>(() => onlineDownloader ?? new Discover.OnlineWallpaperDownloader(Service, analysisService, thumbnailService));
         TransitionPreloadService = preloadService ?? new PageTurnPreloadService();
         TransitionCoordinator = transitionCoordinator ?? new WallpaperTransitionCoordinator(
             getRotationService: () => Rotation,
