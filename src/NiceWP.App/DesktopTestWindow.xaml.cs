@@ -4883,6 +4883,7 @@ public sealed partial class DesktopTestWindow : Window
             PersonalizationExcludedToggle.OnContent = isTr ? "Açık" : "On";
             PersonalizationExcludedToggle.OffContent = isTr ? "Kapalı" : "Off";
         }
+        if (ResetPersonalizationButton != null) ResetPersonalizationButton.Content = isTr ? "Kişiselleştirmeyi Sıfırla" : "Reset Personalization";
         UpdatePersonalizationSummaryUI();
 
         if (SmartScenesToggle != null)
@@ -5919,6 +5920,44 @@ public sealed partial class DesktopTestWindow : Window
         catch (Exception ex)
         {
             Trace.WriteLine($"Error saving personalization settings: {ex}");
+        }
+    }
+
+    private async void OnResetPersonalizationClicked(object sender, RoutedEventArgs e)
+    {
+        if (closed || libraryController?.Personalization == null || IsInteractionBusy) return;
+
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = isTr ? "Kişiselleştirmeyi Sıfırla?" : "Reset Personalization?",
+            Content = isTr
+                ? "Bu işlem öğrenilen tüm tercihleri, özellik ağırlıklarını ve hariç tutmaları temizler. Kütüphanenizdeki duvar kağıtları ve favorileriniz etkilenmez."
+                : "This will clear all learned preferences, feature weights, and exclusions. Your library wallpapers and favorites will not be affected.",
+            PrimaryButtonText = isTr ? "Sıfırla" : "Reset",
+            CloseButtonText = isTr ? "İptal" : "Cancel",
+            DefaultButton = ContentDialogButton.Close
+        };
+
+        var dialogResult = await dialog.ShowAsync();
+        if (dialogResult != ContentDialogResult.Primary) return;
+
+        try
+        {
+            await libraryController.Personalization.ResetAsync();
+            UpdatePersonalizationSummaryUI();
+            RenderLibraryItems();
+            if (StatusText != null)
+            {
+                StatusText.Text = isTr
+                    ? "Kişiselleştirme profili varsayılanlara sıfırlandı."
+                    : "Personalization profile has been reset to defaults.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to reset personalization profile: {ex}");
         }
     }
 

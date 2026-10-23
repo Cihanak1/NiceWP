@@ -1148,6 +1148,9 @@
                                     <TextBlock x:Name="PersonalizationInteractionStatsText" Text="Interactions: 0 · Excluded: 0" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                 </StackPanel>
                             </Border>
+                            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+                                <Button x:Name="ResetPersonalizationButton" Content="Reset Personalization" Click="OnResetPersonalizationClicked" Style="{StaticResource SubtleButtonStyle}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource ControlSurfaceBrush}" BorderBrush="{ThemeResource ControlStrokeBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
