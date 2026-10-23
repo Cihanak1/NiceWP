@@ -83,6 +83,12 @@ public sealed class AppSettings
 
     public bool SmartScenesPreferFavorites { get; set; } = true;
 
+    public bool OnlineOpenverseEnabled { get; set; } = true;
+
+    public bool OnlineWikimediaEnabled { get; set; } = true;
+
+    public bool OnlineNasaEnabled { get; set; } = true;
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TransitionEffect { get; set; }
 
@@ -223,6 +229,9 @@ public sealed class AppSettings
             SmartRotation = SmartRotation,
             SmartScenesAvoidRecent = SmartScenesAvoidRecent,
             SmartScenesPreferFavorites = SmartScenesPreferFavorites,
+            OnlineOpenverseEnabled = OnlineOpenverseEnabled,
+            OnlineWikimediaEnabled = OnlineWikimediaEnabled,
+            OnlineNasaEnabled = OnlineNasaEnabled,
             TransitionEffect = NormalizeTransitionEffect(TransitionEffect),
             PaperWaveEnabled = PaperWaveEnabled,
             TransitionSensitivity = NormalizeTransitionSensitivity(TransitionSensitivity),
