@@ -128,7 +128,7 @@ public sealed class WallpaperLibraryService
     /// If the normalized path already exists in the library (case-insensitive), returns the existing item without creating a duplicate.
     /// </summary>
     public Task<WallpaperLibraryAddResult> AddAsync(string? path, CancellationToken cancellationToken = default) =>
-        AddCoreAsync(path, displayName: null, isRemoteImported: false, sourceHost: null, sourceDisplayUrl: null, cancellationToken: cancellationToken);
+        AddCoreAsync(path, displayName: null, isRemoteImported: false, sourceHost: null, sourceDisplayUrl: null, origin: null, cancellationToken: cancellationToken);
 
     /// <summary>
     /// Validates and adds a remote wallpaper to the library with optional display name and remote metadata.
@@ -139,7 +139,19 @@ public sealed class WallpaperLibraryService
         string? sourceHost = null,
         string? sourceDisplayUrl = null,
         CancellationToken cancellationToken = default) =>
-        AddCoreAsync(path, displayName: displayName, isRemoteImported: true, sourceHost: sourceHost, sourceDisplayUrl: sourceDisplayUrl, cancellationToken: cancellationToken);
+        AddCoreAsync(path, displayName: displayName, isRemoteImported: true, sourceHost: sourceHost, sourceDisplayUrl: sourceDisplayUrl, origin: null, cancellationToken: cancellationToken);
+
+    /// <summary>
+    /// Validates and adds an online open-license wallpaper with complete provenance metadata.
+    /// </summary>
+    public Task<WallpaperLibraryAddResult> AddOnlineAsync(
+        string? path,
+        string? displayName = null,
+        string? sourceHost = null,
+        string? sourceDisplayUrl = null,
+        NiceWP.Core.Discover.WallpaperOrigin? origin = null,
+        CancellationToken cancellationToken = default) =>
+        AddCoreAsync(path, displayName: displayName, isRemoteImported: true, sourceHost: sourceHost, sourceDisplayUrl: sourceDisplayUrl, origin: origin, cancellationToken: cancellationToken);
 
     /// <summary>
     /// Validates and adds a collection of local image or video wallpaper files to the library in a single atomic operation.
@@ -266,7 +278,8 @@ public sealed class WallpaperLibraryService
         bool isRemoteImported,
         string? sourceHost,
         string? sourceDisplayUrl,
-        CancellationToken cancellationToken)
+        NiceWP.Core.Discover.WallpaperOrigin? origin = null,
+        CancellationToken cancellationToken = default)
     {
         var validation = ValidateWallpaperFile(path, out var fullPath, out var wallpaperType);
         if (!validation.Success)
@@ -286,6 +299,12 @@ public sealed class WallpaperLibraryService
             var existing = library.FindByPath(fullPath);
             if (existing != null)
             {
+                if (origin != null && existing.Origin == null)
+                {
+                    existing.Origin = origin;
+                    await SaveCoreAsync(library, cancellationToken).ConfigureAwait(false);
+                }
+
                 return new WallpaperLibraryAddResult(
                     Success: true,
                     Item: existing,
@@ -303,7 +322,8 @@ public sealed class WallpaperLibraryService
                 LastUsedAtUtc = null,
                 IsRemoteImported = isRemoteImported,
                 SourceHost = string.IsNullOrWhiteSpace(sourceHost) ? null : sourceHost.Trim(),
-                SourceDisplayUrl = string.IsNullOrWhiteSpace(sourceDisplayUrl) ? null : sourceDisplayUrl.Trim()
+                SourceDisplayUrl = string.IsNullOrWhiteSpace(sourceDisplayUrl) ? null : sourceDisplayUrl.Trim(),
+                Origin = origin
             };
 
             library.Items.Add(newItem);
