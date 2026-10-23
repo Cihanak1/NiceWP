@@ -1289,12 +1289,12 @@ public sealed class WallpaperLibraryController : IDisposable
     /// Applies the currently selected library entry as the active wallpaper via Runtime Host.
     /// </summary>
     public Task<WallpaperLibraryApplyResult> ApplySelectedAsync(CancellationToken cancellationToken = default) =>
-        ApplyByIdAsync(SelectedItemId, cancellationToken);
+        ApplyByIdAsync(SelectedItemId, cancellationToken, isManualSelection: true);
 
     /// <summary>
     /// Applies the library entry with the specified ID as the active wallpaper via Runtime Host.
     /// </summary>
-    public async Task<WallpaperLibraryApplyResult> ApplyByIdAsync(string? id, CancellationToken cancellationToken = default)
+    public async Task<WallpaperLibraryApplyResult> ApplyByIdAsync(string? id, CancellationToken cancellationToken = default, bool isManualSelection = false)
     {
         if (Interlocked.CompareExchange(ref busyFlag, 1, 0) != 0)
         {
@@ -1346,7 +1346,12 @@ public sealed class WallpaperLibraryController : IDisposable
                 };
             }
 
-            return await ApplyItemCoreAsync(item, cancellationToken).ConfigureAwait(false);
+            var applyResult = await ApplyItemCoreAsync(item, cancellationToken).ConfigureAwait(false);
+            if (applyResult.Success && isManualSelection)
+            {
+                Personalization?.RecordManualSelection(item, AnalysisStore?.TryGet(item.Id, out var m) == true ? m : null);
+            }
+            return applyResult;
         }
         catch (OperationCanceledException)
         {
