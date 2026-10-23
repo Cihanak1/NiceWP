@@ -36,8 +36,12 @@ public sealed class WallpaperAnalysisStore
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, WallpaperAnalysisMetadata> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _saveLock = new();
+    private CancellationTokenSource? _debounceCts;
+    private int _isDirty;
 
     public string FilePath { get; }
+    public bool IsDirty => Volatile.Read(ref _isDirty) != 0;
 
     public WallpaperAnalysisStore(string? filePath = null)
     {
@@ -116,11 +120,16 @@ public sealed class WallpaperAnalysisStore
 
             var tempPath = $"{FilePath}.{Guid.NewGuid():N}.tmp";
 
-            var data = new WallpaperAnalysisStoreData
+            WallpaperAnalysisStoreData data;
+            lock (_cache)
             {
-                Version = WallpaperAnalysisStoreData.CurrentVersion,
-                Entries = new Dictionary<string, WallpaperAnalysisMetadata>(_cache, StringComparer.OrdinalIgnoreCase)
-            };
+                data = new WallpaperAnalysisStoreData
+                {
+                    Version = WallpaperAnalysisStoreData.CurrentVersion,
+                    Entries = new Dictionary<string, WallpaperAnalysisMetadata>(_cache, StringComparer.OrdinalIgnoreCase)
+                };
+                Interlocked.Exchange(ref _isDirty, 0);
+            }
 
             await using (var tempStream = new FileStream(
                 tempPath,
@@ -172,6 +181,38 @@ public sealed class WallpaperAnalysisStore
         lock (_cache)
         {
             _cache[metadata.WallpaperId] = metadata;
+            Interlocked.Exchange(ref _isDirty, 1);
+        }
+    }
+
+    /// <summary>
+    /// Debounces saving metadata to disk to coalesce rapid multiple updates and avoid write amplification.
+    /// </summary>
+    public void RequestSave(int delayMs = 1000)
+    {
+        lock (_saveLock)
+        {
+            _debounceCts?.Cancel();
+            _debounceCts?.Dispose();
+            _debounceCts = new CancellationTokenSource();
+            var token = _debounceCts.Token;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(delayMs, token).ConfigureAwait(false);
+                    if (!token.IsCancellationRequested)
+                    {
+                        await SaveAsync(token).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"[WallpaperAnalysisStore] Debounced save failed: {ex.Message}");
+                }
+            }, token);
         }
     }
 

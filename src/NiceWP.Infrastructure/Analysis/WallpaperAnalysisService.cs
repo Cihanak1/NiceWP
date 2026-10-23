@@ -87,7 +87,7 @@ public sealed class WallpaperAnalysisService : IDisposable
             if (result != null)
             {
                 _store.Set(result);
-                _ = _store.SaveAsync(CancellationToken.None);
+                _store.RequestSave();
                 AnalysisCompleted?.Invoke(this, result);
             }
             return result;
