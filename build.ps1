@@ -6,7 +6,7 @@ param(
     [ValidateSet("x64", "x86", "ARM64")]
     [string]$Platform = "x64",
 
-    [string]$OutputDir = ".artifacts\dist\NiceWP-0.0.21-win-x64",
+    [string]$OutputDir = ".artifacts\dist\NiceWP-0.0.22-win-x64",
 
     [switch]$SkipRestore,
 
@@ -175,7 +175,7 @@ if ($CreateInstaller) {
         throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
     }
 
-    $InstallerExe = Join-Path $InstallerOutputDir "NiceWP-0.0.21-win-x64-Setup.exe"
+    $InstallerExe = Join-Path $InstallerOutputDir "NiceWP-0.0.22-win-x64-Setup.exe"
     Write-Host "Installer Exe : $InstallerExe" -ForegroundColor Green
 }
 
