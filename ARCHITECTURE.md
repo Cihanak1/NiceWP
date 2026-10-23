@@ -1,41 +1,93 @@
-# NiceWP — Mimari Dokümantasyonu
+# NiceWP — Architecture Specification (0.0.23)
 
-Bu belge, NiceWP projesinin temel mimari prensiplerini ve teknik temellerini tanımlar. Henüz kesinleşmemiş mimari kararlar bu aşamada yer almamaktadır; her yeni temel mimari karar `docs/decisions/` altında ADR formatında kayıt altına alınacaktır.
+This document specifies the technical architecture, component separation, and runtime boundaries of NiceWP as finalized for Milestone 0.0.23.
 
-## 1. Projenin Amacı
-NiceWP, modern Windows sistemleri için geliştirilen, yüksek performanslı, kaynak tüketimi optimize edilmiş ve akıcı bir masaüstü canlı duvar kağıdı (wallpaper) uygulamasıdır.
+---
 
-## 2. Windows-First Yaklaşımı
-NiceWP, Windows işletim sistemi (Windows 10 ve Windows 11 x64) platformunu birincil ve yerel hedef olarak alır. Windows işletim sistemi API'leri, pencere yönetimi ve masaüstü ekosistemiyle derin, verimli ve doğrudan entegrasyonu hedefler.
+## 1. System Topology & Dual-Process Model
 
-## 3. Teknoloji Yığını
-- **Programlama Dili:** C#
-- **Platform / Çalışma Zamanı:** .NET 10 (LTS)
-- **Kullanıcı Arayüzü:** WinUI 3
-- **SDK:** Windows App SDK (Yalnızca Stable kanal — Preview/Experimental paketler kullanılmaz)
-- **Hedef Ortam:** Windows 10/11 x64
+NiceWP implements an isolated dual-process architecture communicating via Windows Named Pipes:
 
-## 4. UI ve Wallpaper Runtime Ayrımı
-Uygulama, uzun vadeli kararlılık ve performans için iki temel yürütme katmanının/sürecinin ayrılması prensibiyle tasarlanacaktır:
-- **Kullanıcı Arayüzü (UI):** Duvar kağıdı seçimi, ayarlar, önizleme ve katalog yönetimini yürüten WinUI 3 tabanlı kabuk. Arayüz kapalıyken sistem kaynaklarını tüketmemek adına bellekten tahliye edilebilir yapıda olacaktır.
-- **Wallpaper Runtime:** Masaüstü arka planında kesintisiz, düşük kaynak tüketimiyle render veya oynatma gerçekleştiren bağımsız çalışma zamanı motoru.
+```mermaid
+flowchart TD
+    subgraph UI_Process["Management Client: NiceWP.App.exe"]
+        WinUI["WinUI 3 Front-End\n(Navigation, Library, Discover, Settings)"]
+        Controller["WallpaperLibraryController"]
+        Personalization["PersonalizationService\n(%LocalAppData%\\NiceWP\\personalization.json)"]
+        Tray["AppTrayIcon\n(Shell Subclass & Explorer Recovery)"]
+        Gesture["PageTurnGestureHook\n(WH_MOUSE_LL Corner Monitor)"]
+        Overlay["PageTurnVisualOverlay\n(GDI+ Curled Flap Renderer)"]
+    end
 
-Bu ayrım, arka plan iş yükünün UI yaşam döngüsünden bağımsız kalmasını, arayüz çökmelerinden veya kapanmalarından etkilenmemesini ve kaynak sızıntılarının engellenmesini sağlar.
+    subgraph IPC["Named Pipe IPC (`\\\\.\\pipe\\NiceWP.Runtime.Host.*`)"]
+        Client["IpcClient"] <--> Server["IpcServer"]
+    end
 
-## 5. Modüler Yapı
-Kod tabanı, sorumlulukların net olarak ayrıldığı modüller halinde kurgulanacaktır:
-- Çekirdek iş kuralları ve domain modelleri
-- Duvar kağıdı motoru / runtime servisleri
-- Platform ve Windows API etkileşim katmanları
-- WinUI 3 kullanıcı arayüzü bileşenleri
+    subgraph Host_Process["Presentation Engine: NiceWP.Runtime.Host.exe"]
+        Engine["RuntimeHostApp"]
+        ImageRenderer["ImageWallpaperRenderer\n(GDI+ / DirectComposition)"]
+        VideoRenderer["VideoWallpaperRenderer\n(Windows.Media.Playback.MediaPlayer)"]
+        DesktopHost["WindowsDesktopHost\n(Progman / WorkerW Discovery)"]
+    end
 
-## 6. Düşük RAM ve CPU Hedefi
-Masaüstü duvar kağıdı uygulamasının birincil önceliği, kullanıcının ana iş yüklerini, üretkenliğini ve oyun/uygulama performansını olumsuz etkilememesidir.
-- Boşta (idle) durumunda sıfıra yakın CPU kullanımı
-- Düşük ve kararlı RAM ayak izi
-- Tam ekran uygulama veya oyun algılandığında arka plan kaynak tüketimini askıya alma / optimize etme hedefi
+    subgraph OS["Windows Shell & Desktop"]
+        WorkerW["WorkerW Window\n(Behind Desktop Icons)"]
+        Explorer["Explorer.exe\n(`WM_TASKBARCREATED`)"]
+    end
 
-## 7. Bağımlılık Yönlerinin Korunması
-- Bağımlılıklar daima dış katmanlardan iç çekirdek katmanlarına (Core/Domain) doğru akmalıdır.
-- Çekirdek katmanlar UI veya somut platform bağımlılıklarına sahip olmamalıdır.
-- Döngüsel bağımlılıklara (circular dependencies) asla izin verilmez.
+    WinUI --> Controller
+    Controller --> Personalization
+    Controller --> Client
+    Gesture --> Overlay
+    Tray --> Explorer
+
+    Server --> Engine
+    Engine --> ImageRenderer
+    Engine --> VideoRenderer
+    Engine --> DesktopHost
+    DesktopHost --> WorkerW
+```
+
+---
+
+## 2. Solution Structure & Project Responsibilities
+
+| Project | Target Framework | Responsibility |
+| :--- | :--- | :--- |
+| **`NiceWP.Core`** | `net10.0` | Zero-dependency contracts, data models (`WallpaperOrigin`, `SmartSceneContext`, `PersonalizationProfile`), enums, and mathematical algorithms. |
+| **`NiceWP.Platform.Windows`** | `net10.0-windows10.0.19041.0` | Native Win32 interop, `WorkerW` discovery, display topology monitoring, and power status APIs. |
+| **`NiceWP.Rendering`** | `net10.0-windows10.0.19041.0` | Surface renderers (`ImageWallpaperRenderer`, `VideoWallpaperRenderer`, DirectComposition integration). |
+| **`NiceWP.Infrastructure`** | `net10.0-windows10.0.19041.0` | Persistent stores (Settings, Library, Analysis, Discover Cache, Personalization), IPC client/server, and localization. |
+| **`NiceWP.Runtime`** | `net10.0-windows10.0.19041.0` | Wallpaper lifecycle coordinator, auto-pause policies, and environmental profiles. |
+| **`NiceWP.Runtime.Host`** | `net10.0-windows10.0.19041.0` | Headless host application that attaches directly to WorkerW. Runs independently of UI lifecycle. |
+| **`NiceWP.App`** | `net10.0-windows10.0.19041.0` | WinUI 3 desktop client, XAML views, system tray subclass, and Interactive Page Turn gesture hook. |
+
+---
+
+## 3. Subsystem Architecture
+
+### 3.1 IPC Layer
+- **Transport**: Duplex Named Pipes with length-prefixed JSON payloads.
+- **Resilience**: Client verifies connectivity on startup and re-launches the host process automatically if terminated.
+
+### 3.2 Smart Scenes
+- **Analysis**: ITU-R BT.709 perceived luminance calculation and color temperature detection cached in `%LocalAppData%\NiceWP\wallpaper-analysis.json`.
+- **Scoring**: Evaluates contextual constraints (Focus, Gaming, Relax, Night, Battery Saver) with recent repetition penalties.
+
+### 3.3 Discover / Online Library
+- **Governance**: Only permissive open-license repositories (Openverse, Wikimedia Commons, NASA) are queried.
+- **Security**: Strict HTTPS enforcement, loopback/private IP blocking (SSRF prevention), size bounds, and magic byte validation.
+
+### 3.4 Personalization Engine
+- **Storage**: 100% local persistence in `%LocalAppData%\NiceWP\personalization.json`. Zero telemetry, zero cloud modeling.
+- **Signals**: Explicit ("More Like This", "Less Like This", "Never Show Again") and implicit (favorites, manual apply).
+- **Decay**: Lazy timestamp decay curves gently relaxing stale signals over months toward an asymptotic 0.20 floor.
+- **Safety**: Scene hard constraints strictly override user preference.
+
+---
+
+## 4. Resilience & Error Handling
+
+- **Atomic File Writing**: All persistence uses temporary staging files with atomic replacement.
+- **Corruption Quarantine**: Malformed JSON files are backed up to `.bak` files rather than silently destroyed.
+- **Shell Recovery**: On Explorer crash or restart (`WM_TASKBARCREATED`), tray icons and desktop attachments automatically restore.
