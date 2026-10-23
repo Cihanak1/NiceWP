@@ -249,6 +249,10 @@ public static class WallpaperSceneScorer
             {
                 personalizationScore = Math.Min(0.0, personalizationScore);
             }
+            else if (scene == SmartSceneMode.Night && metadata?.IsLight == true)
+            {
+                personalizationScore = Math.Min(0.0, personalizationScore);
+            }
 
             if (personalizationScore >= 3.0 && pResult.ReasonsEn.Count > 0)
             {
