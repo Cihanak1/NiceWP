@@ -97,6 +97,7 @@ public sealed class WallpaperAnalysisStore
         catch (Exception ex)
         {
             Trace.WriteLine($"[WallpaperAnalysisStore] Failed to load store: {ex.Message}");
+            RecoverCorruptedFile();
         }
         finally
         {
@@ -256,6 +257,23 @@ public sealed class WallpaperAnalysisStore
         catch
         {
             return false;
+        }
+    }
+
+    private void RecoverCorruptedFile()
+    {
+        try
+        {
+            if (File.Exists(FilePath))
+            {
+                var backupPath = $"{FilePath}.corrupt.{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}.bak";
+                File.Copy(FilePath, backupPath, overwrite: true);
+                Trace.WriteLine($"[WallpaperAnalysisStore] Corrupted analysis backed up to: {backupPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[WallpaperAnalysisStore] Failed to quarantine corrupt analysis: {ex.Message}");
         }
     }
 }

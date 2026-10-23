@@ -73,6 +73,7 @@ public sealed class SettingsService
         catch (Exception ex)
         {
             Trace.WriteLine($"Failed to load settings from '{FilePath}': {ex}");
+            RecoverCorruptedFile();
             return AppSettings.CreateDefault();
         }
         finally
@@ -164,6 +165,23 @@ public sealed class SettingsService
         catch (Exception cleanupEx)
         {
             Trace.WriteLine($"Failed to clean up temporary settings file '{tempFilePath}': {cleanupEx}");
+        }
+    }
+
+    private void RecoverCorruptedFile()
+    {
+        try
+        {
+            if (File.Exists(FilePath))
+            {
+                var backupPath = $"{FilePath}.corrupt.{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}.bak";
+                File.Copy(FilePath, backupPath, overwrite: true);
+                Trace.WriteLine($"[SettingsService] Corrupted settings backed up to: {backupPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[SettingsService] Failed to quarantine corrupt settings: {ex.Message}");
         }
     }
 }

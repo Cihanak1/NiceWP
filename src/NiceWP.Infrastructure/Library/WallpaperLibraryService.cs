@@ -882,6 +882,7 @@ public sealed class WallpaperLibraryService
         catch (Exception ex)
         {
             Trace.WriteLine($"Failed to load wallpaper library from '{FilePath}': {ex}");
+            RecoverCorruptedFile();
             return WallpaperLibrary.CreateDefault();
         }
     }
@@ -985,6 +986,23 @@ public sealed class WallpaperLibraryService
         catch (Exception cleanupEx)
         {
             Trace.WriteLine($"Failed to clean up temporary library file '{tempFilePath}': {cleanupEx}");
+        }
+    }
+
+    private void RecoverCorruptedFile()
+    {
+        try
+        {
+            if (File.Exists(FilePath))
+            {
+                var backupPath = $"{FilePath}.corrupt.{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}.bak";
+                File.Copy(FilePath, backupPath, overwrite: true);
+                Trace.WriteLine($"[WallpaperLibraryService] Corrupted library backed up to: {backupPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[WallpaperLibraryService] Failed to quarantine corrupt library: {ex.Message}");
         }
     }
 }
