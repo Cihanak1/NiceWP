@@ -75,12 +75,17 @@ public sealed class PersonalizationStore
                     JsonOptions,
                     cancellationToken).ConfigureAwait(false);
 
-                if (loaded != null)
+                if (loaded != null && loaded.FeatureWeights != null)
                 {
-                    loaded.FeatureWeights?.ClampAll();
+                    loaded.FeatureWeights.ClampAll();
                     Profile = loaded;
                     Interlocked.Exchange(ref _isDirty, 0);
                     return Profile;
+                }
+                else
+                {
+                    Trace.WriteLine("[PersonalizationStore] Empty or invalid profile file. Recovering default...");
+                    RecoverCorruptedFile();
                 }
             }
             catch (Exception ex) when (ex is JsonException or IOException)

@@ -4884,6 +4884,12 @@ public sealed partial class DesktopTestWindow : Window
             PersonalizationExcludedToggle.OffContent = isTr ? "Kapalı" : "Off";
         }
         if (ResetPersonalizationButton != null) ResetPersonalizationButton.Content = isTr ? "Kişiselleştirmeyi Sıfırla" : "Reset Personalization";
+        if (SettingsPersonalizationPrivacyText != null)
+        {
+            SettingsPersonalizationPrivacyText.Text = isTr
+                ? "Gizlilik garantisi: Tüm kişiselleştirme sinyalleri ve tercihleri yalnızca bu cihazda işlenir ve saklanır (%LocalAppData%\\NiceWP\\personalization.json). Hiçbir ağ isteği, telemetri veya uzak analiz iletilmez."
+                : "Privacy guarantee: All personalization signals and preferences are processed and stored strictly on this device (%LocalAppData%\\NiceWP\\personalization.json). No network requests, telemetry, or remote analytics are ever transmitted.";
+        }
         UpdatePersonalizationSummaryUI();
 
         if (SmartScenesToggle != null)
