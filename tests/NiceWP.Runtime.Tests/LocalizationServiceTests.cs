@@ -313,7 +313,8 @@ public sealed class LocalizationServiceTests
         {
             Path.Combine(repoRoot, "src", "NiceWP.App", "DesktopTestWindow.xaml"),
             Path.Combine(repoRoot, "src", "NiceWP.App", "DesktopTestWindow.xaml.cs"),
-            Path.Combine(repoRoot, "src", "NiceWP.Infrastructure", "Localization", "TurkishResources.cs")
+            Path.Combine(repoRoot, "src", "NiceWP.Infrastructure", "Localization", "TurkishResources.cs"),
+            Path.Combine(repoRoot, "src", "NiceWP.Infrastructure", "Localization", "EnglishResources.cs")
         };
 
         var suspicious = new[] { "Ã¼", "Ã¶", "Ã§", "ÄŸ", "Ä±", "ÅŸ", "Ä°", "Ã‡", "Ã–", "Ãœ", "Äž", "Åž", "â€¦", "â€¢", "Â·", "ï¿½", "\uFFFD" };
