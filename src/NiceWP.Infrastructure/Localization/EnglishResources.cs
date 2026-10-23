@@ -289,5 +289,26 @@ internal static class EnglishResources
         service.RegisterEnglish(LocalizationKeys.SetOnlineOpenverse, "Openverse");
         service.RegisterEnglish(LocalizationKeys.SetOnlineWikimedia, "Wikimedia Commons");
         service.RegisterEnglish(LocalizationKeys.SetOnlineNasa, "NASA");
+
+        // Personalization Engine (0.0.22)
+        service.RegisterEnglish(LocalizationKeys.PersonalizationMoreLikeThis, "More Like This");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationLessLikeThis, "Less Like This");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationNeverShowAgain, "Never Show Again");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationRemoveExclusion, "Remove Exclusion");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationExcludedBadge, "EXCLUDED");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationLearnedTendencies, "Learned Tendencies");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationNoTendencies, "No strong preferences learned yet. Use 'More Like This', 'Less Like This', or mark favorites to shape your preferences.");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationTotalInteractions, "Total interactions: {0} · Excluded: {1}");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationResetButton, "Reset Personalization");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationResetTitle, "Reset Personalization?");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationResetConfirm, "This will clear all learned preferences, feature weights, and exclusions. Your library wallpapers and favorites will not be affected.");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationResetSuccess, "Personalization profile has been reset to defaults.");
+        service.RegisterEnglish(LocalizationKeys.PersonalizationPrivacyGuarantee, "Privacy guarantee: All personalization signals and preferences are processed and stored strictly on this device (%LocalAppData%\\NiceWP\\personalization.json). No network requests, telemetry, or remote analytics are ever transmitted.");
+        service.RegisterEnglish(LocalizationKeys.SetPersonalizationHeader, "Personalization Engine");
+        service.RegisterEnglish(LocalizationKeys.SetPersonalizationSubtitle, "Learns your wallpaper preferences locally without cloud accounts or telemetry.");
+        service.RegisterEnglish(LocalizationKeys.SetPersonalizationEnabled, "Enable Personalization");
+        service.RegisterEnglish(LocalizationKeys.SetPersonalizationFavorites, "Use Favorites in Scoring");
+        service.RegisterEnglish(LocalizationKeys.SetPersonalizationManual, "Learn from Manual Selections");
+        service.RegisterEnglish(LocalizationKeys.SetPersonalizationExcluded, "Avoid Excluded Wallpapers");
     }
 }

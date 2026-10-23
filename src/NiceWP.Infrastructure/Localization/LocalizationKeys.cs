@@ -287,4 +287,25 @@ public static class LocalizationKeys
     public const string SetOnlineOpenverse = "Set.OnlineOpenverse";
     public const string SetOnlineWikimedia = "Set.OnlineWikimedia";
     public const string SetOnlineNasa = "Set.OnlineNasa";
+
+    // Personalization Engine (0.0.22)
+    public const string PersonalizationMoreLikeThis = "Personalization.MoreLikeThis";
+    public const string PersonalizationLessLikeThis = "Personalization.LessLikeThis";
+    public const string PersonalizationNeverShowAgain = "Personalization.NeverShowAgain";
+    public const string PersonalizationRemoveExclusion = "Personalization.RemoveExclusion";
+    public const string PersonalizationExcludedBadge = "Personalization.ExcludedBadge";
+    public const string PersonalizationLearnedTendencies = "Personalization.LearnedTendencies";
+    public const string PersonalizationNoTendencies = "Personalization.NoTendencies";
+    public const string PersonalizationTotalInteractions = "Personalization.TotalInteractions";
+    public const string PersonalizationResetButton = "Personalization.ResetButton";
+    public const string PersonalizationResetTitle = "Personalization.ResetTitle";
+    public const string PersonalizationResetConfirm = "Personalization.ResetConfirm";
+    public const string PersonalizationResetSuccess = "Personalization.ResetSuccess";
+    public const string PersonalizationPrivacyGuarantee = "Personalization.PrivacyGuarantee";
+    public const string SetPersonalizationHeader = "Set.PersonalizationHeader";
+    public const string SetPersonalizationSubtitle = "Set.PersonalizationSubtitle";
+    public const string SetPersonalizationEnabled = "Set.PersonalizationEnabled";
+    public const string SetPersonalizationFavorites = "Set.PersonalizationFavorites";
+    public const string SetPersonalizationManual = "Set.PersonalizationManual";
+    public const string SetPersonalizationExcluded = "Set.PersonalizationExcluded";
 }

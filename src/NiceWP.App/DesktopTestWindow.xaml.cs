@@ -1374,18 +1374,18 @@ public sealed partial class DesktopTestWindow : Window
                         }
                         break;
                     case "MenuMoreLikeThisItem":
-                        mfi.Text = isTr ? "Bunun Gibilerini Göster" : "More Like This";
+                        mfi.Text = loc.GetString(LocalizationKeys.PersonalizationMoreLikeThis);
                         mfi.IsEnabled = isIdle;
                         break;
                     case "MenuLessLikeThisItem":
-                        mfi.Text = isTr ? "Bunun Gibilerini Azalt" : "Less Like This";
+                        mfi.Text = loc.GetString(LocalizationKeys.PersonalizationLessLikeThis);
                         mfi.IsEnabled = isIdle;
                         break;
                     case "MenuNeverShowAgainItem":
                         var isExcluded = libraryController.Personalization?.IsExcluded(currentEntry.Id) == true;
                         mfi.Text = isExcluded
-                            ? (isTr ? "Hariç Tutmayı Kaldır" : "Remove Exclusion")
-                            : (isTr ? "Bir Daha Gösterme" : "Never Show Again");
+                            ? loc.GetString(LocalizationKeys.PersonalizationRemoveExclusion)
+                            : loc.GetString(LocalizationKeys.PersonalizationNeverShowAgain);
                         mfi.IsEnabled = isIdle;
                         break;
                     case "MenuRenameItem":
@@ -1840,7 +1840,7 @@ public sealed partial class DesktopTestWindow : Window
             else if (libraryController?.Personalization?.IsExcluded(currentEntry.Id) == true)
             {
                 badge.Visibility = Visibility.Visible;
-                badgeText.Text = isTr ? "HARİÇ TUTULDU" : "EXCLUDED";
+                badgeText.Text = loc.GetString(LocalizationKeys.PersonalizationExcludedBadge);
             }
             else if (currentEntry.IsRemoteImported)
             {
@@ -3837,9 +3837,9 @@ public sealed partial class DesktopTestWindow : Window
         if (ActiveEmptySubtitleText != null) ActiveEmptySubtitleText.Text = isTr ? "Kütüphaneden bir duvar kağıdı uygulayın veya aşağıdan bir dosya seçin." : "Apply a wallpaper from Library or choose a file below.";
         if (ActiveSourceResolutionHeader != null) ActiveSourceResolutionHeader.Text = isTr ? "Kaynak çözünürlüğü · son ölçüm" : "Source resolution · last measurement";
         if (ActiveMissingWarningText != null) ActiveMissingWarningText.Text = isTr ? "Duvar kağıdı dosyası bulunamadı." : "The wallpaper file is missing.";
-        if (ActiveMoreLikeThisText != null) ActiveMoreLikeThisText.Text = isTr ? "Bunun Gibilerini Göster" : "More Like This";
-        if (ActiveLessLikeThisText != null) ActiveLessLikeThisText.Text = isTr ? "Bunun Gibilerini Azalt" : "Less Like This";
-        if (ActiveNeverShowAgainText != null) ActiveNeverShowAgainText.Text = isTr ? "Bir Daha Gösterme" : "Never Show Again";
+        if (ActiveMoreLikeThisText != null) ActiveMoreLikeThisText.Text = loc.GetString(LocalizationKeys.PersonalizationMoreLikeThis);
+        if (ActiveLessLikeThisText != null) ActiveLessLikeThisText.Text = loc.GetString(LocalizationKeys.PersonalizationLessLikeThis);
+        if (ActiveNeverShowAgainText != null) ActiveNeverShowAgainText.Text = loc.GetString(LocalizationKeys.PersonalizationNeverShowAgain);
         if (ActiveMoreLikeThisButton != null) ToolTipService.SetToolTip(ActiveMoreLikeThisButton, isTr ? "Bunun gibi duvar kağıtlarını daha sık göster" : "Show wallpapers like this more often");
         if (ActiveLessLikeThisButton != null) ToolTipService.SetToolTip(ActiveLessLikeThisButton, isTr ? "Bunun gibi duvar kağıtlarını daha az göster" : "Show wallpapers like this less often");
         if (ActiveNeverShowAgainButton != null) ToolTipService.SetToolTip(ActiveNeverShowAgainButton, isTr ? "Bu duvar kağıdını otomatik rotasyonda bir daha gösterme" : "Never show this wallpaper again in automatic rotation");
@@ -4857,12 +4857,12 @@ public sealed partial class DesktopTestWindow : Window
             OnlineNasaToggle.OffContent = isTr ? "Kapalı" : "Off";
         }
 
-        if (SettingsPersonalizationHeader != null) SettingsPersonalizationHeader.Text = isTr ? "Kişiselleştirme Motoru" : "Personalization Engine";
-        if (SettingsPersonalizationSubtitle != null) SettingsPersonalizationSubtitle.Text = isTr ? "Bulut hesabı veya telemetri olmadan tercihleriniz yerel olarak öğrenilir." : "Learns your wallpaper preferences locally without cloud accounts or telemetry.";
-        if (SettingsPersonalizationEnabledLabel != null) SettingsPersonalizationEnabledLabel.Text = isTr ? "Kişiselleştirmeyi Etkinleştir" : "Enable Personalization";
-        if (SettingsPersonalizationFavoritesLabel != null) SettingsPersonalizationFavoritesLabel.Text = isTr ? "Akıllı Sahnelerde Favorileri Kullan" : "Use Favorites in Scoring";
-        if (SettingsPersonalizationManualLabel != null) SettingsPersonalizationManualLabel.Text = isTr ? "Manuel Seçimlerden Öğren" : "Learn from Manual Selections";
-        if (SettingsPersonalizationExcludedLabel != null) SettingsPersonalizationExcludedLabel.Text = isTr ? "Hariç Tutulan Duvar Kağıtlarından Kaçın" : "Avoid Excluded Wallpapers";
+        if (SettingsPersonalizationHeader != null) SettingsPersonalizationHeader.Text = loc.GetString(LocalizationKeys.SetPersonalizationHeader);
+        if (SettingsPersonalizationSubtitle != null) SettingsPersonalizationSubtitle.Text = loc.GetString(LocalizationKeys.SetPersonalizationSubtitle);
+        if (SettingsPersonalizationEnabledLabel != null) SettingsPersonalizationEnabledLabel.Text = loc.GetString(LocalizationKeys.SetPersonalizationEnabled);
+        if (SettingsPersonalizationFavoritesLabel != null) SettingsPersonalizationFavoritesLabel.Text = loc.GetString(LocalizationKeys.SetPersonalizationFavorites);
+        if (SettingsPersonalizationManualLabel != null) SettingsPersonalizationManualLabel.Text = loc.GetString(LocalizationKeys.SetPersonalizationManual);
+        if (SettingsPersonalizationExcludedLabel != null) SettingsPersonalizationExcludedLabel.Text = loc.GetString(LocalizationKeys.SetPersonalizationExcluded);
         if (PersonalizationEnabledToggle != null)
         {
             PersonalizationEnabledToggle.OnContent = isTr ? "Açık" : "On";
@@ -4883,13 +4883,8 @@ public sealed partial class DesktopTestWindow : Window
             PersonalizationExcludedToggle.OnContent = isTr ? "Açık" : "On";
             PersonalizationExcludedToggle.OffContent = isTr ? "Kapalı" : "Off";
         }
-        if (ResetPersonalizationButton != null) ResetPersonalizationButton.Content = isTr ? "Kişiselleştirmeyi Sıfırla" : "Reset Personalization";
-        if (SettingsPersonalizationPrivacyText != null)
-        {
-            SettingsPersonalizationPrivacyText.Text = isTr
-                ? "Gizlilik garantisi: Tüm kişiselleştirme sinyalleri ve tercihleri yalnızca bu cihazda işlenir ve saklanır (%LocalAppData%\\NiceWP\\personalization.json). Hiçbir ağ isteği, telemetri veya uzak analiz iletilmez."
-                : "Privacy guarantee: All personalization signals and preferences are processed and stored strictly on this device (%LocalAppData%\\NiceWP\\personalization.json). No network requests, telemetry, or remote analytics are ever transmitted.";
-        }
+        if (ResetPersonalizationButton != null) ResetPersonalizationButton.Content = loc.GetString(LocalizationKeys.PersonalizationResetButton);
+        if (SettingsPersonalizationPrivacyText != null) SettingsPersonalizationPrivacyText.Text = loc.GetString(LocalizationKeys.PersonalizationPrivacyGuarantee);
         UpdatePersonalizationSummaryUI();
 
         if (SmartScenesToggle != null)
@@ -5883,7 +5878,7 @@ public sealed partial class DesktopTestWindow : Window
 
         if (PersonalizationLearnedTitleText != null)
         {
-            PersonalizationLearnedTitleText.Text = isTr ? "Öğrenilen Eğilimler" : "Learned Tendencies";
+            PersonalizationLearnedTitleText.Text = loc.GetString(LocalizationKeys.PersonalizationLearnedTendencies);
         }
 
         var profile = libraryController.Personalization.Profile;
@@ -5894,9 +5889,7 @@ public sealed partial class DesktopTestWindow : Window
         }
         else
         {
-            PersonalizationLearnedSummaryText.Text = isTr
-                ? "Henüz belirgin bir tercih öğrenilmedi. Tercihlerinizi şekillendirmek için 'Bunun Gibilerini Göster', 'Bunun Gibilerini Azalt' veya favorileri kullanın."
-                : "No strong preferences learned yet. Use 'More Like This', 'Less Like This', or mark favorites to shape your preferences.";
+            PersonalizationLearnedSummaryText.Text = loc.GetString(LocalizationKeys.PersonalizationNoTendencies);
         }
 
         if (PersonalizationInteractionStatsText != null)
@@ -5904,9 +5897,7 @@ public sealed partial class DesktopTestWindow : Window
             var summary = profile.InteractionSummary;
             var total = summary.TotalExplicitInteractions + summary.ManualSelectionCount;
             var excluded = profile.ExcludedWallpaperIds.Count;
-            PersonalizationInteractionStatsText.Text = isTr
-                ? $"Toplam etkileşim: {total} · Hariç tutulan: {excluded}"
-                : $"Total interactions: {total} · Excluded: {excluded}";
+            PersonalizationInteractionStatsText.Text = string.Format(loc.GetString(LocalizationKeys.PersonalizationTotalInteractions), total, excluded);
         }
     }
 

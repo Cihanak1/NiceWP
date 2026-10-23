@@ -290,5 +290,26 @@ internal static class TurkishResources
         service.RegisterTurkish(LocalizationKeys.SetOnlineOpenverse, "Openverse");
         service.RegisterTurkish(LocalizationKeys.SetOnlineWikimedia, "Wikimedia Commons");
         service.RegisterTurkish(LocalizationKeys.SetOnlineNasa, "NASA");
+
+        // Personalization Engine (0.0.22)
+        service.RegisterTurkish(LocalizationKeys.PersonalizationMoreLikeThis, "Bunun Gibilerini Göster");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationLessLikeThis, "Bunun Gibilerini Azalt");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationNeverShowAgain, "Bir Daha Gösterme");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationRemoveExclusion, "Hariç Tutmayı Kaldır");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationExcludedBadge, "HARİÇ TUTULDU");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationLearnedTendencies, "Öğrenilen Eğilimler");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationNoTendencies, "Henüz belirgin bir tercih öğrenilmedi. Tercihlerinizi şekillendirmek için 'Bunun Gibilerini Göster', 'Bunun Gibilerini Azalt' veya favorileri kullanın.");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationTotalInteractions, "Toplam etkileşim: {0} · Hariç tutulan: {1}");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationResetButton, "Kişiselleştirmeyi Sıfırla");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationResetTitle, "Kişiselleştirmeyi Sıfırla?");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationResetConfirm, "Bu işlem öğrenilen tüm tercihleri, özellik ağırlıklarını ve hariç tutmaları temizler. Kütüphanenizdeki duvar kağıtları ve favorileriniz etkilenmez.");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationResetSuccess, "Kişiselleştirme profili varsayılanlara sıfırlandı.");
+        service.RegisterTurkish(LocalizationKeys.PersonalizationPrivacyGuarantee, "Gizlilik garantisi: Tüm kişiselleştirme sinyalleri ve tercihleri yalnızca bu cihazda işlenir ve saklanır (%LocalAppData%\\NiceWP\\personalization.json). Hiçbir ağ isteği, telemetri veya uzak analiz iletilmez.");
+        service.RegisterTurkish(LocalizationKeys.SetPersonalizationHeader, "Kişiselleştirme Motoru");
+        service.RegisterTurkish(LocalizationKeys.SetPersonalizationSubtitle, "Bulut hesabı veya telemetri olmadan tercihleriniz yerel olarak öğrenilir.");
+        service.RegisterTurkish(LocalizationKeys.SetPersonalizationEnabled, "Kişiselleştirmeyi Etkinleştir");
+        service.RegisterTurkish(LocalizationKeys.SetPersonalizationFavorites, "Akıllı Sahnelerde Favorileri Kullan");
+        service.RegisterTurkish(LocalizationKeys.SetPersonalizationManual, "Manuel Seçimlerden Öğren");
+        service.RegisterTurkish(LocalizationKeys.SetPersonalizationExcluded, "Hariç Tutulan Duvar Kağıtlarından Kaçın");
     }
 }
