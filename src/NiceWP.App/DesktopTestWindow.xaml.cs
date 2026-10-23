@@ -5222,6 +5222,7 @@ public sealed partial class DesktopTestWindow : Window
     private void SwitchToLocalLibraryTab()
     {
         isDiscoverActive = false;
+        try { discoverSearchCts?.Cancel(); } catch { }
         if (LocalLibraryContainer != null) LocalLibraryContainer.Visibility = Visibility.Visible;
         if (DiscoverContainer != null) DiscoverContainer.Visibility = Visibility.Collapsed;
         if (DiscoverPreviewOverlay != null) DiscoverPreviewOverlay.Visibility = Visibility.Collapsed;
@@ -5323,6 +5324,10 @@ public sealed partial class DesktopTestWindow : Window
 
     private async Task ExecuteDiscoverSearchAsync(string? queryText = null)
     {
+        try { discoverSearchCts?.Cancel(); } catch { }
+        discoverSearchCts = new CancellationTokenSource();
+        var ct = discoverSearchCts.Token;
+
         var text = (queryText ?? DiscoverSearchBox?.Text ?? "nature").Trim();
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -5355,10 +5360,12 @@ public sealed partial class DesktopTestWindow : Window
 
         try
         {
-            var result = await libraryController.DiscoverService.SearchAsync(query, CancellationToken.None);
+            var result = await libraryController.DiscoverService.SearchAsync(query, ct);
+            if (ct.IsCancellationRequested) return;
 
             discoverCards.Clear();
             var existingLibrary = await libraryController.Service.LoadAsync();
+            if (ct.IsCancellationRequested) return;
 
             foreach (var item in result.Items)
             {
@@ -5381,6 +5388,10 @@ public sealed partial class DesktopTestWindow : Window
             {
                 DiscoverEmptyState.Visibility = Visibility.Visible;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when user types or changes query rapidly
         }
         catch (System.Net.Http.HttpRequestException ex)
         {
@@ -5407,15 +5418,28 @@ public sealed partial class DesktopTestWindow : Window
 
     private void OnDiscoverCardImageDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
     {
-        if (sender is Image img && args.NewValue is DiscoverCardViewModel vm)
+        if (sender is Image img)
         {
-            LoadDiscoverCardImage(img, vm.ThumbnailUrl);
+            if (args.NewValue is DiscoverCardViewModel vm)
+            {
+                LoadDiscoverCardImage(img, vm.ThumbnailUrl);
+            }
+            else
+            {
+                img.Tag = null;
+                img.Source = null;
+            }
         }
     }
 
     private void LoadDiscoverCardImage(Image img, string? url)
     {
-        if (string.IsNullOrWhiteSpace(url)) return;
+        img.Tag = url;
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            img.Source = null;
+            return;
+        }
         try
         {
             if (_discoverThumbnailCache.TryGet(url, out var cached) && cached != null)
@@ -5430,7 +5454,10 @@ public sealed partial class DesktopTestWindow : Window
                 UriSource = new Uri(url)
             };
             _discoverThumbnailCache.Set(url, bmp);
-            img.Source = bmp;
+            if (object.Equals(img.Tag, url))
+            {
+                img.Source = bmp;
+            }
         }
         catch { /* best effort fallback */ }
     }
