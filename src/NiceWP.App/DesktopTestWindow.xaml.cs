@@ -30,6 +30,7 @@ using NiceWP.Infrastructure.Adaptive;
 using NiceWP.Infrastructure.Transition;
 using NiceWP.Infrastructure.Analysis;
 using NiceWP.Infrastructure.SmartScenes;
+using NiceWP.Infrastructure.Discover;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 
@@ -47,6 +48,7 @@ public sealed partial class DesktopTestWindow : Window
     private readonly AppRuleMatchingService appRuleMatchingService = new();
     private readonly WallpaperAnalysisStore analysisStore = new();
     private readonly WallpaperAnalysisService analysisService;
+    private readonly DiscoverThumbnailMemoryCache<BitmapImage> _discoverThumbnailCache = new(120);
     private readonly WallpaperLibraryController libraryController;
     private AppSettings currentLoadedSettings = AppSettings.CreateDefault();
     private DesktopGestureInputMonitor? gestureInputMonitor;
@@ -5416,7 +5418,19 @@ public sealed partial class DesktopTestWindow : Window
         if (string.IsNullOrWhiteSpace(url)) return;
         try
         {
-            img.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(url));
+            if (_discoverThumbnailCache.TryGet(url, out var cached) && cached != null)
+            {
+                img.Source = cached;
+                return;
+            }
+
+            var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage
+            {
+                DecodePixelWidth = 360,
+                UriSource = new Uri(url)
+            };
+            _discoverThumbnailCache.Set(url, bmp);
+            img.Source = bmp;
         }
         catch { /* best effort fallback */ }
     }
