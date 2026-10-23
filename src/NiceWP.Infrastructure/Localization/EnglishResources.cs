@@ -235,5 +235,59 @@ internal static class EnglishResources
         service.RegisterEnglish(LocalizationKeys.ActiveReasonLightResource, "Light resource usage");
 
         service.RegisterEnglish(LocalizationKeys.StatusAnalyzingWallpapers, "Analyzing {0} wallpapers...");
+
+        // Discover / Online Library (0.0.20)
+        service.RegisterEnglish(LocalizationKeys.NavDiscover, "Discover");
+        service.RegisterEnglish(LocalizationKeys.LibraryTabMyLibrary, "My Library");
+        service.RegisterEnglish(LocalizationKeys.LibraryTabDiscover, "Discover");
+        service.RegisterEnglish(LocalizationKeys.DiscoverSearchPlaceholder, "Search wallpapers...");
+        service.RegisterEnglish(LocalizationKeys.DiscoverProvider, "Provider");
+        service.RegisterEnglish(LocalizationKeys.DiscoverProviderAll, "All");
+        service.RegisterEnglish(LocalizationKeys.DiscoverOrientation, "Orientation");
+        service.RegisterEnglish(LocalizationKeys.DiscoverOrientationAll, "All");
+        service.RegisterEnglish(LocalizationKeys.DiscoverOrientationLandscape, "Landscape");
+        service.RegisterEnglish(LocalizationKeys.DiscoverResolution, "Resolution");
+        service.RegisterEnglish(LocalizationKeys.DiscoverResolutionAll, "All");
+        service.RegisterEnglish(LocalizationKeys.DiscoverMedia, "Media");
+        service.RegisterEnglish(LocalizationKeys.DiscoverMediaAll, "All");
+        service.RegisterEnglish(LocalizationKeys.DiscoverMediaImages, "Images");
+        service.RegisterEnglish(LocalizationKeys.DiscoverMediaVideos, "Videos");
+        service.RegisterEnglish(LocalizationKeys.DiscoverLicense, "License");
+        service.RegisterEnglish(LocalizationKeys.DiscoverLicenseRecommended, "Recommended");
+        service.RegisterEnglish(LocalizationKeys.DiscoverLicensePublicDomain, "Public Domain");
+        service.RegisterEnglish(LocalizationKeys.DiscoverLicenseCC0, "CC0 (Public Domain)");
+        service.RegisterEnglish(LocalizationKeys.DiscoverLicenseCCBY, "CC BY (Attribution)");
+        service.RegisterEnglish(LocalizationKeys.DiscoverLicenseCCBYSA, "CC BY-SA (Attribution-ShareAlike)");
+        service.RegisterEnglish(LocalizationKeys.DiscoverSort, "Sort");
+        service.RegisterEnglish(LocalizationKeys.DiscoverSortRelevant, "Relevant");
+        service.RegisterEnglish(LocalizationKeys.DiscoverSortNewest, "Newest");
+        service.RegisterEnglish(LocalizationKeys.DiscoverSortPopular, "Popular");
+        service.RegisterEnglish(LocalizationKeys.DiscoverPresetNature, "Nature");
+        service.RegisterEnglish(LocalizationKeys.DiscoverPresetSpace, "Space");
+        service.RegisterEnglish(LocalizationKeys.DiscoverPresetCity, "City");
+        service.RegisterEnglish(LocalizationKeys.DiscoverPresetMinimal, "Minimal");
+        service.RegisterEnglish(LocalizationKeys.DiscoverPresetAbstract, "Abstract");
+        service.RegisterEnglish(LocalizationKeys.DiscoverPresetDark, "Dark");
+        service.RegisterEnglish(LocalizationKeys.DiscoverPresetLandscape, "Landscape");
+        service.RegisterEnglish(LocalizationKeys.DiscoverSource, "Source");
+        service.RegisterEnglish(LocalizationKeys.DiscoverLicenseLabel, "License");
+        service.RegisterEnglish(LocalizationKeys.DiscoverCreator, "Creator");
+        service.RegisterEnglish(LocalizationKeys.DiscoverAddToLibrary, "Add to Library");
+        service.RegisterEnglish(LocalizationKeys.DiscoverAlreadyInLibrary, "Already in Library");
+        service.RegisterEnglish(LocalizationKeys.DiscoverPreview, "Preview");
+        service.RegisterEnglish(LocalizationKeys.DiscoverOpenOriginal, "Open Original");
+        service.RegisterEnglish(LocalizationKeys.DiscoverDownloading, "Downloading");
+        service.RegisterEnglish(LocalizationKeys.DiscoverProcessing, "Processing");
+        service.RegisterEnglish(LocalizationKeys.DiscoverAdded, "Added");
+        service.RegisterEnglish(LocalizationKeys.DiscoverDownloadFailed, "Download Failed");
+        service.RegisterEnglish(LocalizationKeys.DiscoverLicenseDisclaimer, "License information is provided by the source.");
+        service.RegisterEnglish(LocalizationKeys.DiscoverNoInternet, "No internet connection.");
+        service.RegisterEnglish(LocalizationKeys.DiscoverRateLimited, "Request rate limit reached. Please try again later.");
+        service.RegisterEnglish(LocalizationKeys.DiscoverNoResults, "No wallpapers found matching your search.");
+        service.RegisterEnglish(LocalizationKeys.SetOnlineLibraryHeader, "Online Library");
+        service.RegisterEnglish(LocalizationKeys.SetOnlineLibrarySubtitle, "Configure open-license wallpaper discovery providers.");
+        service.RegisterEnglish(LocalizationKeys.SetOnlineOpenverse, "Openverse");
+        service.RegisterEnglish(LocalizationKeys.SetOnlineWikimedia, "Wikimedia Commons");
+        service.RegisterEnglish(LocalizationKeys.SetOnlineNasa, "NASA");
     }
 }

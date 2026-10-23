@@ -236,5 +236,59 @@ internal static class TurkishResources
         service.RegisterTurkish(LocalizationKeys.ActiveReasonLightResource, "Hafif kaynak kullanımı");
 
         service.RegisterTurkish(LocalizationKeys.StatusAnalyzingWallpapers, "{0} duvar kağıdı analiz ediliyor...");
+
+        // Discover / Online Library (0.0.20)
+        service.RegisterTurkish(LocalizationKeys.NavDiscover, "Keşfet");
+        service.RegisterTurkish(LocalizationKeys.LibraryTabMyLibrary, "Kütüphanem");
+        service.RegisterTurkish(LocalizationKeys.LibraryTabDiscover, "Keşfet");
+        service.RegisterTurkish(LocalizationKeys.DiscoverSearchPlaceholder, "Duvar kağıdı ara...");
+        service.RegisterTurkish(LocalizationKeys.DiscoverProvider, "Kaynak Sağlayıcı");
+        service.RegisterTurkish(LocalizationKeys.DiscoverProviderAll, "Tümü");
+        service.RegisterTurkish(LocalizationKeys.DiscoverOrientation, "Yönelim");
+        service.RegisterTurkish(LocalizationKeys.DiscoverOrientationAll, "Tümü");
+        service.RegisterTurkish(LocalizationKeys.DiscoverOrientationLandscape, "Yatay");
+        service.RegisterTurkish(LocalizationKeys.DiscoverResolution, "Çözünürlük");
+        service.RegisterTurkish(LocalizationKeys.DiscoverResolutionAll, "Tümü");
+        service.RegisterTurkish(LocalizationKeys.DiscoverMedia, "Medya");
+        service.RegisterTurkish(LocalizationKeys.DiscoverMediaAll, "Tümü");
+        service.RegisterTurkish(LocalizationKeys.DiscoverMediaImages, "Resimler");
+        service.RegisterTurkish(LocalizationKeys.DiscoverMediaVideos, "Videolar");
+        service.RegisterTurkish(LocalizationKeys.DiscoverLicense, "Lisans");
+        service.RegisterTurkish(LocalizationKeys.DiscoverLicenseRecommended, "Önerilen");
+        service.RegisterTurkish(LocalizationKeys.DiscoverLicensePublicDomain, "Kamu Malı (Public Domain)");
+        service.RegisterTurkish(LocalizationKeys.DiscoverLicenseCC0, "CC0 (Kamu Malı)");
+        service.RegisterTurkish(LocalizationKeys.DiscoverLicenseCCBY, "CC BY (Atıf)");
+        service.RegisterTurkish(LocalizationKeys.DiscoverLicenseCCBYSA, "CC BY-SA (Atıf-BenzerPaylaşım)");
+        service.RegisterTurkish(LocalizationKeys.DiscoverSort, "Sırala");
+        service.RegisterTurkish(LocalizationKeys.DiscoverSortRelevant, "İlgili");
+        service.RegisterTurkish(LocalizationKeys.DiscoverSortNewest, "En Yeni");
+        service.RegisterTurkish(LocalizationKeys.DiscoverSortPopular, "Popüler");
+        service.RegisterTurkish(LocalizationKeys.DiscoverPresetNature, "Doğa");
+        service.RegisterTurkish(LocalizationKeys.DiscoverPresetSpace, "Uzay");
+        service.RegisterTurkish(LocalizationKeys.DiscoverPresetCity, "Şehir");
+        service.RegisterTurkish(LocalizationKeys.DiscoverPresetMinimal, "Minimal");
+        service.RegisterTurkish(LocalizationKeys.DiscoverPresetAbstract, "Soyut");
+        service.RegisterTurkish(LocalizationKeys.DiscoverPresetDark, "Koyu");
+        service.RegisterTurkish(LocalizationKeys.DiscoverPresetLandscape, "Manzara");
+        service.RegisterTurkish(LocalizationKeys.DiscoverSource, "Kaynak");
+        service.RegisterTurkish(LocalizationKeys.DiscoverLicenseLabel, "Lisans");
+        service.RegisterTurkish(LocalizationKeys.DiscoverCreator, "Oluşturan");
+        service.RegisterTurkish(LocalizationKeys.DiscoverAddToLibrary, "Kütüphaneye Ekle");
+        service.RegisterTurkish(LocalizationKeys.DiscoverAlreadyInLibrary, "Zaten Kütüphanede");
+        service.RegisterTurkish(LocalizationKeys.DiscoverPreview, "Önizleme");
+        service.RegisterTurkish(LocalizationKeys.DiscoverOpenOriginal, "Orijinali Aç");
+        service.RegisterTurkish(LocalizationKeys.DiscoverDownloading, "İndiriliyor");
+        service.RegisterTurkish(LocalizationKeys.DiscoverProcessing, "İşleniyor");
+        service.RegisterTurkish(LocalizationKeys.DiscoverAdded, "Eklendi");
+        service.RegisterTurkish(LocalizationKeys.DiscoverDownloadFailed, "İndirme Başarısız");
+        service.RegisterTurkish(LocalizationKeys.DiscoverLicenseDisclaimer, "Lisans bilgisi kaynak sağlayıcıdan alınmıştır.");
+        service.RegisterTurkish(LocalizationKeys.DiscoverNoInternet, "İnternet bağlantısı yok.");
+        service.RegisterTurkish(LocalizationKeys.DiscoverRateLimited, "İstek sınırına ulaşıldı. Lütfen bir süre sonra yeniden deneyin.");
+        service.RegisterTurkish(LocalizationKeys.DiscoverNoResults, "Aramanıza uygun duvar kağıdı bulunamadı.");
+        service.RegisterTurkish(LocalizationKeys.SetOnlineLibraryHeader, "Çevrimiçi Kütüphane");
+        service.RegisterTurkish(LocalizationKeys.SetOnlineLibrarySubtitle, "Açık lisanslı duvar kağıdı sağlayıcılarını yapılandırın.");
+        service.RegisterTurkish(LocalizationKeys.SetOnlineOpenverse, "Openverse");
+        service.RegisterTurkish(LocalizationKeys.SetOnlineWikimedia, "Wikimedia Commons");
+        service.RegisterTurkish(LocalizationKeys.SetOnlineNasa, "NASA");
     }
 }
