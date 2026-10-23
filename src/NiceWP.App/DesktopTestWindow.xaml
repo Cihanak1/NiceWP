@@ -332,10 +332,10 @@
                         </Border>
 
                         <!-- Discover Grid View -->
-                        <GridView x:Name="DiscoverGridView" SelectionMode="None" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <GridView x:Name="DiscoverGridView" SelectionMode="None" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.IsScrollInertiaEnabled="True" ShowsScrollingPlaceholders="False">
                             <GridView.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <ItemsWrapGrid Orientation="Horizontal" ItemWidth="272" />
+                                    <ItemsWrapGrid Orientation="Horizontal" ItemWidth="272" ItemHeight="276" />
                                 </ItemsPanelTemplate>
                             </GridView.ItemsPanel>
                             <GridView.ItemContainerStyle>
