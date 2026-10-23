@@ -40,6 +40,7 @@ public sealed class DesktopGestureInputMonitor : IDisposable
     private double _startY;
     private int _hotCornerSize = 32;
     private bool _isDisposed;
+    private double _lastLoggedProgress = -1.0;
 
     private int _dispatchInFlight;
     private long _latestPackedPointer;
@@ -294,6 +295,7 @@ public sealed class DesktopGestureInputMonitor : IDisposable
         _isHovering = false;
         _startX = x;
         _startY = y;
+        _lastLoggedProgress = -1.0;
 
         Telemetry.Reset();
         _totalPointerEvents = 0;
@@ -390,7 +392,11 @@ public sealed class DesktopGestureInputMonitor : IDisposable
             Telemetry.RecordFrame(inputLatencyMs, sw.Elapsed.TotalMilliseconds, 0);
 
             var progress = _coordinator.CurrentContext?.Progress ?? 0.0;
-            LogAudit("ProgressChanged", $"Drag moved to ({curX},{curY}), Progress: {progress:P1}");
+            if (_lastLoggedProgress < 0 || Math.Abs(progress - _lastLoggedProgress) >= 0.10)
+            {
+                _lastLoggedProgress = progress;
+                LogAudit("ProgressChanged", $"Drag moved to ({curX},{curY}), Progress: {progress:P1}");
+            }
         }
 
         Interlocked.Exchange(ref _dispatchInFlight, 0);

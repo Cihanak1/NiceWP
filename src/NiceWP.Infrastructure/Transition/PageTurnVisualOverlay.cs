@@ -65,7 +65,16 @@ public sealed class PageTurnVisualOverlay : IDisposable
     private nint _penFlapHighlight;
     private nint _penCrease;
     private nint _penEdge;
+    private nint _reusableClipPath;
     private bool _gdiResourcesCreated;
+
+    // Reusable point buffers (zero managed heap array allocations in hot render loop)
+    private readonly GdiPlusNativeMethods.GpPointF[] _revealedPts = new GdiPlusNativeMethods.GpPointF[3];
+    private readonly GdiPlusNativeMethods.GpPointF[] _shadowPts = new GdiPlusNativeMethods.GpPointF[4];
+    private readonly GdiPlusNativeMethods.GpPointF[] _flapPts = new GdiPlusNativeMethods.GpPointF[3];
+    private readonly GdiPlusNativeMethods.GpPointF[] _hoverShadowPts = new GdiPlusNativeMethods.GpPointF[3];
+    private readonly GdiPlusNativeMethods.GpPointF[] _hoverRevealedPts = new GdiPlusNativeMethods.GpPointF[3];
+    private readonly GdiPlusNativeMethods.GpPointF[] _hoverFlapPts = new GdiPlusNativeMethods.GpPointF[3];
 
     // Preloaded image handles for GDI+
     private nint _nextGdiImage;
@@ -284,6 +293,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
         GdiPlusNativeMethods.GdipCreatePen1(0xFFFFFFFF, 1.5f, 0, out _penFlapHighlight);
         GdiPlusNativeMethods.GdipCreatePen1(0x99506070, 1.5f, 0, out _penCrease);
         GdiPlusNativeMethods.GdipCreatePen1(0xCC94A3B8, 1.0f, 0, out _penEdge);
+        GdiPlusNativeMethods.GdipCreatePath(0, out _reusableClipPath);
         _gdiResourcesCreated = true;
     }
 
@@ -296,6 +306,7 @@ public sealed class PageTurnVisualOverlay : IDisposable
         if (_penFlapHighlight != 0) { GdiPlusNativeMethods.GdipDeletePen(_penFlapHighlight); _penFlapHighlight = 0; }
         if (_penCrease != 0) { GdiPlusNativeMethods.GdipDeletePen(_penCrease); _penCrease = 0; }
         if (_penEdge != 0) { GdiPlusNativeMethods.GdipDeletePen(_penEdge); _penEdge = 0; }
+        if (_reusableClipPath != 0) { GdiPlusNativeMethods.GdipDeletePath(_reusableClipPath); _reusableClipPath = 0; }
         _gdiResourcesCreated = false;
     }
 
@@ -359,31 +370,22 @@ public sealed class PageTurnVisualOverlay : IDisposable
             GdiPlusNativeMethods.GdipSetSmoothingMode(g, 2); // AntiAlias
 
             // 1. Shadow underneath the peeled corner
-            var shadowPts = new GdiPlusNativeMethods.GpPointF[]
-            {
-                new() { X = right - peelSize - 4, Y = top },
-                new() { X = right, Y = top },
-                new() { X = right, Y = top + peelSize + 4 }
-            };
-            GdiPlusNativeMethods.GdipFillPolygon(g, _brushShadow, shadowPts, 3, 0);
+            _hoverShadowPts[0] = new GdiPlusNativeMethods.GpPointF { X = right - peelSize - 4, Y = top };
+            _hoverShadowPts[1] = new GdiPlusNativeMethods.GpPointF { X = right, Y = top };
+            _hoverShadowPts[2] = new GdiPlusNativeMethods.GpPointF { X = right, Y = top + peelSize + 4 };
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushShadow, _hoverShadowPts, 3, 0);
 
             // 2. Revealed underlying darker surface
-            var revealedPts = new GdiPlusNativeMethods.GpPointF[]
-            {
-                new() { X = right - peelSize, Y = top },
-                new() { X = right, Y = top },
-                new() { X = right, Y = top + peelSize }
-            };
-            GdiPlusNativeMethods.GdipFillPolygon(g, _brushRevealedBg, revealedPts, 3, 0);
+            _hoverRevealedPts[0] = new GdiPlusNativeMethods.GpPointF { X = right - peelSize, Y = top };
+            _hoverRevealedPts[1] = new GdiPlusNativeMethods.GpPointF { X = right, Y = top };
+            _hoverRevealedPts[2] = new GdiPlusNativeMethods.GpPointF { X = right, Y = top + peelSize };
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushRevealedBg, _hoverRevealedPts, 3, 0);
 
             // 3. Folded corner paper flap
-            var flapPts = new GdiPlusNativeMethods.GpPointF[]
-            {
-                new() { X = right - peelSize, Y = top },
-                new() { X = right - (peelSize * 0.75f), Y = top + (peelSize * 0.75f) },
-                new() { X = right, Y = top + peelSize }
-            };
-            GdiPlusNativeMethods.GdipFillPolygon(g, _brushFlap, flapPts, 3, 0);
+            _hoverFlapPts[0] = new GdiPlusNativeMethods.GpPointF { X = right - peelSize, Y = top };
+            _hoverFlapPts[1] = new GdiPlusNativeMethods.GpPointF { X = right - (peelSize * 0.75f), Y = top + (peelSize * 0.75f) };
+            _hoverFlapPts[2] = new GdiPlusNativeMethods.GpPointF { X = right, Y = top + peelSize };
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushFlap, _hoverFlapPts, 3, 0);
 
             // 4. Subtle flap border
             GdiPlusNativeMethods.GdipDrawLine(g, _penEdge, right - peelSize, top, right - (peelSize * 0.75f), top + (peelSize * 0.75f));
@@ -421,67 +423,54 @@ public sealed class PageTurnVisualOverlay : IDisposable
             GdiPlusNativeMethods.GdipSetSmoothingMode(g, 2); // AntiAlias
 
             // 1. Draw revealed next candidate image or solid dark background
-            var revealedPts = new GdiPlusNativeMethods.GpPointF[]
-            {
-                new() { X = topFoldX, Y = 0 },
-                new() { X = w, Y = 0 },
-                new() { X = w, Y = rightFoldY }
-            };
+            _revealedPts[0] = new GdiPlusNativeMethods.GpPointF { X = topFoldX, Y = 0 };
+            _revealedPts[1] = new GdiPlusNativeMethods.GpPointF { X = w, Y = 0 };
+            _revealedPts[2] = new GdiPlusNativeMethods.GpPointF { X = w, Y = rightFoldY };
 
             var nextImg = Volatile.Read(ref _nextGdiImage);
-            if (nextImg != 0)
+            if (nextImg != 0 && _reusableClipPath != 0)
             {
                 GdiPlusNativeMethods.GdipGetImageWidth(nextImg, out var imgW);
                 GdiPlusNativeMethods.GdipGetImageHeight(nextImg, out var imgH);
 
-                GdiPlusNativeMethods.GdipCreatePath(0, out var path);
-                if (path != 0)
-                {
-                    GdiPlusNativeMethods.GdipAddPathPolygon(path, revealedPts, 3);
-                    GdiPlusNativeMethods.GdipSetClipPath(g, path, 0); // Replace clip
+                GdiPlusNativeMethods.GdipResetPath(_reusableClipPath);
+                GdiPlusNativeMethods.GdipAddPathPolygon(_reusableClipPath, _revealedPts, 3);
+                GdiPlusNativeMethods.GdipSetClipPath(g, _reusableClipPath, 0); // Replace clip
 
-                    GdiPlusNativeMethods.GdipDrawImageRectRectI(g, nextImg,
-                        0, 0, (int)w, (int)h,
-                        0, 0, imgW, imgH, 2, 0, 0, 0);
+                GdiPlusNativeMethods.GdipDrawImageRectRectI(g, nextImg,
+                    0, 0, (int)w, (int)h,
+                    0, 0, imgW, imgH, 2, 0, 0, 0);
 
-                    GdiPlusNativeMethods.GdipResetClip(g);
-                    GdiPlusNativeMethods.GdipDeletePath(path);
-                }
+                GdiPlusNativeMethods.GdipResetClip(g);
             }
             else
             {
                 // Fallback rich dark revealed background
-                GdiPlusNativeMethods.GdipFillPolygon(g, _brushRevealedBg, revealedPts, 3, 0);
+                GdiPlusNativeMethods.GdipFillPolygon(g, _brushRevealedBg, _revealedPts, 3, 0);
             }
 
             // 2. Drop shadow under the fold line
-            var shadowPts = new GdiPlusNativeMethods.GpPointF[]
-            {
-                new() { X = Math.Max(0, topFoldX - 20), Y = 0 },
-                new() { X = topFoldX, Y = 0 },
-                new() { X = w, Y = rightFoldY },
-                new() { X = w, Y = Math.Min(h, rightFoldY + 20) }
-            };
-            GdiPlusNativeMethods.GdipFillPolygon(g, _brushShadow, shadowPts, 4, 0);
+            _shadowPts[0] = new GdiPlusNativeMethods.GpPointF { X = Math.Max(0, topFoldX - 20), Y = 0 };
+            _shadowPts[1] = new GdiPlusNativeMethods.GpPointF { X = topFoldX, Y = 0 };
+            _shadowPts[2] = new GdiPlusNativeMethods.GpPointF { X = w, Y = rightFoldY };
+            _shadowPts[3] = new GdiPlusNativeMethods.GpPointF { X = w, Y = Math.Min(h, rightFoldY + 20) };
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushShadow, _shadowPts, 4, 0);
 
             // 3. Curled paper flap
-            var flapPts = new GdiPlusNativeMethods.GpPointF[]
-            {
-                new() { X = topFoldX, Y = 0 },
-                new() { X = apexX, Y = apexY },
-                new() { X = w, Y = rightFoldY }
-            };
+            _flapPts[0] = new GdiPlusNativeMethods.GpPointF { X = topFoldX, Y = 0 };
+            _flapPts[1] = new GdiPlusNativeMethods.GpPointF { X = apexX, Y = apexY };
+            _flapPts[2] = new GdiPlusNativeMethods.GpPointF { X = w, Y = rightFoldY };
 
             // Subtle paper wave displacement if enabled
             if (context.PaperWaveEnabled)
             {
                 var waveAmp = (float)(Math.Sin(context.Progress * Math.PI * 4) * 6.0);
-                flapPts[1].X += waveAmp;
-                flapPts[1].Y -= waveAmp * 0.5f;
+                _flapPts[1].X += waveAmp;
+                _flapPts[1].Y -= waveAmp * 0.5f;
             }
 
             // Paper flap body (backside of page)
-            GdiPlusNativeMethods.GdipFillPolygon(g, _brushFlap, flapPts, 3, 0);
+            GdiPlusNativeMethods.GdipFillPolygon(g, _brushFlap, _flapPts, 3, 0);
 
             // Flap edge highlight line
             GdiPlusNativeMethods.GdipDrawLine(g, _penFlapHighlight, topFoldX, 0, apexX, apexY);
@@ -871,6 +860,9 @@ public sealed class PageTurnVisualOverlay : IDisposable
 
         [DllImport("gdiplus.dll", ExactSpelling = true)]
         public static extern int GdipCreatePath(int brushMode, out nint path);
+
+        [DllImport("gdiplus.dll", ExactSpelling = true)]
+        public static extern int GdipResetPath(nint path);
 
         [DllImport("gdiplus.dll", ExactSpelling = true)]
         public static extern int GdipDeletePath(nint path);
