@@ -171,4 +171,52 @@ public sealed class MigrationTests : IDisposable
         Assert.Equal(WallpaperColorTemperature.Warm, meta.ColorTemperature);
         Assert.Equal(WallpaperCost.Light, meta.ResourceClass);
     }
+
+    [Fact]
+    public async Task Settings_Corrupted_QuarantinesFile_AndReturnsSafeDefaults()
+    {
+        var settingsPath = Path.Combine(_tempDirectory, "settings_corrupt.json");
+        await File.WriteAllTextAsync(settingsPath, MigrationFixtures.Settings_Corrupt, Encoding.UTF8);
+
+        var service = new SettingsService(settingsPath);
+        var settings = await service.LoadAsync();
+
+        Assert.NotNull(settings);
+        Assert.True(settings.RestoreLastWallpaper);
+
+        // Verify quarantine backup was generated
+        var backups = Directory.GetFiles(_tempDirectory, "settings_corrupt.json.corrupt.*.bak");
+        Assert.Single(backups);
+    }
+
+    [Fact]
+    public async Task Library_Corrupted_QuarantinesFile_AndReturnsSafeDefaults()
+    {
+        var libraryPath = Path.Combine(_tempDirectory, "library_corrupt.json");
+        await File.WriteAllTextAsync(libraryPath, MigrationFixtures.Library_Corrupt, Encoding.UTF8);
+
+        var service = new WallpaperLibraryService(libraryPath);
+        var library = await service.LoadAsync();
+
+        Assert.NotNull(library);
+        Assert.Empty(library.Items);
+
+        // Verify quarantine backup was generated
+        var backups = Directory.GetFiles(_tempDirectory, "library_corrupt.json.corrupt.*.bak");
+        Assert.Single(backups);
+    }
+
+    [Fact]
+    public async Task Analysis_Corrupted_QuarantinesFile_Safely()
+    {
+        var analysisPath = Path.Combine(_tempDirectory, "analysis_corrupt.json");
+        await File.WriteAllTextAsync(analysisPath, "{ broken analysis json content ...", Encoding.UTF8);
+
+        var store = new WallpaperAnalysisStore(analysisPath);
+        await store.LoadAsync();
+
+        // Verify quarantine backup was generated
+        var backups = Directory.GetFiles(_tempDirectory, "analysis_corrupt.json.corrupt.*.bak");
+        Assert.Single(backups);
+    }
 }
