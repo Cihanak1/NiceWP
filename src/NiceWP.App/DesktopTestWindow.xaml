@@ -163,6 +163,22 @@
                                                 <FontIcon x:Name="MenuFavoriteIcon" Glyph="" FontSize="14" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem x:Name="MenuMoreLikeThisItem" Text="More Like This" Click="OnMenuMoreLikeThisClick">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="" FontSize="14" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="MenuLessLikeThisItem" Text="Less Like This" Click="OnMenuLessLikeThisClick">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="" FontSize="14" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="MenuNeverShowAgainItem" Text="Never Show Again" Click="OnMenuNeverShowAgainClick">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="" FontSize="14" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="MenuRenameItem" Text="Rename…" Click="OnMenuRenameClick">
                                             <MenuFlyoutItem.Icon>
                                                 <FontIcon Glyph="" FontSize="14" />

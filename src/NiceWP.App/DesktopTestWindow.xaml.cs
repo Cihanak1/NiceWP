@@ -1168,6 +1168,43 @@ public sealed partial class DesktopTestWindow : Window
         OnToggleFavorite(sender, args);
     }
 
+    private void OnMenuMoreLikeThisClick(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        var entry = GetEntryFromSender(sender);
+        if (entry == null || libraryController?.Personalization == null) return;
+        var meta = analysisStore?.TryGet(entry.Id, out var m) == true ? m : null;
+        libraryController.Personalization.RecordFeedback(entry.Id, WallpaperPreferenceAction.MoreLikeThis, meta);
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        StatusText.Text = isTr ? $"'{entry.DisplayName}' için tercih güncellendi: Daha çok gösterilecek." : $"Preference updated for '{entry.DisplayName}': Will show more like this.";
+    }
+
+    private void OnMenuLessLikeThisClick(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        var entry = GetEntryFromSender(sender);
+        if (entry == null || libraryController?.Personalization == null) return;
+        var meta = analysisStore?.TryGet(entry.Id, out var m) == true ? m : null;
+        libraryController.Personalization.RecordFeedback(entry.Id, WallpaperPreferenceAction.LessLikeThis, meta);
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        StatusText.Text = isTr ? $"'{entry.DisplayName}' için tercih güncellendi: Daha az gösterilecek." : $"Preference updated for '{entry.DisplayName}': Will show less like this.";
+    }
+
+    private void OnMenuNeverShowAgainClick(object sender, RoutedEventArgs args)
+    {
+        if (IsInteractionBusy || closed) return;
+        var entry = GetEntryFromSender(sender);
+        if (entry == null || libraryController?.Personalization == null) return;
+        var isExcluded = libraryController.Personalization.IsExcluded(entry.Id);
+        var action = isExcluded ? WallpaperPreferenceAction.RemoveExclusion : WallpaperPreferenceAction.NeverShowAgain;
+        libraryController.Personalization.RecordFeedback(entry.Id, action);
+        RenderLibraryItems();
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        StatusText.Text = isExcluded
+            ? (isTr ? $"'{entry.DisplayName}' hariç tutulanlardan çıkarıldı." : $"'{entry.DisplayName}' exclusion removed.")
+            : (isTr ? $"'{entry.DisplayName}' hariç tutuldu: Bir daha gösterilmeyecek." : $"'{entry.DisplayName}' excluded: Will never show again.");
+    }
+
     private void OnMenuRemoveClick(object sender, RoutedEventArgs args)
     {
         if (IsInteractionBusy || closed) return;
@@ -1301,6 +1338,8 @@ public sealed partial class DesktopTestWindow : Window
             string.Equals(item.Id, entry.Id, StringComparison.OrdinalIgnoreCase)) ?? entry;
 
         var isIdle = !IsInteractionBusy;
+        var loc = LocalizationService.Instance;
+        var isTr = loc.CurrentLanguage == EffectiveLanguage.Turkish;
 
         foreach (var item in flyout.Items)
         {
@@ -1322,6 +1361,21 @@ public sealed partial class DesktopTestWindow : Window
                         {
                             favIcon.Glyph = currentEntry.IsFavorite ? "\uE735" : "\uE734";
                         }
+                        break;
+                    case "MenuMoreLikeThisItem":
+                        mfi.Text = isTr ? "Bunun Gibilerini Göster" : "More Like This";
+                        mfi.IsEnabled = isIdle;
+                        break;
+                    case "MenuLessLikeThisItem":
+                        mfi.Text = isTr ? "Bunun Gibilerini Azalt" : "Less Like This";
+                        mfi.IsEnabled = isIdle;
+                        break;
+                    case "MenuNeverShowAgainItem":
+                        var isExcluded = libraryController.Personalization?.IsExcluded(currentEntry.Id) == true;
+                        mfi.Text = isExcluded
+                            ? (isTr ? "Hariç Tutmayı Kaldır" : "Remove Exclusion")
+                            : (isTr ? "Bir Daha Gösterme" : "Never Show Again");
+                        mfi.IsEnabled = isIdle;
                         break;
                     case "MenuRenameItem":
                         mfi.Text = LocalizationService.Instance.GetString(LocalizationKeys.ItemRename);
@@ -1771,6 +1825,11 @@ public sealed partial class DesktopTestWindow : Window
             {
                 badge.Visibility = Visibility.Visible;
                 badgeText.Text = isTr ? "AKTİF" : "ACTIVE";
+            }
+            else if (libraryController?.Personalization?.IsExcluded(currentEntry.Id) == true)
+            {
+                badge.Visibility = Visibility.Visible;
+                badgeText.Text = isTr ? "HARİÇ TUTULDU" : "EXCLUDED";
             }
             else if (currentEntry.IsRemoteImported)
             {
