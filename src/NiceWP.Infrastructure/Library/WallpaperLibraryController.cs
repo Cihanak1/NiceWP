@@ -54,7 +54,8 @@ public sealed record WallpaperLibraryEntryView(
     bool IsRemoteImported = false,
     string? SourceHost = null,
     string? SourceDisplayUrl = null,
-    WallpaperCost Cost = WallpaperCost.Light)
+    WallpaperCost Cost = WallpaperCost.Light,
+    NiceWP.Core.Discover.WallpaperOrigin? Origin = null)
 {
     public string StatusText => IsMissing ? "Missing" : string.Empty;
 
@@ -89,6 +90,10 @@ public sealed record WallpaperLibraryEntryView(
             return isTurkish
                 ? $"{DisplayName}\n{FilePath}\nDurum: Dosya diskte bulunamadı"
                 : $"{DisplayName}\n{FilePath}\nStatus: File not found on disk";
+        }
+        if (Origin != null && !string.IsNullOrWhiteSpace(Origin.AttributionText))
+        {
+            return $"{DisplayName}\n{FilePath}\n{Origin.AttributionText}";
         }
         if (IsRemoteImported && !string.IsNullOrWhiteSpace(SourceHost))
         {
@@ -125,7 +130,8 @@ public sealed record WallpaperLibraryEntryView(
             LastUsedAtUtc: item.LastUsedAtUtc,
             IsRemoteImported: item.IsRemoteImported,
             SourceHost: item.SourceHost,
-            SourceDisplayUrl: item.SourceDisplayUrl);
+            SourceDisplayUrl: item.SourceDisplayUrl,
+            Origin: item.Origin);
     }
 }
 
@@ -177,6 +183,10 @@ public sealed class WallpaperLibraryController : IDisposable
     public WallpaperTransitionCoordinator TransitionCoordinator { get; }
 
     public PageTurnPreloadService TransitionPreloadService { get; }
+
+    public Discover.WallpaperDiscoverService DiscoverService { get; }
+
+    public Discover.OnlineWallpaperDownloader OnlineDownloader { get; }
 
     public RuntimeIpcClient IpcClient => ipcClient;
 
@@ -275,7 +285,11 @@ public sealed class WallpaperLibraryController : IDisposable
         WallpaperScheduleService? scheduleService = null,
         WallpaperTransitionCoordinator? transitionCoordinator = null,
         PageTurnPreloadService? preloadService = null,
-        Func<AppSettings>? getSettings = null)
+        Func<AppSettings>? getSettings = null,
+        Discover.WallpaperDiscoverService? discoverService = null,
+        Discover.OnlineWallpaperDownloader? onlineDownloader = null,
+        Analysis.WallpaperAnalysisService? analysisService = null,
+        WallpaperThumbnailService? thumbnailService = null)
     {
         Service = service ?? new WallpaperLibraryService();
         RemoteImportService = remoteImportService ?? new RemoteWallpaperImportService(Service);
@@ -298,6 +312,8 @@ public sealed class WallpaperLibraryController : IDisposable
             getHostStatus: ct => this.ipcClient.GetStatusAsync(cancellationToken: ct),
             onScheduleApplied: () => Rotation.ResetTimer());
 
+        DiscoverService = discoverService ?? new Discover.WallpaperDiscoverService();
+        OnlineDownloader = onlineDownloader ?? new Discover.OnlineWallpaperDownloader(Service, analysisService, thumbnailService);
         TransitionPreloadService = preloadService ?? new PageTurnPreloadService();
         TransitionCoordinator = transitionCoordinator ?? new WallpaperTransitionCoordinator(
             getRotationService: () => Rotation,
@@ -329,7 +345,8 @@ public sealed class WallpaperLibraryController : IDisposable
                 LastUsedAtUtc = v.LastUsedAtUtc,
                 IsRemoteImported = v.IsRemoteImported,
                 SourceHost = v.SourceHost,
-                SourceDisplayUrl = v.SourceDisplayUrl
+                SourceDisplayUrl = v.SourceDisplayUrl,
+                Origin = v.Origin
             }).ToList();
         }
     }
