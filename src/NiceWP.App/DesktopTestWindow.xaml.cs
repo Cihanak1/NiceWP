@@ -28,6 +28,8 @@ using NiceWP.Infrastructure.Localization;
 using NiceWP.Infrastructure.Scheduling;
 using NiceWP.Infrastructure.Adaptive;
 using NiceWP.Infrastructure.Transition;
+using NiceWP.Core.Personalization;
+using NiceWP.Infrastructure.Personalization;
 using NiceWP.Infrastructure.Analysis;
 using NiceWP.Infrastructure.SmartScenes;
 using NiceWP.Infrastructure.Discover;
@@ -1503,6 +1505,64 @@ public sealed partial class DesktopTestWindow : Window
                 UpdateLibraryActionState();
             }
         }
+    }
+
+    private DispatcherTimer? _personalizationFeedbackTimer;
+
+    private void ShowPersonalizationFeedback(string message)
+    {
+        if (ActivePersonalizationFeedbackText == null) return;
+        ActivePersonalizationFeedbackText.Text = message;
+        ActivePersonalizationFeedbackText.Visibility = Visibility.Visible;
+        if (_personalizationFeedbackTimer == null)
+        {
+            _personalizationFeedbackTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+            _personalizationFeedbackTimer.Tick += (s, e) =>
+            {
+                _personalizationFeedbackTimer?.Stop();
+                if (ActivePersonalizationFeedbackText != null) ActivePersonalizationFeedbackText.Visibility = Visibility.Collapsed;
+            };
+        }
+        else
+        {
+            _personalizationFeedbackTimer.Stop();
+        }
+        _personalizationFeedbackTimer.Start();
+    }
+
+    private WallpaperLibraryEntryView? GetActiveLibraryItem()
+    {
+        if (string.IsNullOrWhiteSpace(activeWallpaperPath) || libraryController == null) return null;
+        return libraryController.AllItems.FirstOrDefault(i => string.Equals(i.FilePath, activeWallpaperPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void OnActiveMoreLikeThisClicked(object sender, RoutedEventArgs e)
+    {
+        var item = GetActiveLibraryItem();
+        if (item == null || libraryController?.Personalization == null) return;
+        var meta = analysisStore?.TryGet(item.Id, out var m) == true ? m : null;
+        libraryController.Personalization.RecordFeedback(item.Id, WallpaperPreferenceAction.MoreLikeThis, meta);
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        ShowPersonalizationFeedback(isTr ? "Tercih güncellendi: Daha çok gösterilecek" : "Preference updated: Will show more like this");
+    }
+
+    private void OnActiveLessLikeThisClicked(object sender, RoutedEventArgs e)
+    {
+        var item = GetActiveLibraryItem();
+        if (item == null || libraryController?.Personalization == null) return;
+        var meta = analysisStore?.TryGet(item.Id, out var m) == true ? m : null;
+        libraryController.Personalization.RecordFeedback(item.Id, WallpaperPreferenceAction.LessLikeThis, meta);
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        ShowPersonalizationFeedback(isTr ? "Tercih güncellendi: Daha az gösterilecek" : "Preference updated: Will show less like this");
+    }
+
+    private void OnActiveNeverShowAgainClicked(object sender, RoutedEventArgs e)
+    {
+        var item = GetActiveLibraryItem();
+        if (item == null || libraryController?.Personalization == null) return;
+        libraryController.Personalization.RecordFeedback(item.Id, WallpaperPreferenceAction.NeverShowAgain);
+        var isTr = LocalizationService.Instance.CurrentLanguage == EffectiveLanguage.Turkish;
+        ShowPersonalizationFeedback(isTr ? "Hariç tutuldu: Bir daha gösterilmeyecek" : "Excluded: Will never show again");
     }
 
     private async void OnRefreshStatus(object sender, RoutedEventArgs args)
@@ -3707,6 +3767,12 @@ public sealed partial class DesktopTestWindow : Window
         if (ActiveEmptySubtitleText != null) ActiveEmptySubtitleText.Text = isTr ? "Kütüphaneden bir duvar kağıdı uygulayın veya aşağıdan bir dosya seçin." : "Apply a wallpaper from Library or choose a file below.";
         if (ActiveSourceResolutionHeader != null) ActiveSourceResolutionHeader.Text = isTr ? "Kaynak çözünürlüğü · son ölçüm" : "Source resolution · last measurement";
         if (ActiveMissingWarningText != null) ActiveMissingWarningText.Text = isTr ? "Duvar kağıdı dosyası bulunamadı." : "The wallpaper file is missing.";
+        if (ActiveMoreLikeThisText != null) ActiveMoreLikeThisText.Text = isTr ? "Bunun Gibilerini Göster" : "More Like This";
+        if (ActiveLessLikeThisText != null) ActiveLessLikeThisText.Text = isTr ? "Bunun Gibilerini Azalt" : "Less Like This";
+        if (ActiveNeverShowAgainText != null) ActiveNeverShowAgainText.Text = isTr ? "Bir Daha Gösterme" : "Never Show Again";
+        if (ActiveMoreLikeThisButton != null) ToolTipService.SetToolTip(ActiveMoreLikeThisButton, isTr ? "Bunun gibi duvar kağıtlarını daha sık göster" : "Show wallpapers like this more often");
+        if (ActiveLessLikeThisButton != null) ToolTipService.SetToolTip(ActiveLessLikeThisButton, isTr ? "Bunun gibi duvar kağıtlarını daha az göster" : "Show wallpapers like this less often");
+        if (ActiveNeverShowAgainButton != null) ToolTipService.SetToolTip(ActiveNeverShowAgainButton, isTr ? "Bu duvar kağıdını otomatik rotasyonda bir daha gösterme" : "Never show this wallpaper again in automatic rotation");
 
         UpdateActiveDetails(activeWallpaperPaused, activePlaybackState, statusKnown: true);
         UpdateRotationDetailsUI();
