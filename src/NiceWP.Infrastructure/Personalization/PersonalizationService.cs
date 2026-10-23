@@ -32,6 +32,22 @@ public sealed class PersonalizationService
     public event EventHandler<string>? PreferenceUpdated;
     public event EventHandler<string>? ExclusionChanged;
     public event EventHandler? ResetCompleted;
+    public event EventHandler<PersonalizationAuditEvent>? AuditEventLogged;
+
+    private void LogAudit(PersonalizationAuditEventType eventType, string wallpaperId, double? prevWeight, double? newWeight, string message)
+    {
+        var evt = new PersonalizationAuditEvent
+        {
+            EventType = eventType,
+            WallpaperId = wallpaperId,
+            PreviousWeight = prevWeight,
+            NewWeight = newWeight,
+            TimestampUtc = DateTimeOffset.UtcNow,
+            Message = message
+        };
+        System.Diagnostics.Trace.WriteLine($"[PersonalizationAudit] {eventType}: {message}");
+        AuditEventLogged?.Invoke(this, evt);
+    }
 
     public PersonalizationService(
         PersonalizationStore? store = null,
@@ -103,6 +119,12 @@ public sealed class PersonalizationService
         // Exclusion changes trigger immediate save for safety
         _ = _store.SaveAsync(CancellationToken.None);
         ExclusionChanged?.Invoke(this, wallpaperId);
+        LogAudit(
+            excluded ? PersonalizationAuditEventType.WallpaperExcluded : PersonalizationAuditEventType.WallpaperExclusionRemoved,
+            wallpaperId,
+            null,
+            null,
+            excluded ? $"Wallpaper '{wallpaperId}' excluded (Never Show Again)" : $"Wallpaper '{wallpaperId}' exclusion removed");
     }
 
     /// <summary>
@@ -125,22 +147,28 @@ public sealed class PersonalizationService
             {
                 case WallpaperPreferenceAction.MoreLikeThis:
                     summary.MoreLikeThisCount++;
+                    double prevM = GetOrCreateRecord(wallpaperId).Weight;
                     AdjustWallpaperWeight(wallpaperId, MoreLikeThisItemStep);
+                    double newM = GetOrCreateRecord(wallpaperId).Weight;
                     if (metadata != null)
                     {
                         AdjustFeatureWeights(metadata, MoreLikeThisFeatureStep);
                     }
                     _store.RequestSave();
+                    LogAudit(PersonalizationAuditEventType.PreferenceIncreased, wallpaperId, prevM, newM, $"Preference increased: Step=+{MoreLikeThisItemStep:F2}, Weight={newM:F2}");
                     break;
 
                 case WallpaperPreferenceAction.LessLikeThis:
                     summary.LessLikeThisCount++;
+                    double prevL = GetOrCreateRecord(wallpaperId).Weight;
                     AdjustWallpaperWeight(wallpaperId, LessLikeThisItemStep);
+                    double newL = GetOrCreateRecord(wallpaperId).Weight;
                     if (metadata != null)
                     {
                         AdjustFeatureWeights(metadata, LessLikeThisFeatureStep);
                     }
                     _store.RequestSave();
+                    LogAudit(PersonalizationAuditEventType.PreferenceDecreased, wallpaperId, prevL, newL, $"Preference decreased: Step={LessLikeThisItemStep:F2}, Weight={newL:F2}");
                     break;
 
                 case WallpaperPreferenceAction.NeverShowAgain:
@@ -180,6 +208,7 @@ public sealed class PersonalizationService
             _store.RequestSave();
         }
 
+        LogAudit(PersonalizationAuditEventType.FavoriteToggled, wallpaperId, null, null, $"Favorite signal recorded: IsFavorite={isFavorite}");
         PreferenceUpdated?.Invoke(this, wallpaperId);
     }
 
@@ -214,6 +243,7 @@ public sealed class PersonalizationService
             }
 
             _store.RequestSave();
+            LogAudit(PersonalizationAuditEventType.ManualWallpaperApplied, item.Id, null, record.Weight, $"Manual wallpaper applied: Count={record.ManualApplyCount}, Weight={record.Weight:F2}");
         }
 
         PreferenceUpdated?.Invoke(this, item.Id);
@@ -240,6 +270,7 @@ public sealed class PersonalizationService
     public async Task ResetAsync(CancellationToken cancellationToken = default)
     {
         await _store.ResetAsync(cancellationToken).ConfigureAwait(false);
+        LogAudit(PersonalizationAuditEventType.PersonalizationReset, string.Empty, null, null, "Personalization profile reset to defaults");
         ResetCompleted?.Invoke(this, EventArgs.Empty);
     }
 
