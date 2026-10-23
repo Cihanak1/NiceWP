@@ -1339,11 +1339,37 @@ public sealed partial class DesktopTestWindow : Window
         }
     }
 
+    private CancellationTokenSource? _librarySearchDebounceCts;
+
     private void OnSearchTextChanged(object sender, TextChangedEventArgs args)
     {
         if (libraryController == null || closed) return;
-        libraryController.SetSearchText(LibrarySearchBox?.Text);
-        RenderLibraryItems();
+        var newText = LibrarySearchBox?.Text?.Trim() ?? string.Empty;
+        if (string.Equals(libraryController.SearchText, newText, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _librarySearchDebounceCts?.Cancel();
+        _librarySearchDebounceCts = new CancellationTokenSource();
+        var token = _librarySearchDebounceCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(200, token);
+                if (token.IsCancellationRequested) return;
+
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (token.IsCancellationRequested || closed || libraryController == null) return;
+                    libraryController.SetSearchText(newText);
+                    RenderLibraryItems();
+                });
+            }
+            catch (OperationCanceledException) { }
+        }, token);
     }
 
     private void OnFilterSelectionChanged(object sender, SelectionChangedEventArgs args)
