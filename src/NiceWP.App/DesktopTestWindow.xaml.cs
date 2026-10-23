@@ -3287,6 +3287,7 @@ public sealed partial class DesktopTestWindow : Window
         {
             gestureInputMonitor?.InvalidateBounds();
             visualOverlay?.Hide();
+            _ = SyncRuntimeStatusAsync();
         });
     }
 
