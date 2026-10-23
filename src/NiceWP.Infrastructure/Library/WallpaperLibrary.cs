@@ -62,6 +62,22 @@ public sealed class WallpaperLibrary
             string.Equals(item.SourceDisplayUrl, trimmedUrl, StringComparison.OrdinalIgnoreCase));
     }
 
+    public WallpaperLibraryItem? FindByOrigin(string? provider, string? remoteId)
+    {
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(remoteId) || Items == null)
+        {
+            return null;
+        }
+
+        var trimmedProvider = provider.Trim();
+        var trimmedId = remoteId.Trim();
+
+        return Items.FirstOrDefault(item =>
+            item?.Origin != null &&
+            string.Equals(item.Origin.Provider, trimmedProvider, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(item.Origin.RemoteId, trimmedId, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
     /// Returns a sanitized copy of the library with valid version, normalized items, and no duplicate IDs or paths.
     /// If the library version is unsupported or Items is null, returns an empty Version 1 library.
@@ -179,7 +195,8 @@ public sealed class WallpaperLibrary
             LastUsedAtUtc = rawItem.LastUsedAtUtc?.ToUniversalTime(),
             IsRemoteImported = rawItem.IsRemoteImported,
             SourceHost = string.IsNullOrWhiteSpace(rawItem.SourceHost) ? null : rawItem.SourceHost.Trim(),
-            SourceDisplayUrl = string.IsNullOrWhiteSpace(rawItem.SourceDisplayUrl) ? null : rawItem.SourceDisplayUrl.Trim()
+            SourceDisplayUrl = string.IsNullOrWhiteSpace(rawItem.SourceDisplayUrl) ? null : rawItem.SourceDisplayUrl.Trim(),
+            Origin = rawItem.Origin
         };
         return true;
     }

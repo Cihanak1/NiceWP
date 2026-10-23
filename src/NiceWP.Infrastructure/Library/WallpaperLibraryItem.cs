@@ -28,6 +28,9 @@ public sealed class WallpaperLibraryItem
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? SourceDisplayUrl { get; set; }
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NiceWP.Core.Discover.WallpaperOrigin? Origin { get; set; }
+
     /// <summary>
     /// Computes at runtime whether the underlying wallpaper file currently exists on disk.
     /// </summary>
